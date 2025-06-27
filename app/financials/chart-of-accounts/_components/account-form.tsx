@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { accountSchema, accountTypes, type AccountFormValues } from "../_lib/schema"
@@ -8,29 +8,26 @@ import { addAccountAction, updateAccountAction } from "../_actions/server-action
 import { Button } from "@/components/ui/button"
 import { Form, FormField, FormItem, FormLabel, FormMessage, FormControl } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import type { ChartOfAccount } from "../_actions/server-actions"
+import type { ChartOfAccount } from "./accounts-table-client"
 
 interface Props {
   initialData?: ChartOfAccount | null
   accountId?: number | null
 }
 
-function AccountForm({ initialData, accountId }: Props) {
+export default function AccountForm({ initialData, accountId }: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const [parentOpts, setParentOpts] = useState<ChartOfAccount[]>([])
-  const [isPending, startTransition] = useTransition()
+  const [pending, setPending] = useState(false)
 
-  /* -------------------------------------------------------- */
-  /*  FORM SETUP                                              */
-  /* -------------------------------------------------------- */
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
@@ -43,9 +40,7 @@ function AccountForm({ initialData, accountId }: Props) {
     },
   })
 
-  /* -------------------------------------------------------- */
-  /*  PARENT ACCOUNTS DROP-DOWN                               */
-  /* -------------------------------------------------------- */
+  /* fetch parent accounts in the browser */
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -54,42 +49,32 @@ function AccountForm({ initialData, accountId }: Props) {
       .eq("is_active", true)
       .order("account_code")
       .then(({ data }) => {
-        const filtered = initialData && data ? data.filter((d) => d.id !== initialData.id) : data
-        setParentOpts((filtered || []) as ChartOfAccount[])
+        const filtered = initialData && data ? data.filter((d) => d.id !== initialData.id) : (data ?? [])
+        setParentOpts(filtered as ChartOfAccount[])
       })
   }, [initialData])
 
-  /* -------------------------------------------------------- */
-  /*  SUBMIT HANDLER                                          */
-  /* -------------------------------------------------------- */
-  function onSubmit(values: AccountFormValues) {
-    startTransition(async () => {
-      const res = accountId ? await updateAccountAction(accountId, values) : await addAccountAction(values)
+  async function onSubmit(values: AccountFormValues) {
+    setPending(true)
+    const res = initialData && accountId ? await updateAccountAction(accountId, values) : await addAccountAction(values)
 
-      toast({
-        title: res.success ? "Başarılı" : "Hata",
-        description: res.success
-          ? accountId
-            ? "Hesap güncellendi."
-            : "Hesap oluşturuldu."
-          : res.message || "Bilinmeyen hata",
-        variant: res.success ? "default" : "destructive",
-      })
-
-      if (res.success) {
-        router.push("/financials/chart-of-accounts")
-        router.refresh()
-      }
+    setPending(false)
+    toast({
+      title: res.success ? "Başarılı" : "Hata",
+      description: res.success ? (initialData ? "Hesap güncellendi." : "Hesap oluşturuldu.") : (res.message ?? ""),
+      variant: res.success ? "default" : "destructive",
     })
+
+    if (res.success) {
+      router.push("/financials/chart-of-accounts")
+      router.refresh()
+    }
   }
 
-  /* -------------------------------------------------------- */
-  /*  RENDER                                                  */
-  /* -------------------------------------------------------- */
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Kod + Ad */}
+        {/* code + name */}
         <div className="grid gap-6 md:grid-cols-2">
           <FormField
             control={form.control}
@@ -119,7 +104,7 @@ function AccountForm({ initialData, accountId }: Props) {
           />
         </div>
 
-        {/* Tür + Üst Hesap */}
+        {/* type + parent */}
         <div className="grid gap-6 md:grid-cols-2">
           <FormField
             control={form.control}
@@ -175,7 +160,7 @@ function AccountForm({ initialData, accountId }: Props) {
           />
         </div>
 
-        {/* Açıklama */}
+        {/* description */}
         <FormField
           control={form.control}
           name="description"
@@ -190,7 +175,7 @@ function AccountForm({ initialData, accountId }: Props) {
           )}
         />
 
-        {/* Aktif/Pasif */}
+        {/* active switch */}
         <FormField
           control={form.control}
           name="is_active"
@@ -204,20 +189,16 @@ function AccountForm({ initialData, accountId }: Props) {
           )}
         />
 
-        {/* Buttonlar */}
         <div className="flex justify-end gap-4">
           <Button type="button" variant="outline" onClick={() => router.back()}>
             İptal
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {accountId ? "Güncelle" : "Oluştur"}
+          <Button type="submit" disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {initialData ? "Güncelle" : "Oluştur"}
           </Button>
         </div>
       </form>
     </Form>
   )
 }
-
-export { AccountForm }
-export default AccountForm

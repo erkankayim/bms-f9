@@ -1,41 +1,15 @@
 "use client"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
-import { loginAction } from "@/app/auth/actions"
+import { loginAction } from "../actions"
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-
-  async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const result = await loginAction(formData)
-
-      if (result?.error) {
-        setError(result.error)
-      } else {
-        // Successful login - redirect to dashboard
-        router.push("/")
-        router.refresh()
-      }
-    } catch (err) {
-      setError("Giriş yapılırken bir hata oluştu")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [state, formAction, isPending] = useActionState(loginAction, null)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -45,10 +19,10 @@ export default function LoginPage() {
           <CardDescription className="text-center">Hesabınıza giriş yapmak için bilgilerinizi girin</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input id="email" name="email" type="email" placeholder="ornek@email.com" required disabled={isLoading} />
+              <Input id="email" name="email" type="email" placeholder="ornek@email.com" required disabled={isPending} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
@@ -58,31 +32,21 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 required
-                disabled={isLoading}
+                disabled={isPending}
               />
             </div>
-
-            {error && (
+            {state?.message && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{state.message}</AlertDescription>
               </Alert>
             )}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Giriş yapılıyor...
-                </>
-              ) : (
-                "Giriş Yap"
-              )}
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Giriş yapılıyor..." : "Giriş Yap"}
             </Button>
           </form>
-
           <div className="mt-4 text-center text-sm">
-            Hesabınız yok mu?{" "}
-            <Link href="/auth/register" className="text-primary hover:underline">
+            <span className="text-gray-600">Hesabınız yok mu? </span>
+            <Link href="/auth/register" className="text-blue-600 hover:text-blue-500 font-medium">
               Kayıt Ol
             </Link>
           </div>

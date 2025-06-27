@@ -16,65 +16,23 @@ import {
   PackagePlus,
   FileText,
   Briefcase,
-  TrendingDown,
-  Activity,
 } from "lucide-react"
-import {
-  getDashboardStats,
-  getRecentSales,
-  getRecentCustomers,
-  getSalesChartData,
-  getTopProducts,
-  getStatusDistribution,
-  getMonthlyComparison,
-} from "./_actions/dashboard-actions"
+import { getDashboardStats, getRecentSales, getRecentCustomers } from "./_actions/dashboard-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrencyTR, formatSimpleDateTR, getSaleStatusBadgeVariant, formatSaleStatusTR } from "@/lib/utils"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import {
-  Bar,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  Cell,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-} from "recharts"
 
-export const dynamic = "force-dynamic"
-
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
+export const dynamic = "force-dynamic" // Sayfanın her istekte yeniden oluşturulmasını sağlar
 
 export default async function DashboardPage() {
-  const [
-    statsResult,
-    recentSalesResult,
-    recentCustomersResult,
-    salesChartResult,
-    topProductsResult,
-    statusDistributionResult,
-    monthlyComparisonResult,
-  ] = await Promise.all([
+  const [statsResult, recentSalesResult, recentCustomersResult] = await Promise.all([
     getDashboardStats(),
     getRecentSales(5),
     getRecentCustomers(3),
-    getSalesChartData(),
-    getTopProducts(),
-    getStatusDistribution(),
-    getMonthlyComparison(),
   ])
 
   const stats = statsResult.data
   const recentSales = recentSalesResult.data
   const recentCustomers = recentCustomersResult.data
-  const salesChart = salesChartResult.data || []
-  const topProducts = topProductsResult.data || []
-  const statusDistribution = statusDistributionResult.data || []
-  const monthlyComparison = monthlyComparisonResult.data
 
   if (statsResult.error || !stats) {
     return (
@@ -94,36 +52,31 @@ export default async function DashboardPage() {
       title: "Toplam Müşteri",
       value: stats.totalCustomers.toString(),
       icon: Users,
-      description: "Kayıtlı aktif müşteri",
-      change: monthlyComparison?.growth.customer_growth || 0,
+      description: "Kayıtlı aktif müşteri.",
     },
     {
       title: "Toplam Ürün",
       value: stats.totalProducts.toString(),
       icon: Package,
-      description: "Sistemdeki ürün çeşidi",
-      change: 0,
+      description: "Sistemdeki ürün çeşidi.",
     },
     {
       title: "Toplam Satış",
       value: stats.totalSales.toString(),
       icon: ShoppingCart,
-      description: "Gerçekleşen satış adedi",
-      change: monthlyComparison?.growth.sales_growth || 0,
+      description: "Gerçekleşen satış adedi.",
     },
     {
       title: "Toplam Gelir",
       value: formatCurrencyTR(stats.totalRevenue, stats.currency),
       icon: DollarSign,
-      description: "Onaylanmış satış geliri",
-      change: monthlyComparison?.growth.revenue_growth || 0,
+      description: "Onaylanmış satış geliri.",
     },
     {
       title: "Ort. Satış Değeri",
       value: formatCurrencyTR(stats.averageSaleValue, stats.currency),
       icon: TrendingUp,
-      description: "Satış başına ortalama",
-      change: 0,
+      description: "Satış başına ortalama.",
     },
   ]
 
@@ -133,7 +86,7 @@ export default async function DashboardPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Kontrol Paneli</h1>
-            <p className="text-sm text-muted-foreground">İşletmenizin genel durumuna kapsamlı bir bakış.</p>
+            <p className="text-sm text-muted-foreground">İşletmenizin genel durumuna hızlı bir bakış.</p>
           </div>
           <div className="flex items-center space-x-2">
             <Button asChild size="sm" className="whitespace-nowrap">
@@ -154,150 +107,19 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{kpi.value}</div>
-                <div className="flex items-center justify-between pt-1">
-                  <p className="text-xs text-muted-foreground">{kpi.description}</p>
-                  {kpi.change !== 0 && (
-                    <div className={`flex items-center text-xs ${kpi.change > 0 ? "text-green-600" : "text-red-600"}`}>
-                      {kpi.change > 0 ? (
-                        <TrendingUp className="h-3 w-3 mr-1" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 mr-1" />
-                      )}
-                      {Math.abs(kpi.change)}%
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-muted-foreground pt-1">{kpi.description}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Charts Row */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Sales Chart */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Satış Trendi</CardTitle>
-              <CardDescription>Son 6 ayın satış performansı</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  sales: {
-                    label: "Satış Adedi",
-                    color: "hsl(var(--chart-1))",
-                  },
-                  revenue: {
-                    label: "Gelir",
-                    color: "hsl(var(--chart-2))",
-                  },
-                }}
-                className="h-[300px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesChart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="sales" fill="var(--color-sales)" name="Satış Adedi" />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="var(--color-revenue)"
-                      name="Gelir (₺)"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-
-          {/* Status Distribution */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Satış Durumu Dağılımı</CardTitle>
-              <CardDescription>Satışların mevcut durumu</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{
-                  count: {
-                    label: "Adet",
-                    color: "hsl(var(--chart-1))",
-                  },
-                }}
-                className="h-[300px]"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ status, percentage }) => `${formatSaleStatusTR(status)} (${percentage}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                    >
-                      {statusDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Top Products and Recent Activity */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-          {/* Top Products */}
-          <Card className="lg:col-span-3 shadow-sm">
-            <CardHeader>
-              <CardTitle>En Çok Satan Ürünler</CardTitle>
-              <CardDescription>Gelir bazında en başarılı ürünler</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {topProducts.map((product, index) => (
-                  <div key={product.name} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">{product.sales_count} adet</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatCurrencyTR(product.total_revenue)}</p>
-                    </div>
-                  </div>
-                ))}
-                {topProducts.length === 0 && (
-                  <div className="text-center py-8">
-                    <Package className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Henüz ürün satışı bulunmamaktadır.</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Recent Sales */}
           <Card className="lg:col-span-4 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Son Satışlar</CardTitle>
-                <CardDescription>En son yapılan 5 satış işlemi</CardDescription>
+                <CardDescription>En son yapılan 5 satış işlemi.</CardDescription>
               </div>
               <Button variant="outline" size="sm" asChild>
                 <Link href="/sales">
@@ -356,78 +178,76 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
-        </div>
 
-        {/* Quick Actions and Recent Customers */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Hızlı İşlemler</CardTitle>
-              <CardDescription>Sık kullanılan işlemlere hızlı erişim</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3">
-              {[
-                { href: "/customers/new", label: "Yeni Müşteri", icon: UserPlus },
-                { href: "/products/new", label: "Yeni Ürün", icon: PackagePlus },
-                { href: "/inventory", label: "Envanter", icon: ListChecks },
-                { href: "/invoices/new", label: "Yeni Fatura", icon: FileText },
-                { href: "/financials", label: "Finansallar", icon: Briefcase },
-                { href: "/service/new", label: "Yeni Servis", icon: Activity },
-              ].map((action) => (
-                <Button key={action.href} variant="outline" className="w-full justify-start text-sm h-12" asChild>
-                  <Link href={action.href}>
-                    <action.icon className="mr-2 h-4 w-4" /> {action.label}
+          {/* Quick Actions & Recent Customers */}
+          <div className="lg:col-span-3 space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Hızlı İşlemler</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {[
+                  { href: "/customers/new", label: "Yeni Müşteri", icon: UserPlus },
+                  { href: "/products/new", label: "Yeni Ürün", icon: PackagePlus },
+                  { href: "/inventory", label: "Envanter", icon: ListChecks },
+                  { href: "/invoices/new", label: "Yeni Fatura", icon: FileText },
+                  { href: "/financials", label: "Finansallar", icon: Briefcase },
+                ].map((action) => (
+                  <Button key={action.href} variant="outline" className="w-full justify-start text-sm" asChild>
+                    <Link href={action.href}>
+                      <action.icon className="mr-2 h-4 w-4" /> {action.label}
+                    </Link>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Yeni Müşteriler</CardTitle>
+                  <CardDescription>En son eklenen 3 müşteri.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/customers">
+                    Tüm Müşteriler <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Yeni Müşteriler</CardTitle>
-                <CardDescription>En son eklenen müşteriler</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/customers">
-                  Tüm Müşteriler <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {recentCustomers && recentCustomers.length > 0 ? (
-                <ul className="space-y-4">
-                  {recentCustomers.map((customer) => (
-                    <li key={customer.mid} className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          href={`/customers/${customer.mid}`}
-                          className="font-medium hover:underline truncate block"
-                          title={customer.name}
-                        >
-                          {customer.name}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">
-                          Kayıt: {formatSimpleDateTR(customer.created_at)}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="icon" asChild className="h-8 w-8 flex-shrink-0">
-                        <Link href={`/customers/${customer.mid}`} title="Müşteri Detayları">
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="text-center py-6">
-                  <Users className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Henüz müşteri kaydı bulunmamaktadır.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {recentCustomers && recentCustomers.length > 0 ? (
+                  <ul className="space-y-4">
+                    {recentCustomers.map((customer) => (
+                      <li key={customer.mid} className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            href={`/customers/${customer.mid}`}
+                            className="font-medium hover:underline truncate block"
+                            title={customer.name}
+                          >
+                            {customer.name}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            Kayıt: {formatSimpleDateTR(customer.created_at)}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="icon" asChild className="h-8 w-8 flex-shrink-0">
+                          <Link href={`/customers/${customer.mid}`} title="Müşteri Detayları">
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-6">
+                    <Users className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">Henüz müşteri kaydı bulunmamaktadır.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
     </div>
