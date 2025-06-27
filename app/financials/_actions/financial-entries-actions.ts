@@ -14,15 +14,15 @@ export type FinancialCategory = {
   is_active?: boolean
 }
 
-export type CustomerForDropdown = {
+export interface CustomerForDropdown {
   mid: string
-  contact_name: string | null
+  contact_name: string
   email: string | null
 }
 
-export type SupplierForDropdown = {
+export interface SupplierForDropdown {
   id: string
-  name: string
+  company_name: string
   contact_name: string | null
 }
 
@@ -140,58 +140,42 @@ export async function getFinancialCategories(
   }
 }
 
-export async function getCustomersForDropdown(): Promise<{ data?: CustomerForDropdown[]; error?: string }> {
+export async function getCustomersForDropdown(): Promise<{ data: CustomerForDropdown[] | null; error: string | null }> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
-    console.log("Fetching customers for dropdown...")
-
-    // Only select columns that exist in the customers table
-    // The customers table uses 'mid' as primary key, not 'id'
-    const { data, error } = await supabase
-      .from("customers")
-      .select("mid, contact_name, email")
-      .is("deleted_at", null)
-      .order("contact_name")
+    const { data, error } = await supabase.from("customers").select("mid, contact_name, email").order("contact_name")
 
     if (error) {
-      console.error("Database error for customers:", error)
-      return { error: `Müşteriler alınırken hata: ${error.message}` }
+      console.error("Database error:", error)
+      return { data: null, error: `Müşteriler alınırken hata: ${error.message}` }
     }
 
-    console.log(`Found ${data?.length || 0} customers`)
-
-    // Log first few customers for debugging
-    if (data && data.length > 0) {
-      console.log("Sample customers:", data.slice(0, 3))
-    }
-
-    return { data: data as CustomerForDropdown[] }
+    return { data, error: null }
   } catch (error) {
-    console.error("Unexpected error fetching customers:", error)
-    return { error: `Müşteriler alınırken beklenmeyen hata: ${error}` }
+    console.error("Unexpected error:", error)
+    return { data: null, error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
-export async function getSuppliersForDropdown(): Promise<{ data?: SupplierForDropdown[]; error?: string }> {
+export async function getSuppliersForDropdown(): Promise<{ data: SupplierForDropdown[] | null; error: string | null }> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from("suppliers")
-      .select("id, name, contact_name")
-      .is("deleted_at", null)
-      .order("name")
+      .select("id, company_name, contact_name")
+      .order("company_name")
 
     if (error) {
-      console.error("Database error for suppliers:", error)
-      return { error: `Tedarikçiler alınırken hata: ${error.message}` }
+      console.error("Database error:", error)
+      return { data: null, error: `Tedarikçiler alınırken hata: ${error.message}` }
     }
 
-    return { data: data as SupplierForDropdown[] }
+    return { data, error: null }
   } catch (error) {
-    console.error("Unexpected error fetching suppliers:", error)
-    return { error: `Tedarikçiler alınırken beklenmeyen hata: ${error}` }
+    console.error("Unexpected error:", error)
+    return { data: null, error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
@@ -682,5 +666,115 @@ export async function createExpenseEntryAction(
   } catch (error) {
     console.error("Unexpected error creating expense entry:", error)
     return { success: false, message: `Gider kaydı oluşturulurken beklenmeyen hata: ${error}` }
+  }
+}
+
+export async function createIncomeEntry(formData: FormData) {
+  try {
+    const supabase = await createClient()
+
+    // Get form data
+    const amount = Number.parseFloat(formData.get("amount") as string)
+    const description = formData.get("description") as string
+    const date = formData.get("date") as string
+    const customerMid = formData.get("customer_mid") as string
+    const paymentMethod = formData.get("payment_method") as string
+
+    // Validate required fields
+    if (!amount || !description || !date) {
+      return { success: false, error: "Gerekli alanlar eksik" }
+    }
+
+    // Verify customer exists if provided
+    if (customerMid && customerMid !== "") {
+      const { data: customer, error: customerError } = await supabase
+        .from("customers")
+        .select("mid")
+        .eq("mid", customerMid)
+        .single()
+
+      if (customerError || !customer) {
+        return { success: false, error: "Seçilen müşteri bulunamadı" }
+      }
+    }
+
+    // Insert income entry
+    const { error } = await supabase.from("financial_entries").insert({
+      type: "income",
+      amount,
+      description,
+      date,
+      customer_mid: customerMid || null,
+      payment_method: paymentMethod || null,
+      created_at: new Date().toISOString(),
+    })
+
+    if (error) {
+      console.error("Database error:", error)
+      return { success: false, error: `Gelir kaydı oluşturulurken hata: ${error.message}` }
+    }
+
+    revalidatePath("/financials/income")
+    return { success: true, error: null }
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+  }
+}
+
+export async function createExpenseEntry(formData: FormData) {
+  try {
+    const supabase = await createClient()
+
+    // Get form data
+    const amount = Number.parseFloat(formData.get("amount") as string)
+    const description = formData.get("description") as string
+    const date = formData.get("date") as string
+    const supplierIdStr = formData.get("supplier_id") as string
+    const paymentMethod = formData.get("payment_method") as string
+
+    // Validate required fields
+    if (!amount || !description || !date) {
+      return { success: false, error: "Gerekli alanlar eksik" }
+    }
+
+    // Convert supplier_id to UUID if provided
+    let supplierId: string | null = null
+    if (supplierIdStr && supplierIdStr !== "") {
+      supplierId = supplierIdStr
+
+      // Verify supplier exists
+      const { data: supplier, error: supplierError } = await supabase
+        .from("suppliers")
+        .select("id")
+        .eq("id", supplierId)
+        .single()
+
+      if (supplierError || !supplier) {
+        return { success: false, error: "Seçilen tedarikçi bulunamadı" }
+      }
+    }
+
+    // Insert expense entry
+    const { error } = await supabase.from("financial_entries").insert({
+      type: "expense",
+      amount,
+      description,
+      date,
+      supplier_id: supplierId,
+      payment_method: paymentMethod || null,
+      created_at: new Date().toISOString(),
+    })
+
+    if (error) {
+      console.error("Database error:", error)
+      return { success: false, error: `Gider kaydı oluşturulurken hata: ${error.message}` }
+    }
+
+    revalidatePath("/financials/expenses")
+    return { success: true, error: null }
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
 }
