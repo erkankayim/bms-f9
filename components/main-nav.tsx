@@ -5,103 +5,149 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, LogOut, Home } from "lucide-react"
-import { logoutAction } from "@/app/auth/actions"
+import { ChevronDown, Home, LogOut } from "lucide-react"
+import { signOut } from "@/app/auth/actions"
 
 const navigation = [
-  { name: "Müşteriler", href: "/customers" },
-  { name: "Ürünler", href: "/products" },
-  { name: "Satışlar", href: "/sales" },
-  { name: "Faturalar", href: "/invoices" },
-  { name: "Envanter", href: "/inventory" },
-  { name: "Servis", href: "/service" },
-  { name: "Tedarikçiler", href: "/suppliers" },
-  { name: "Kullanıcılar", href: "/users" },
-]
-
-const financialNavigation = [
-  { name: "Finansal Özet", href: "/financials" },
-  { name: "Gelir Listesi", href: "/financials/income" },
-  { name: "Gider Listesi", href: "/financials/expenses" },
-  { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
+  {
+    name: "Müşteriler",
+    href: "/customers",
+    submenu: [
+      { name: "Müşteri Listesi", href: "/customers" },
+      { name: "Yeni Müşteri", href: "/customers/new" },
+    ],
+  },
+  {
+    name: "Ürünler",
+    href: "/products",
+    submenu: [
+      { name: "Ürün Listesi", href: "/products" },
+      { name: "Yeni Ürün", href: "/products/new" },
+    ],
+  },
+  {
+    name: "Satışlar",
+    href: "/sales",
+    submenu: [
+      { name: "Satış Listesi", href: "/sales" },
+      { name: "Yeni Satış", href: "/sales/new" },
+    ],
+  },
+  {
+    name: "Faturalar",
+    href: "/invoices",
+    submenu: [
+      { name: "Fatura Listesi", href: "/invoices" },
+      { name: "Yeni Fatura", href: "/invoices/new" },
+    ],
+  },
+  {
+    name: "Envanter",
+    href: "/inventory",
+    submenu: [
+      { name: "Stok Durumu", href: "/inventory" },
+      { name: "Stok Ayarla", href: "/inventory/adjust" },
+      { name: "Stok Uyarıları", href: "/inventory/alerts" },
+    ],
+  },
+  {
+    name: "Finans",
+    href: "/financials",
+    submenu: [
+      { name: "Finans Ana Sayfa", href: "/financials" },
+      { name: "Gelir Kayıtları", href: "/financials/income" },
+      { name: "Gider Kayıtları", href: "/financials/expenses" },
+      { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
+    ],
+  },
+  {
+    name: "Tedarikçiler",
+    href: "/suppliers",
+    submenu: [
+      { name: "Tedarikçi Listesi", href: "/suppliers" },
+      { name: "Yeni Tedarikçi", href: "/suppliers/new" },
+    ],
+  },
+  {
+    name: "Servis",
+    href: "/service",
+    submenu: [
+      { name: "Servis Listesi", href: "/service" },
+      { name: "Yeni Servis", href: "/service/new" },
+    ],
+  },
+  {
+    name: "Kullanıcılar",
+    href: "/users",
+    submenu: [
+      { name: "Kullanıcı Listesi", href: "/users" },
+      { name: "Yeni Kullanıcı", href: "/users/new" },
+    ],
+  },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
-  const isFinancialActive = pathname.startsWith("/financials")
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/"
+    return pathname.startsWith(href)
+  }
 
   return (
-    <div className="flex items-center justify-between w-full">
+    <div className="flex items-center justify-between w-full px-6 py-4 bg-background border-b">
       {/* Sol taraf - Dashboard */}
       <div className="flex items-center">
-        <Link
-          href="/"
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors hover:text-primary rounded-md",
-            pathname === "/" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
-          )}
+        <Button
+          asChild
+          variant={pathname === "/" ? "default" : "ghost"}
+          className={cn("transition-colors", pathname === "/" && "bg-primary/10 text-primary")}
         >
-          <Home className="h-4 w-4" />
-          Dashboard
-        </Link>
+          <Link href="/" className="flex items-center gap-2">
+            <Home className="h-4 w-4" />
+            Dashboard
+          </Link>
+        </Button>
       </div>
 
       {/* Orta - Ana navigasyon */}
-      <nav className="flex items-center space-x-1">
+      <div className="flex items-center space-x-1">
         {navigation.map((item) => (
-          <Link
-            key={item.name}
-            href={item.href}
-            className={cn(
-              "px-3 py-2 text-sm font-medium transition-colors hover:text-primary rounded-md hover:bg-accent",
-              pathname === item.href ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            {item.name}
-          </Link>
+          <DropdownMenu key={item.name}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={isActive(item.href) ? "default" : "ghost"}
+                className={cn("transition-colors", isActive(item.href) && "bg-primary/10 text-primary")}
+              >
+                {item.name}
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-48">
+              {item.submenu.map((subItem) => (
+                <DropdownMenuItem key={subItem.href} asChild>
+                  <Link
+                    href={subItem.href}
+                    className={cn("w-full cursor-pointer", pathname === subItem.href && "bg-accent")}
+                  >
+                    {subItem.name}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ))}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn(
-                "px-3 py-2 text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 rounded-md",
-                isFinancialActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              Finansal
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-56">
-            {financialNavigation.map((item) => (
-              <DropdownMenuItem key={item.name} asChild>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "w-full cursor-pointer",
-                    pathname === item.href ? "bg-accent text-accent-foreground font-medium" : "",
-                  )}
-                >
-                  {item.name}
-                </Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </nav>
+      </div>
 
       {/* Sağ taraf - Çıkış */}
       <div className="flex items-center">
-        <form action={logoutAction}>
+        <form action={signOut}>
           <Button
             type="submit"
             variant="ghost"
-            size="sm"
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-accent rounded-md flex items-center gap-2 transition-colors"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4 mr-2" />
             Çıkış Yap
           </Button>
         </form>
