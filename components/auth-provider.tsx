@@ -1,23 +1,22 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
-import { getSupabaseBrowserClient } from "@/lib/supabase/client"
-import { MainNav } from "@/components/main-nav"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { MainNav } from "./main-nav"
 
 interface AuthContextType {
   user: User | null
   loading: boolean
+  signOut: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-})
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")
@@ -28,8 +27,11 @@ export const useAuth = () => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = getSupabaseBrowserClient()
+  const supabase = createClient()
   const pathname = usePathname()
+  const router = useRouter()
+
+  const isAuthPage = pathname?.startsWith("/auth")
 
   useEffect(() => {
     // Get initial session
@@ -50,32 +52,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Auth state changed:", event, session?.user?.email)
       setUser(session?.user ?? null)
       setLoading(false)
+
+      if (event === "SIGNED_IN") {
+        router.push("/")
+      } else if (event === "SIGNED_OUT") {
+        router.push("/auth/login")
+      }
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [supabase.auth, router])
 
+  const signOut = async () => {
+    await supabase.auth.signOut()
+  }
+
+  // Show loading spinner while checking auth
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
-  const isAuthPage = pathname.startsWith("/auth")
+  // If user is not authenticated and not on auth page, redirect to login
+  if (!user && !isAuthPage) {
+    router.push("/auth/login")
+    return null
+  }
 
-  // If user is logged in and not on auth page, show main layout with header
-  // If no user or on auth page, just show children (auth pages)
+  // If user is authenticated and on auth page, redirect to dashboard
+  if (user && isAuthPage) {
+    router.push("/")
+    return null
+  }
+
+  const value = {
+    user,
+    loading,
+    signOut,
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={value}>
       {user && !isAuthPage ? (
-        <div className="flex min-h-screen w-full flex-col">
+        <div className="min-h-screen bg-background">
           <MainNav />
-          <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">{children}</main>
+          <main className="flex-1">{children}</main>
         </div>
       ) : (
-        <>{children}</>
+        children
       )}
     </AuthContext.Provider>
   )

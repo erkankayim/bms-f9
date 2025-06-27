@@ -2,38 +2,16 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
-import type { z } from "zod"
 import type { AccountSchema } from "../_lib/schema"
+import type { z } from "zod"
 
-type AccountInput = z.infer<typeof AccountSchema>
+type AccountFormData = z.infer<typeof AccountSchema>
 
-export async function addAccountAction(data: AccountInput) {
-  const supabase = await createClient()
+export async function addAccountAction(data: AccountFormData) {
+  try {
+    const supabase = createClient()
 
-  const { error } = await supabase.from("chart_of_accounts").insert({
-    account_code: data.account_code,
-    account_name: data.account_name,
-    account_type: data.account_type,
-    parent_account_id: data.parent_account_id || null,
-    description: data.description || null,
-    is_active: data.is_active ?? true,
-  })
-
-  if (error) {
-    throw new Error(`Hesap eklenirken hata oluştu: ${error.message}`)
-  }
-
-  revalidatePath("/financials/chart-of-accounts")
-  redirect("/financials/chart-of-accounts")
-}
-
-export async function updateAccountAction(id: string, data: AccountInput) {
-  const supabase = await createClient()
-
-  const { error } = await supabase
-    .from("chart_of_accounts")
-    .update({
+    const { error } = await supabase.from("chart_of_accounts").insert({
       account_code: data.account_code,
       account_name: data.account_name,
       account_type: data.account_type,
@@ -41,48 +19,101 @@ export async function updateAccountAction(id: string, data: AccountInput) {
       description: data.description || null,
       is_active: data.is_active ?? true,
     })
-    .eq("id", id)
 
-  if (error) {
-    throw new Error(`Hesap güncellenirken hata oluştu: ${error.message}`)
+    if (error) {
+      console.error("Error adding account:", error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/financials/chart-of-accounts")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in addAccountAction:", error)
+    return { success: false, error: "Hesap eklenirken bir hata oluştu" }
   }
+}
 
-  revalidatePath("/financials/chart-of-accounts")
-  redirect("/financials/chart-of-accounts")
+export async function updateAccountAction(id: string, data: AccountFormData) {
+  try {
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from("chart_of_accounts")
+      .update({
+        account_code: data.account_code,
+        account_name: data.account_name,
+        account_type: data.account_type,
+        parent_account_id: data.parent_account_id || null,
+        description: data.description || null,
+        is_active: data.is_active ?? true,
+      })
+      .eq("id", id)
+
+    if (error) {
+      console.error("Error updating account:", error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/financials/chart-of-accounts")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in updateAccountAction:", error)
+    return { success: false, error: "Hesap güncellenirken bir hata oluştu" }
+  }
 }
 
 export async function toggleAccountStatusAction(id: string, isActive: boolean) {
-  const supabase = await createClient()
+  try {
+    const supabase = createClient()
 
-  const { error } = await supabase.from("chart_of_accounts").update({ is_active: isActive }).eq("id", id)
+    const { error } = await supabase.from("chart_of_accounts").update({ is_active: isActive }).eq("id", id)
 
-  if (error) {
-    throw new Error(`Hesap durumu değiştirilirken hata oluştu: ${error.message}`)
+    if (error) {
+      console.error("Error toggling account status:", error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/financials/chart-of-accounts")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in toggleAccountStatusAction:", error)
+    return { success: false, error: "Hesap durumu değiştirilirken bir hata oluştu" }
   }
-
-  revalidatePath("/financials/chart-of-accounts")
 }
 
 export async function deleteAccountAction(id: string) {
-  const supabase = await createClient()
+  try {
+    const supabase = createClient()
 
-  const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id)
+    const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id)
 
-  if (error) {
-    throw new Error(`Hesap silinirken hata oluştu: ${error.message}`)
+    if (error) {
+      console.error("Error deleting account:", error)
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath("/financials/chart-of-accounts")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in deleteAccountAction:", error)
+    return { success: false, error: "Hesap silinirken bir hata oluştu" }
   }
-
-  revalidatePath("/financials/chart-of-accounts")
 }
 
 export async function getAccountById(id: string) {
-  const supabase = await createClient()
+  try {
+    const supabase = createClient()
 
-  const { data, error } = await supabase.from("chart_of_accounts").select("*").eq("id", id).single()
+    const { data, error } = await supabase.from("chart_of_accounts").select("*").eq("id", id).single()
 
-  if (error) {
-    throw new Error(`Hesap getirilirken hata oluştu: ${error.message}`)
+    if (error) {
+      console.error("Error fetching account:", error)
+      return { success: false, error: error.message, data: null }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error in getAccountById:", error)
+    return { success: false, error: "Hesap getirilirken bir hata oluştu", data: null }
   }
-
-  return data
 }

@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { CustomerForm } from "../../new/_components/customer-form" // Re-using the form
-import type { CustomerDetail } from "../_components/customer-detail-helpers" // Type for customer data
+import { CustomerForm } from "../../new/_components/customer-form"
+import type { CustomerDetail } from "../_components/customer-detail-helpers"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -20,8 +20,6 @@ export default async function EditCustomerPage({ params }: { params: { mid: stri
 
   const typedCustomer = customer as CustomerDetail
 
-  // We need to ensure all fields expected by CustomerForm are present,
-  // even if they are null in the database, they should be empty strings or default values for the form.
   const customerFormData = {
     mid: typedCustomer.mid,
     service_name: typedCustomer.service_name || "",
@@ -35,7 +33,7 @@ export default async function EditCustomerPage({ params }: { params: { mid: stri
     tax_office: typedCustomer.tax_office || "",
     tax_number: typedCustomer.tax_number || "",
     customer_group: typedCustomer.customer_group || "",
-    balance: typedCustomer.balance === null ? 0 : typedCustomer.balance, // Default to 0 if null
+    balance: typedCustomer.balance === null ? 0 : typedCustomer.balance,
     notes: typedCustomer.notes || "",
   }
 
@@ -50,11 +48,10 @@ export default async function EditCustomerPage({ params }: { params: { mid: stri
       </div>
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Edit Customer: {customer.contact_name || customer.mid}</CardTitle>
-          <CardDescription>Update the details for this customer.</CardDescription>
+          <CardTitle>Müşteriyi Düzenle: {customer.contact_name || customer.mid}</CardTitle>
+          <CardDescription>Bu müşterinin bilgilerini güncelleyin.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Pass existing customer data to the form and an 'update' mode/action */}
           <CustomerForm initialData={customerFormData} isEditMode={true} customerId={customer.mid} />
         </CardContent>
       </Card>

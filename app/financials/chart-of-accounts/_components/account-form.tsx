@@ -1,127 +1,186 @@
 "use client"
 
-import { useState } from "react"
-import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 import { AccountSchema, type AccountFormData } from "../_lib/schema"
 import { addAccountAction, updateAccountAction } from "../_actions/server-actions"
 
 interface AccountFormProps {
-  initialData?: AccountFormData & { id?: string }
-  mode?: "create" | "edit"
+  initialData?: Partial<AccountFormData>
+  isEditMode?: boolean
+  accountId?: string
 }
 
-export function AccountForm({ initialData, mode = "create" }: AccountFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export function AccountForm({ initialData, isEditMode = false, accountId }: AccountFormProps) {
+  const { toast } = useToast()
+  const router = useRouter()
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<AccountFormData>({
+  const form = useForm<AccountFormData>({
     resolver: zodResolver(AccountSchema),
-    defaultValues: initialData || {
-      account_code: "",
-      account_name: "",
-      account_type: "ASSET",
-      parent_account_id: "",
-      description: "",
-      is_active: true,
+    defaultValues: {
+      account_code: initialData?.account_code || "",
+      account_name: initialData?.account_name || "",
+      account_type: initialData?.account_type || "asset",
+      parent_account_id: initialData?.parent_account_id || "",
+      description: initialData?.description || "",
+      is_active: initialData?.is_active ?? true,
     },
   })
 
-  const onSubmit = async (data: AccountFormData) => {
-    setIsSubmitting(true)
-    try {
-      if (mode === "edit" && initialData?.id) {
-        await updateAccountAction(initialData.id, data)
-      } else {
-        await addAccountAction(data)
-      }
-    } catch (error) {
-      console.error("Form submission error:", error)
-    } finally {
-      setIsSubmitting(false)
+  async function onSubmit(data: AccountFormData) {
+    let result
+    if (isEditMode && accountId) {
+      result = await updateAccountAction(accountId, data)
+    } else {
+      result = await addAccountAction(data)
+    }
+
+    if (result.success) {
+      toast({
+        title: isEditMode ? "Hesap Güncellendi" : "Hesap Eklendi",
+        description: `Hesap ${data.account_name} başarıyla ${isEditMode ? "güncellendi" : "eklendi"}.`,
+      })
+      router.push("/financials/chart-of-accounts")
+    } else {
+      toast({
+        title: "Hata",
+        description: result.error || `Hesap ${isEditMode ? "güncellenemedi" : "eklenemedi"}. Lütfen tekrar deneyin.`,
+        variant: "destructive",
+      })
     }
   }
 
+  const accountTypes = [
+    { value: "asset", label: "Varlık" },
+    { value: "liability", label: "Borç" },
+    { value: "equity", label: "Özkaynak" },
+    { value: "revenue", label: "Gelir" },
+    { value: "expense", label: "Gider" },
+  ]
+
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>{mode === "edit" ? "Hesabı Düzenle" : "Yeni Hesap Ekle"}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="account_code">Hesap Kodu</Label>
-              <Input id="account_code" {...register("account_code")} placeholder="Örn: 100" />
-              {errors.account_code && <p className="text-sm text-red-600">{errors.account_code.message}</p>}
-            </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="account_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hesap Kodu *</FormLabel>
+                <FormControl>
+                  <Input placeholder="örn: 100.01" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="account_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hesap Adı *</FormLabel>
+                <FormControl>
+                  <Input placeholder="örn: Kasa" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="account_name">Hesap Adı</Label>
-              <Input id="account_name" {...register("account_name")} placeholder="Örn: Kasa" />
-              {errors.account_name && <p className="text-sm text-red-600">{errors.account_name.message}</p>}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="account_type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hesap Türü *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Hesap türü seçin" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {accountTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="parent_account_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ana Hesap ID</FormLabel>
+                <FormControl>
+                  <Input placeholder="Opsiyonel" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="account_type">Hesap Türü</Label>
-            <Select value={watch("account_type")} onValueChange={(value) => setValue("account_type", value as any)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Hesap türü seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ASSET">Varlık</SelectItem>
-                <SelectItem value="LIABILITY">Borç</SelectItem>
-                <SelectItem value="EQUITY">Özkaynak</SelectItem>
-                <SelectItem value="REVENUE">Gelir</SelectItem>
-                <SelectItem value="EXPENSE">Gider</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.account_type && <p className="text-sm text-red-600">{errors.account_type.message}</p>}
-          </div>
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Açıklama</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Hesap hakkında açıklama..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Açıklama</Label>
-            <Textarea
-              id="description"
-              {...register("description")}
-              placeholder="Hesap açıklaması (isteğe bağlı)"
-              rows={3}
-            />
-          </div>
+        <FormField
+          control={form.control}
+          name="is_active"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">Aktif Hesap</FormLabel>
+                <div className="text-sm text-muted-foreground">
+                  Bu hesabın işlemlerde kullanılabilir olup olmadığını belirler
+                </div>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is_active"
-              checked={watch("is_active")}
-              onCheckedChange={(checked) => setValue("is_active", checked)}
-            />
-            <Label htmlFor="is_active">Aktif</Label>
-          </div>
-
-          <div className="flex gap-4">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Kaydediliyor..." : mode === "edit" ? "Güncelle" : "Kaydet"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => window.history.back()}>
-              İptal
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting
+            ? isEditMode
+              ? "Hesap Güncelleniyor..."
+              : "Hesap Ekleniyor..."
+            : isEditMode
+              ? "Değişiklikleri Kaydet"
+              : "Hesap Ekle"}
+        </Button>
+      </form>
+    </Form>
   )
 }
 

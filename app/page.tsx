@@ -20,8 +20,56 @@ import {
 import { getDashboardStats, getRecentSales, getRecentCustomers } from "./_actions/dashboard-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrencyTR, formatSimpleDateTR, getSaleStatusBadgeVariant, formatSaleStatusTR } from "@/lib/utils"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import {
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Bar,
+  BarChart,
+  Pie,
+  PieChart,
+  Cell,
+} from "recharts"
 
-export const dynamic = "force-dynamic" // Sayfanın her istekte yeniden oluşturulmasını sağlar
+export const dynamic = "force-dynamic"
+
+// Mock data for charts - in real app, this would come from your database
+const salesTrendData = [
+  { month: "Oca", sales: 45, revenue: 12500 },
+  { month: "Şub", sales: 52, revenue: 15200 },
+  { month: "Mar", sales: 48, revenue: 13800 },
+  { month: "Nis", sales: 61, revenue: 18400 },
+  { month: "May", sales: 55, revenue: 16200 },
+  { month: "Haz", sales: 67, revenue: 19800 },
+]
+
+const customerGrowthData = [
+  { month: "Oca", newCustomers: 12, totalCustomers: 145 },
+  { month: "Şub", newCustomers: 15, totalCustomers: 160 },
+  { month: "Mar", newCustomers: 8, totalCustomers: 168 },
+  { month: "Nis", newCustomers: 22, totalCustomers: 190 },
+  { month: "May", newCustomers: 18, totalCustomers: 208 },
+  { month: "Haz", newCustomers: 25, totalCustomers: 233 },
+]
+
+const revenueByCategory = [
+  { category: "Ürün Satışı", value: 45000, color: "#0088FE" },
+  { category: "Hizmet", value: 28000, color: "#00C49F" },
+  { category: "Abonelik", value: 15000, color: "#FFBB28" },
+  { category: "Diğer", value: 8000, color: "#FF8042" },
+]
+
+const topProducts = [
+  { name: "Premium Paket", sales: 45, revenue: 22500 },
+  { name: "Standart Hizmet", sales: 38, revenue: 15200 },
+  { name: "Teknik Destek", sales: 32, revenue: 9600 },
+  { name: "Özel Çözüm", sales: 28, revenue: 14000 },
+  { name: "Bakım Hizmeti", sales: 25, revenue: 7500 },
+]
 
 export default async function DashboardPage() {
   const [statsResult, recentSalesResult, recentCustomersResult] = await Promise.all([
@@ -113,6 +161,138 @@ export default async function DashboardPage() {
           ))}
         </div>
 
+        {/* Charts Section */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+          {/* Sales Trend Chart */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Satış Trendi</CardTitle>
+              <CardDescription>Son 6 ayın satış performansı</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  sales: {
+                    label: "Satış Adedi",
+                    color: "hsl(var(--chart-1))",
+                  },
+                  revenue: {
+                    label: "Gelir",
+                    color: "hsl(var(--chart-2))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={salesTrendData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Customer Growth Chart */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Müşteri Büyümesi</CardTitle>
+              <CardDescription>Aylık yeni müşteri kazanımı</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  newCustomers: {
+                    label: "Yeni Müşteriler",
+                    color: "hsl(var(--chart-3))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={customerGrowthData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="newCustomers" fill="var(--color-newCustomers)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Revenue by Category */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Kategoriye Göre Gelir</CardTitle>
+              <CardDescription>Gelir dağılımı analizi</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  value: {
+                    label: "Gelir",
+                    color: "hsl(var(--chart-4))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={revenueByCategory}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {revenueByCategory.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+
+          {/* Top Products */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>En Çok Satan Ürünler</CardTitle>
+              <CardDescription>Satış performansına göre sıralama</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  sales: {
+                    label: "Satış",
+                    color: "hsl(var(--chart-5))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProducts} layout="horizontal">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={100} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="sales" fill="var(--color-sales)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
           {/* Recent Sales */}
           <Card className="lg:col-span-4 shadow-sm">
@@ -193,7 +373,12 @@ export default async function DashboardPage() {
                   { href: "/invoices/new", label: "Yeni Fatura", icon: FileText },
                   { href: "/financials", label: "Finansallar", icon: Briefcase },
                 ].map((action) => (
-                  <Button key={action.href} variant="outline" className="w-full justify-start text-sm" asChild>
+                  <Button
+                    key={action.href}
+                    variant="outline"
+                    className="w-full justify-start text-sm bg-transparent"
+                    asChild
+                  >
                     <Link href={action.href}>
                       <action.icon className="mr-2 h-4 w-4" /> {action.label}
                     </Link>
