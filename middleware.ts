@@ -1,13 +1,16 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+/**
+ * Global middleware to protect pages with Supabase Auth.
+ * – Un-authenticated users are redirected to /auth/login
+ * – Authenticated users trying to reach /auth/* pages are redirected to /
+ */
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  // Prepare a blank NextResponse we can modify
+  const response = NextResponse.next()
 
+  // Create a Supabase server client that reads / writes auth cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,92 +20,49 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: "",
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: "",
-            ...options,
-          })
+          response.cookies.set({ name, value: "", ...options })
         },
       },
     },
   )
 
-  // Kullanıcı oturumunu kontrol et
+  // Read the current session
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Auth sayfaları ve statik dosyalar için kontrol
-  const isAuthPage = request.nextUrl.pathname.startsWith("/auth")
-  const isStaticFile = request.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|woff|woff2|ttf|eot)$/)
-  const isNextStatic = request.nextUrl.pathname.startsWith("/_next")
+  const { pathname } = request.nextUrl
 
-  // Statik dosyalar için middleware'i atla
-  if (isStaticFile || isNextStatic) {
+  // Skip static assets and Next.js internals
+  const isAsset = pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|json|txt)$/)
+  const isNextInternal = pathname.startsWith("/_next")
+  if (isAsset || isNextInternal) {
     return response
   }
 
-  // Kullanıcı giriş yapmamışsa
-  if (!session) {
-    // Auth sayfasında değilse login'e yönlendir
-    if (!isAuthPage) {
-      const redirectUrl = new URL("/auth/login", request.url)
-      return NextResponse.redirect(redirectUrl)
-    }
-    // Auth sayfasındaysa devam et
-    return response
+  const isAuthRoute = pathname.startsWith("/auth")
+
+  // Not logged in → redirect everything except /auth/* to login
+  if (!session && !isAuthRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/auth/login"
+    return NextResponse.redirect(url)
   }
 
-  // Kullanıcı giriş yapmışsa
-  if (session) {
-    // Auth sayfasındaysa ana sayfaya yönlendir
-    if (isAuthPage) {
-      const redirectUrl = new URL("/", request.url)
-      return NextResponse.redirect(redirectUrl)
-    }
-    // Diğer sayfalarda devam et
-    return response
+  // Logged in → redirect /auth/* pages to dashboard
+  if (session && isAuthRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/"
+    return NextResponse.redirect(url)
   }
 
+  // Default: allow the request through
   return response
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 }
