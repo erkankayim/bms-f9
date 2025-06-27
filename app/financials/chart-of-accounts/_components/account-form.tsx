@@ -202,3 +202,5 @@ export default function AccountForm({ initialData, accountId }: Props) {
     </Form>
   )
 }
+
+export { AccountForm as default, AccountForm } // default + named

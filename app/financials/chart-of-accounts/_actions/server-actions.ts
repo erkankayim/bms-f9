@@ -213,3 +213,15 @@ export async function getParentAccounts(): Promise<Account[]> {
     return []
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Compatibility re-exports for client components                      */
+/* These map the older Action names used in the UI to the functions   */
+/* defined above so build does not fail.                              */
+/* ------------------------------------------------------------------ */
+
+export const addAccountAction = createAccount
+export const updateAccountAction = updateAccount
+export const deleteAccountAction = deleteAccount
+export const toggleAccountStatusAction = toggleAccountStatus
+export const getAccountById = getAccount

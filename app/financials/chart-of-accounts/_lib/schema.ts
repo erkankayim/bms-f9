@@ -17,3 +17,6 @@ export const accountSchema = z.object({
 })
 
 export type AccountFormValues = z.infer<typeof accountSchema>
+
+// Alias for legacy imports
+export { accountSchema as AccountSchema }
