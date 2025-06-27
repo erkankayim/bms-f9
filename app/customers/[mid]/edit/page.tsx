@@ -1,58 +1,50 @@
-import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CustomerForm } from "../../new/_components/customer-form"
-import type { CustomerDetail } from "../_components/customer-detail-helpers"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { createClient } from "@/lib/supabase/server"
 
-export default async function EditCustomerPage({ params }: { params: { mid: string } }) {
+interface EditCustomerPageProps {
+  params: {
+    mid: string
+  }
+}
+
+async function getCustomer(mid: string) {
   const supabase = createClient()
-  const { mid } = params
 
-  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", mid).single()
+  const { data: customer, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("mid", mid)
+    .is("deleted_at", null)
+    .single()
 
   if (error || !customer) {
-    console.error("Error fetching customer for edit or customer not found:", error?.message)
+    return null
+  }
+
+  return customer
+}
+
+export default async function EditCustomerPage({ params }: EditCustomerPageProps) {
+  const customer = await getCustomer(params.mid)
+
+  if (!customer) {
     notFound()
   }
 
-  const typedCustomer = customer as CustomerDetail
-
-  const customerFormData = {
-    mid: typedCustomer.mid,
-    service_name: typedCustomer.service_name || "",
-    contact_name: typedCustomer.contact_name || "",
-    email: typedCustomer.email || "",
-    phone: typedCustomer.phone || "",
-    address: typedCustomer.address || "",
-    city: typedCustomer.city || "",
-    province: typedCustomer.province || "",
-    postal_code: typedCustomer.postal_code || "",
-    tax_office: typedCustomer.tax_office || "",
-    tax_number: typedCustomer.tax_number || "",
-    customer_group: typedCustomer.customer_group || "",
-    balance: typedCustomer.balance === null ? 0 : typedCustomer.balance,
-    notes: typedCustomer.notes || "",
-  }
+  // Müşteri adını oluştur
+  const customerName = customer.contact_name || customer.company_name || `Müşteri ${customer.mid}`
 
   return (
-    <div className="container mx-auto py-2">
-      <div className="mb-4">
-        <Link href="/customers">
-          <Button variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Müşterilere Geri Dön
-          </Button>
-        </Link>
-      </div>
+    <div className="container mx-auto py-10">
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Müşteriyi Düzenle: {customer.contact_name || customer.mid}</CardTitle>
+          <CardTitle>Müşteriyi Düzenle: {customerName}</CardTitle>
           <CardDescription>Bu müşterinin bilgilerini güncelleyin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomerForm initialData={customerFormData} isEditMode={true} customerId={customer.mid} />
+          <CustomerForm initialData={customer} />
         </CardContent>
       </Card>
     </div>

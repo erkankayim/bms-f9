@@ -17,7 +17,15 @@ import {
   FileText,
   Briefcase,
 } from "lucide-react"
-import { getDashboardStats, getRecentSales, getRecentCustomers } from "./_actions/dashboard-actions"
+import {
+  getDashboardStats,
+  getRecentSales,
+  getRecentCustomers,
+  getSalesTrendData,
+  getCustomerGrowthData,
+  getTopProducts,
+  getRevenueByCategory,
+} from "./_actions/dashboard-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrencyTR, formatSimpleDateTR, getSaleStatusBadgeVariant, formatSaleStatusTR } from "@/lib/utils"
 import DashboardCharts from "./_components/dashboard-charts"
@@ -25,15 +33,31 @@ import DashboardCharts from "./_components/dashboard-charts"
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
-  const [statsResult, recentSalesResult, recentCustomersResult] = await Promise.all([
+  const [
+    statsResult,
+    recentSalesResult,
+    recentCustomersResult,
+    salesTrendResult,
+    customerGrowthResult,
+    topProductsResult,
+    revenueByCategoryResult,
+  ] = await Promise.all([
     getDashboardStats(),
     getRecentSales(5),
     getRecentCustomers(3),
+    getSalesTrendData(),
+    getCustomerGrowthData(),
+    getTopProducts(),
+    getRevenueByCategory(),
   ])
 
   const stats = statsResult.data
   const recentSales = recentSalesResult.data
   const recentCustomers = recentCustomersResult.data
+  const salesTrendData = salesTrendResult.data || []
+  const customerGrowthData = customerGrowthResult.data || []
+  const topProducts = topProductsResult.data || []
+  const revenueByCategory = revenueByCategoryResult.data || []
 
   if (statsResult.error || !stats) {
     return (
@@ -114,37 +138,12 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        {/* Grafikler */}
+        {/* Grafikler - Gerçek Verilerle */}
         <DashboardCharts
-          salesTrendData={[
-            { month: "Oca", sales: 45, revenue: 12500 },
-            { month: "Şub", sales: 52, revenue: 15200 },
-            { month: "Mar", sales: 48, revenue: 13800 },
-            { month: "Nis", sales: 61, revenue: 18400 },
-            { month: "May", sales: 55, revenue: 16200 },
-            { month: "Haz", sales: 67, revenue: 19800 },
-          ]}
-          customerGrowthData={[
-            { month: "Oca", newCustomers: 12, totalCustomers: 145 },
-            { month: "Şub", newCustomers: 15, totalCustomers: 160 },
-            { month: "Mar", newCustomers: 8, totalCustomers: 168 },
-            { month: "Nis", newCustomers: 22, totalCustomers: 190 },
-            { month: "May", newCustomers: 18, totalCustomers: 208 },
-            { month: "Haz", newCustomers: 25, totalCustomers: 233 },
-          ]}
-          revenueByCategory={[
-            { category: "Ürün Satışı", value: 45000, color: "#0088FE" },
-            { category: "Hizmet", value: 28000, color: "#00C49F" },
-            { category: "Abonelik", value: 15000, color: "#FFBB28" },
-            { category: "Diğer", value: 8000, color: "#FF8042" },
-          ]}
-          topProducts={[
-            { name: "Premium Paket", sales: 45, revenue: 22500 },
-            { name: "Standart Hizmet", sales: 38, revenue: 15200 },
-            { name: "Teknik Destek", sales: 32, revenue: 9600 },
-            { name: "Özel Çözüm", sales: 28, revenue: 14000 },
-            { name: "Bakım Hizmeti", sales: 25, revenue: 7500 },
-          ]}
+          salesTrendData={salesTrendData}
+          customerGrowthData={customerGrowthData}
+          revenueByCategory={revenueByCategory}
+          topProducts={topProducts}
         />
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

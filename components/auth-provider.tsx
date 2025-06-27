@@ -3,12 +3,12 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/client"
 import { usePathname, useRouter } from "next/navigation"
 import { MainNav } from "./main-nav"
 
-interface AuthContextType {
+type AuthContextType = {
   user: User | null
   loading: boolean
   signOut: () => Promise<void>
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
 
-  const isAuthPage = pathname?.startsWith("/auth")
+  const isAuthPage = pathname?.startsWith("/auth/")
 
   useEffect(() => {
     // Get initial session
@@ -52,58 +52,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Auth state changed:", event, session?.user?.email)
       setUser(session?.user ?? null)
       setLoading(false)
-
-      if (event === "SIGNED_IN") {
-        router.push("/")
-      } else if (event === "SIGNED_OUT") {
-        router.push("/auth/login")
-      }
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth, router])
+  }, [supabase.auth])
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    router.push("/auth/login")
   }
 
-  // Show loading spinner while checking auth
+  // Redirect logic
+  useEffect(() => {
+    if (!loading) {
+      if (!user && !isAuthPage) {
+        router.push("/auth/login")
+      } else if (user && isAuthPage) {
+        router.push("/")
+      }
+    }
+  }, [user, loading, isAuthPage, router])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
-  // If user is not authenticated and not on auth page, redirect to login
-  if (!user && !isAuthPage) {
-    router.push("/auth/login")
-    return null
+  // Show auth pages without layout
+  if (isAuthPage) {
+    return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
   }
 
-  // If user is authenticated and on auth page, redirect to dashboard
-  if (user && isAuthPage) {
-    router.push("/")
-    return null
-  }
-
-  const value = {
-    user,
-    loading,
-    signOut,
-  }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {user && !isAuthPage ? (
+  // Show main app with layout
+  if (user) {
+    return (
+      <AuthContext.Provider value={{ user, loading, signOut }}>
         <div className="min-h-screen bg-background">
           <MainNav />
           <main className="flex-1">{children}</main>
         </div>
-      ) : (
-        children
-      )}
-    </AuthContext.Provider>
+      </AuthContext.Provider>
+    )
+  }
+
+  // Loading state or redirecting
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
   )
 }

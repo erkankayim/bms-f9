@@ -1,19 +1,20 @@
 import { z } from "zod"
 
-/* ------------------------------------------------------------------ */
-/*  Account type sabitleri – eski kod geriye uyumluluk                */
-/* ------------------------------------------------------------------ */
-export const accountTypes = ["asset", "liability", "equity", "revenue", "expense"] as const
-export type AccountType = (typeof accountTypes)[number]
+export const accountTypes = [
+  { value: "asset", label: "Varlık" },
+  { value: "liability", label: "Borç" },
+  { value: "equity", label: "Özkaynak" },
+  { value: "revenue", label: "Gelir" },
+  { value: "expense", label: "Gider" },
+] as const
 
 export const AccountSchema = z.object({
-  account_code: z.string().min(1, "Hesap kodu gereklidir"),
-  account_name: z.string().min(1, "Hesap adı gereklidir"),
-  account_type: z.enum(accountTypes, {
+  code: z.string().min(1, "Hesap kodu gereklidir"),
+  name: z.string().min(1, "Hesap adı gereklidir"),
+  type: z.enum(["asset", "liability", "equity", "revenue", "expense"], {
     required_error: "Hesap türü seçilmelidir",
   }),
-  parent_account_id: z.string().optional(),
-  description: z.string().optional(),
+  parent_id: z.string().nullable().optional(),
   is_active: z.boolean().default(true),
 })
 
