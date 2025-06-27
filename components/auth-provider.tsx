@@ -57,14 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Auth state changed:", event, !!session?.user)
       setUser(session?.user ?? null)
       setLoading(false)
-
-      // Force a page refresh for login/logout to ensure proper state sync
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          window.location.reload()
-        }, 100)
-      }
     })
 
     return () => {
