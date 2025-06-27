@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
-import AccountForm from "../../_components/account-form"
-import { getAccountById } from "../../_actions/server-actions"
+import AccountForm from "../_components/account-form"
+import { getAccountById } from "../_actions/server-actions"
 
 interface Props {
   params: { id: string }

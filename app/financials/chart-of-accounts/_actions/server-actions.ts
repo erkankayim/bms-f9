@@ -1,215 +1,107 @@
-"use server"
-
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { AccountSchema } from "../_lib/schema"
-import type { z } from "zod"
+import { accountSchema, type AccountFormValues, type AccountType } from "../_lib/schema"
 
-export type Account = {
+/* ---------------------------------------------------------- */
+/* TİPLER                                                     */
+/* ---------------------------------------------------------- */
+export type ChartOfAccount = {
   id: number
-  code: string
-  name: string
-  type: string
-  parent_id?: number | null
-  description?: string | null
+  account_code: string
+  account_name: string
+  account_type: AccountType
+  parent_account_id: number | null
+  description: string | null
   is_active: boolean
   created_at: string
-  updated_at: string
+}
+
+/* ---------------------------------------------------------- */
+/* OKUMA İŞLEVLERİ (server componentlerde kullanılabilir)      */
+/* ---------------------------------------------------------- */
+export async function getAccountById(id: number) {
+  "use server"
+  const supabase = createClient()
+  const { data, error } = await supabase.from("chart_of_accounts").select("*").eq("id", id).single()
+  if (error) throw error
+  return data as ChartOfAccount
 }
 
 export async function getChartOfAccounts({
-  searchTerm = "",
-  accountType = "All",
-  page = 1,
-  pageSize = 10,
+  searchTerm,
+  accountType,
 }: {
   searchTerm?: string
   accountType?: string
-  page?: number
-  pageSize?: number
 }) {
+  "use server"
   const supabase = createClient()
-
-  try {
-    let query = supabase.from("chart_of_accounts").select("*", { count: "exact" })
-
-    if (searchTerm) {
-      query = query.or(`code.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`)
-    }
-
-    if (accountType !== "All") {
-      query = query.eq("type", accountType)
-    }
-
-    const { data, error, count } = await query.order("code").range((page - 1) * pageSize, page * pageSize - 1)
-
-    if (error) {
-      console.error("Chart of accounts query error:", error)
-      // Return empty results instead of throwing
-      return { accounts: [], count: 0 }
-    }
-
-    return { accounts: data || [], count: count || 0 }
-  } catch (error) {
-    console.error("Chart of accounts error:", error)
-    return { accounts: [], count: 0 }
-  }
-}
-
-export async function createAccount(
-  prevState: any,
-  formData: FormData,
-): Promise<{ success: boolean; message: string; errors?: z.ZodIssue[] }> {
-  const supabase = createClient()
-  const rawData = Object.fromEntries(formData)
-
-  if (rawData.parent_id === "none" || rawData.parent_id === "") {
-    rawData.parent_id = null
-  }
-
-  const validatedFields = AccountSchema.safeParse(rawData)
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      message: "Lütfen formdaki hataları düzeltin.",
-      errors: validatedFields.error.issues,
-    }
-  }
-
-  const { code, name, type, parent_id, description } = validatedFields.data
-
-  const { error } = await supabase.from("chart_of_accounts").insert({
-    code,
-    name,
-    type,
-    parent_id: parent_id || null,
-    description: description || null,
-    is_active: true,
-  })
-
-  if (error) {
-    console.error("Account creation error:", error)
-    return { success: false, message: `Hesap oluşturulurken hata: ${error.message}` }
-  }
-
-  revalidatePath("/financials/chart-of-accounts")
-  return { success: true, message: "Hesap başarıyla oluşturuldu." }
-}
-
-export async function updateAccount(
-  id: number,
-  prevState: any,
-  formData: FormData,
-): Promise<{ success: boolean; message: string; errors?: z.ZodIssue[] }> {
-  const supabase = createClient()
-  const rawData = Object.fromEntries(formData)
-
-  if (rawData.parent_id === "none" || rawData.parent_id === "") {
-    rawData.parent_id = null
-  }
-
-  const validatedFields = AccountSchema.safeParse(rawData)
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      message: "Lütfen formdaki hataları düzeltin.",
-      errors: validatedFields.error.issues,
-    }
-  }
-
-  const { code, name, type, parent_id, description } = validatedFields.data
-
-  const { error } = await supabase
+  let q = supabase
     .from("chart_of_accounts")
-    .update({
-      code,
-      name,
-      type,
-      parent_id: parent_id || null,
-      description: description || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
+    .select("*, parent_account:chart_of_accounts!parent_account_id(id,account_code,account_name)")
+    .order("account_code")
 
-  if (error) {
-    console.error("Account update error:", error)
-    return { success: false, message: `Hesap güncellenirken hata: ${error.message}` }
-  }
+  if (searchTerm) q = q.or(`account_code.ilike.%${searchTerm}%,account_name.ilike.%${searchTerm}%`)
+  if (accountType && accountType !== "All") q = q.eq("account_type", accountType)
 
-  revalidatePath("/financials/chart-of-accounts")
-  return { success: true, message: "Hesap başarıyla güncellendi." }
+  const { data, error } = await q
+  if (error) throw error
+  return data as ChartOfAccount[]
 }
 
-export async function deleteAccount(id: number): Promise<{ success: boolean; message: string }> {
+/* ---------------------------------------------------------- */
+/* MUTASYONLAR — SERVER ACTION                                */
+/* ---------------------------------------------------------- */
+export async function addAccountAction(values: AccountFormValues) {
+  "use server"
+  const parsed = accountSchema.safeParse(values)
+  if (!parsed.success) return { success: false, errors: parsed.error.issues as any }
+
   const supabase = createClient()
 
+  const { error } = await supabase.from("chart_of_accounts").insert(parsed.data)
+  if (error)
+    return {
+      success: false,
+      message: error.code === "23505" ? "Bu hesap kodu zaten kullanılıyor." : error.message,
+    }
+
+  revalidatePath("/financials/chart-of-accounts")
+  return { success: true }
+}
+
+export async function updateAccountAction(id: number, values: AccountFormValues) {
+  "use server"
+  const parsed = accountSchema.safeParse(values)
+  if (!parsed.success) return { success: false, errors: parsed.error.issues as any }
+
+  const supabase = createClient()
+  const { error } = await supabase.from("chart_of_accounts").update(parsed.data).eq("id", id)
+
+  if (error)
+    return {
+      success: false,
+      message: error.code === "23505" ? "Bu hesap kodu zaten kullanılıyor." : error.message,
+    }
+
+  revalidatePath("/financials/chart-of-accounts")
+  return { success: true }
+}
+
+export async function deleteAccountAction(id: number) {
+  "use server"
+  const supabase = createClient()
   const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id)
-
-  if (error) {
-    console.error("Account deletion error:", error)
-    return { success: false, message: `Hesap silinirken hata: ${error.message}` }
-  }
-
+  if (error) return { success: false, message: error.message }
   revalidatePath("/financials/chart-of-accounts")
-  return { success: true, message: "Hesap başarıyla silindi." }
+  return { success: true }
 }
 
-export async function toggleAccountStatus(
-  id: number,
-  isActive: boolean,
-): Promise<{ success: boolean; message: string }> {
+export async function toggleAccountStatusAction(id: number, isActive: boolean) {
+  "use server"
   const supabase = createClient()
-
   const { error } = await supabase.from("chart_of_accounts").update({ is_active: isActive }).eq("id", id)
-
-  if (error) {
-    console.error("Account status toggle error:", error)
-    return { success: false, message: `Hesap durumu değiştirilirken hata: ${error.message}` }
-  }
-
+  if (error) return { success: false, message: error.message }
   revalidatePath("/financials/chart-of-accounts")
-  return { success: true, message: `Hesap ${isActive ? "aktif" : "pasif"} hale getirildi.` }
-}
-
-export async function getAccount(id: number): Promise<Account | null> {
-  const supabase = createClient()
-
-  try {
-    const { data, error } = await supabase.from("chart_of_accounts").select("*").eq("id", id).single()
-
-    if (error) {
-      console.error("Get account error:", error)
-      return null
-    }
-
-    return data as Account
-  } catch (error) {
-    console.error("Get account error:", error)
-    return null
-  }
-}
-
-export async function getParentAccounts(): Promise<Account[]> {
-  const supabase = createClient()
-
-  try {
-    const { data, error } = await supabase
-      .from("chart_of_accounts")
-      .select("*")
-      .is("parent_id", null)
-      .eq("is_active", true)
-      .order("code")
-
-    if (error) {
-      console.error("Get parent accounts error:", error)
-      return []
-    }
-
-    return data as Account[]
-  } catch (error) {
-    console.error("Get parent accounts error:", error)
-    return []
-  }
+  return { success: true }
 }
