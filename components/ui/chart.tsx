@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
-import { createContext } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -33,7 +32,7 @@ function useChart() {
 }
 
 /* React context’i Recharts tooltip’leri için basit bir bağlam sağlar. */
-export const ChartCtx = createContext({})
+export const ChartCtx = React.createContext({})
 
 const ChartContainer = React.forwardRef<
   HTMLDivElement,

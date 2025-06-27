@@ -22,7 +22,7 @@ interface Props {
   accountId?: number | null
 }
 
-export default function AccountForm({ initialData, accountId }: Props) {
+function AccountForm({ initialData, accountId }: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const [parentOpts, setParentOpts] = useState<ChartOfAccount[]>([])
@@ -218,3 +218,6 @@ export default function AccountForm({ initialData, accountId }: Props) {
     </Form>
   )
 }
+
+export { AccountForm }
+export default AccountForm
