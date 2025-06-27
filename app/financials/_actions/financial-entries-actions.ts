@@ -25,6 +25,39 @@ export type SupplierForDropdown = {
   contact_name: string | null
 }
 
+export type IncomeEntry = {
+  id: number
+  description: string
+  incoming_amount: number
+  entry_date: string
+  source: string
+  invoice_number?: string
+  payment_method: string
+  notes?: string
+  customer_mid?: string
+  customer_name?: string
+  category_name?: string
+  created_at: string
+}
+
+export type ExpenseEntry = {
+  id: number
+  description: string
+  expense_amount: number
+  payment_amount: number
+  expense_title: string
+  expense_source: string
+  entry_date: string
+  invoice_number?: string
+  payment_method: string
+  receipt_url?: string
+  notes?: string
+  supplier_id?: string
+  supplier_name?: string
+  category_name?: string
+  created_at: string
+}
+
 // Data fetching functions
 export async function getFinancialCategories(
   type: "income" | "expense",
@@ -54,6 +87,7 @@ export async function getFinancialCategories(
       },
       { id: 3, name: "Faiz Gelirleri", type: "income" as const, description: "Banka faizleri ve yatırım gelirleri" },
       { id: 4, name: "Diğer Gelirler", type: "income" as const, description: "Diğer çeşitli gelir kaynakları" },
+      { id: 12, name: "Danışmanlık Geliri", type: "income" as const, description: "Sağlanan danışmanlık hizmetlerinden elde edilen gelir" },
     ]
 
     const defaultExpenseCategories = [
@@ -140,6 +174,228 @@ export async function getSuppliersForDropdown(): Promise<{ data?: SupplierForDro
   return { data }
 }
 
+export async function getIncomeEntries(): Promise<{ data?: IncomeEntry[]; error?: string }> {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from("income_entries")
+    .select(`
+      id,
+      description,
+      incoming_amount,
+      entry_date,
+      source,
+      invoice_number,
+      payment_method,
+      notes,
+      customer_id,
+      category_id,
+      created_at,
+      customers!inner(mid, contact_name),
+      financial_categories(name)
+    `)
+    .order("entry_date", { ascending: false })
+
+  if (error) {
+    return { error: `Gelir kayıtları alınırken hata: ${error.message}` }
+  }
+
+  const formattedData = data?.map((entry: any) => ({
+    id: entry.id,
+    description: entry.description,
+    incoming_amount: entry.incoming_amount,
+    entry_date: entry.entry_date,
+    source: entry.source,
+    invoice_number: entry.invoice_number,
+    payment_method: entry.payment_method,
+    notes: entry.notes,
+    customer_mid: entry.customers?.mid,
+    customer_name: entry.customers?.contact_name,
+    category_name: entry.financial_categories?.name,
+    created_at: entry.created_at,
+  })) || []
+
+  return { data: formattedData }
+}
+
+export async function getExpenseEntries(): Promise<{ data?: ExpenseEntry[]; error?: string }> {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from("expense_entries")
+    .select(`
+      id,
+      description,
+      expense_amount,
+      payment_amount,
+      expense_title,
+      expense_source,
+      entry_date,
+      invoice_number,
+      payment_method,
+      receipt_url,
+      notes,
+      supplier_id,
+      category_id,
+      created_at,
+      suppliers(name),
+      financial_categories(name)
+    `)
+    .order("entry_date", { ascending: false })
+
+  if (error) {
+    return { error: `Gider kayıtları alınırken hata: ${error.message}` }
+  }
+
+  const formattedData = data?.map((entry: any) => ({
+    id: entry.id,
+    description: entry.description,
+    expense_amount: entry.expense_amount,
+    payment_amount: entry.payment_amount,
+    expense_title: entry.expense_title,
+    expense_source: entry.expense_source,
+    entry_date: entry.entry_date,
+    invoice_number: entry.invoice_number,
+    payment_method: entry.payment_method,
+    receipt_url: entry.receipt_url,
+    notes: entry.notes,
+    supplier_id: entry.supplier_id,
+    supplier_name: entry.suppliers?.name,
+    category_name: entry.financial_categories?.name,
+    created_at: entry.created_at,
+  })) || []
+
+  return { data: formattedData }
+}
+
+export async function getIncomeEntryById(id: number): Promise<{ data?: IncomeEntry; error?: string }> {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from("income_entries")
+    .select(`
+      id,
+      description,
+      incoming_amount,
+      entry_date,
+      source,
+      invoice_number,
+      payment_method,
+      notes,
+      customer_id,
+      category_id,
+      created_at,
+      customers(mid, contact_name),
+      financial_categories(name)
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    return { error: `Gelir kaydı alınırken hata: ${error.message}` }
+  }
+
+  const formattedData = {
+    id: data.id,
+    description: data.description,
+    incoming_amount: data.incoming_amount,
+    entry_date: data.entry_date,
+    source: data.source,
+    invoice_number: data.invoice_number,
+    payment_method: data.payment_method,
+    notes: data.notes,
+    customer_mid: data.customers?.mid,
+    customer_name: data.customers?.contact_name,
+    category_name: data.financial_categories?.name,
+    created_at: data.created_at,
+  }
+
+  return { data: formattedData }
+}
+
+export async function getExpenseEntryById(id: number): Promise<{ data?: ExpenseEntry; error?: string }> {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from("expense_entries")
+    .select(`
+      id,
+      description,
+      expense_amount,
+      payment_amount,
+      expense_title,
+      expense_source,
+      entry_date,
+      invoice_number,
+      payment_method,
+      receipt_url,
+      notes,
+      supplier_id,
+      category_id,
+      created_at,
+      suppliers(name),
+      financial_categories(name)
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    return { error: `Gider kaydı alınırken hata: ${error.message}` }
+  }
+
+  const formattedData = {
+    id: data.id,
+    description: data.description,
+    expense_amount: data.expense_amount,
+    payment_amount: data.payment_amount,
+    expense_title: data.expense_title,
+    expense_source: data.expense_source,
+    entry_date: data.entry_date,
+    invoice_number: data.invoice_number,
+    payment_method: data.payment_method,
+    receipt_url: data.receipt_url,
+    notes: data.notes,
+    supplier_id: data.supplier_id,
+    supplier_name: data.suppliers?.name,
+    category_name: data.financial_categories?.name,
+    created_at: data.created_at,
+  }
+
+  return { data: formattedData }
+}
+
+export async function deleteIncomeEntry(id: number): Promise<{ success: boolean; message: string }> {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from("income_entries")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    return { success: false, message: `Gelir kaydı silinirken hata: ${error.message}` }
+  }
+
+  revalidatePath("/financials/income")
+  return { success: true, message: "Gelir kaydı başarıyla silindi." }
+}
+
+export async function deleteExpenseEntry(id: number): Promise<{ success: boolean; message: string }> {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from("expense_entries")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    return { success: false, message: `Gider kaydı silinirken hata: ${error.message}` }
+  }
+
+  revalidatePath("/financials/expenses")
+  return { success: true, message: "Gider kaydı başarıyla silindi." }
+}
+
 // Server Actions
 export async function createIncomeEntryAction(
   prevState: any,
@@ -175,13 +431,14 @@ export async function createIncomeEntryAction(
 
   console.log("Validated data:", validatedFields.data)
 
+  // customer_id is MID format, we need to store it as is
   const { error } = await supabase.from("income_entries").insert({
     description,
     incoming_amount,
     entry_date,
     category_id,
     source,
-    customer_id,
+    customer_id, // This will be MID format like "CUST-004"
     invoice_number,
     payment_method,
     notes,

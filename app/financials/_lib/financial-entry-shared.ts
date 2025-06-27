@@ -22,9 +22,10 @@ export const IncomeEntrySchema = z.object({
       (val) => {
         // Allow null values (optional)
         if (val === null || val === undefined) return true
-        // If a value is provided, it must be a valid UUID
+        // If a value is provided, it can be either UUID or MID format (CUST-XXX)
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        return uuidRegex.test(val)
+        const midRegex = /^CUST-\d{3}$/
+        return uuidRegex.test(val) || midRegex.test(val)
       },
       { message: "Geçerli bir müşteri seçin veya boş bırakın." },
     ),
@@ -68,7 +69,7 @@ export const ExpenseEntrySchema = z.object({
       (val) => {
         // Allow null values (optional)
         if (val === null || val === undefined) return true
-        // If a value is provided, it must be a valid UUID
+        // If a value is provided, it must be a valid UUID (suppliers use UUID)
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         return uuidRegex.test(val)
       },

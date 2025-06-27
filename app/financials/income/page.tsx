@@ -6,23 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { PlusCircle, Search, Download, Eye, Edit, Trash2 } from "lucide-react"
+import { PlusCircle, Search, Download, Eye, Edit, Trash2 } from 'lucide-react'
 import Link from "next/link"
-import { getIncomeEntries } from "./_actions/income-actions"
-
-type IncomeEntry = {
-  id: number
-  description: string
-  incoming_amount: number
-  entry_date: string
-  source: string
-  invoice_number?: string
-  payment_method: string
-  notes?: string
-  customer_name?: string
-  category_name?: string
-  created_at: string
-}
+import { getIncomeEntries, deleteIncomeEntry, type IncomeEntry } from "../_actions/financial-entries-actions"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { toast } from "@/hooks/use-toast"
 
 export default function IncomePage() {
   const [incomes, setIncomes] = useState<IncomeEntry[]>([])
@@ -31,26 +19,28 @@ export default function IncomePage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all")
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   useEffect(() => {
-    async function fetchIncomes() {
-      try {
-        const result = await getIncomeEntries()
-        if (result.data) {
-          setIncomes(result.data)
-          setFilteredIncomes(result.data)
-        } else {
-          setError(result.error || "Veri yüklenirken hata oluştu")
-        }
-      } catch (err) {
-        setError("Beklenmeyen bir hata oluştu")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchIncomes()
   }, [])
+
+  async function fetchIncomes() {
+    try {
+      setLoading(true)
+      const result = await getIncomeEntries()
+      if (result.data) {
+        setIncomes(result.data)
+        setFilteredIncomes(result.data)
+      } else {
+        setError(result.error || "Veri yüklenirken hata oluştu")
+      }
+    } catch (err) {
+      setError("Beklenmeyen bir hata oluştu")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     let filtered = incomes
@@ -73,6 +63,34 @@ export default function IncomePage() {
 
     setFilteredIncomes(filtered)
   }, [incomes, searchTerm, selectedPaymentMethod])
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id)
+    try {
+      const result = await deleteIncomeEntry(id)
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: result.message,
+        })
+        await fetchIncomes() // Refresh the list
+      } else {
+        toast({
+          title: "Hata",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Beklenmeyen bir hata oluştu",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const totalAmount = filteredIncomes.reduce((sum, income) => sum + income.incoming_amount, 0)
   const paymentMethods = [...new Set(incomes.map((income) => income.payment_method))]
@@ -269,15 +287,51 @@ export default function IncomePage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Link href={`/financials/income/${income.id}`}>
+                            <Button variant="ghost" size="sm" title="Görüntüle">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <Link href={`/financials/income/${income.id}/edit`}>
+                            <Button variant="ghost" size="sm" title="Düzenle">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-red-600 hover:text-red-700"
+                                title="Sil"
+                                disabled={deletingId === income.id}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Gelir Kaydını Sil</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Bu gelir kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+                                  <br />
+                                  <br />
+                                  <strong>Açıklama:</strong> {income.description}
+                                  <br />
+                                  <strong>Tutar:</strong> ₺{income.incoming_amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>İptal</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(income.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Sil
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
