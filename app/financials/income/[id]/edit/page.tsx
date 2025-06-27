@@ -1,45 +1,50 @@
-import {
-  getIncomeEntryById,
-  getFinancialCategories,
-  getCustomersForDropdown,
-} from "@/app/financials/_actions/financial-entries-actions"
-import { IncomeForm } from "../../new/_components/income-form"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { notFound } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
+import { getIncomeEntryById } from "../../../_actions/financial-entries-actions"
+import { EditIncomeForm } from "./_components/edit-income-form"
 
-export default async function EditIncomePage({ params }: { params: { id: string } }) {
-  const id = Number(params.id)
+interface EditIncomePageProps {
+  params: {
+    id: string
+  }
+}
+
+export default async function EditIncomePage({ params }: EditIncomePageProps) {
+  const id = Number.parseInt(params.id)
   if (isNaN(id)) {
     notFound()
   }
 
-  const [incomeData, categories, customers] = await Promise.all([
-    getIncomeEntryById(id),
-    getFinancialCategories("income"),
-    getCustomersForDropdown(),
-  ])
+  const result = await getIncomeEntryById(id)
 
-  if (!incomeData) {
+  if (result.error || !result.data) {
     notFound()
   }
 
-  // Map data to match form expectations
-  const initialData = {
-    ...incomeData,
-    customer_id: incomeData.customer_mid, // Form expects MID
-  }
+  const entry = result.data
 
   return (
     <div className="container mx-auto py-8">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle>Gelir Kaydını Düzenle</CardTitle>
-          <CardDescription>ID: {id} numaralı gelir kaydını güncelleyin.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <IncomeForm categories={categories} customers={customers} initialData={initialData} />
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-4 mb-8">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/financials/income/${id}`}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Geri
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">Gelir Kaydını Düzenle</h1>
+          <p className="text-muted-foreground">
+            #{entry.id} - {entry.description}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-center">
+        <EditIncomeForm initialData={entry} />
+      </div>
     </div>
   )
 }

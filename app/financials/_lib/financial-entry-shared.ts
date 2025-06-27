@@ -1,115 +1,83 @@
 import { z } from "zod"
 
-// Payment methods
-export const PAYMENT_METHODS: string[] = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"]
+export const PAYMENT_METHODS = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"] as const
 
-// Zod Schemas
+// MID format regex for customer IDs like CUST-004
+const midRegex = /^CUST-\d{3}$/
+// UUID format regex
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export const IncomeEntrySchema = z.object({
-  description: z.string().min(3, "Açıklama en az 3 karakter olmalıdır."),
-  incoming_amount: z.coerce.number().positive("Gelen tutar pozitif bir değer olmalıdır."),
-  entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Geçerli bir tarih formatı girin (YYYY-AA-GG)."),
-  category_id: z.coerce.number().positive("Kategori seçimi zorunludur."),
-  source: z.string().min(2, "Gelir kaynağı en az 2 karakter olmalıdır."),
+  id: z.number().optional(),
+  description: z.string().min(1, "Açıklama gereklidir"),
+  incoming_amount: z.coerce.number().positive("Tutar pozitif olmalıdır"),
+  entry_date: z.string().min(1, "Tarih gereklidir"),
+  category_id: z.coerce.number().positive("Kategori seçilmelidir"),
+  source: z.string().min(1, "Kaynak gereklidir"),
   customer_id: z
-    .union([z.string(), z.null(), z.undefined()])
+    .string()
     .optional()
+    .nullable()
     .transform((val) => {
-      // Transform "no-customer", empty string, or undefined to null
-      if (!val || val === "" || val === "no-customer" || val === "none") return null
+      if (!val || val === "no-customer" || val === "") return null
       return val
     })
-    .refine(
-      (val) => {
-        // Allow null values (optional)
-        if (val === null || val === undefined) return true
-        // If a value is provided, it can be either UUID or MID format (CUST-XXX)
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        const midRegex = /^CUST-\d+/i // CUST- ile başlayan formatı kabul et
-        return uuidRegex.test(val) || midRegex.test(val)
-      },
-      { message: "Geçerli bir müşteri seçin veya boş bırakın." },
-    ),
+    .refine((val) => {
+      if (val === null) return true
+      return midRegex.test(val) || uuidRegex.test(val)
+    }, "Geçerli bir müşteri seçin veya boş bırakın"),
   invoice_number: z
-    .union([z.string(), z.null(), z.undefined()])
-    .optional()
-    .transform((val) => {
-      if (!val || val === "") return null
-      return val
-    }),
-  payment_method: z
     .string()
-    .min(1, "Ödeme şekli seçimi zorunludur.")
-    .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
-  notes: z
-    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .transform((val) => {
-      if (!val || val === "") return null
-      return val
-    }),
+    .nullable()
+    .transform((val) => val || null),
+  payment_method: z.enum(PAYMENT_METHODS, {
+    required_error: "Ödeme yöntemi seçilmelidir",
+  }),
+  notes: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val || null),
 })
 
 export const ExpenseEntrySchema = z.object({
-  description: z.string().min(3, "Açıklama en az 3 karakter olmalıdır."),
-  expense_amount: z.coerce.number().positive("Gider tutarı pozitif bir değer olmalıdır."),
-  payment_amount: z.coerce.number().positive("Ödeme tutarı pozitif bir değer olmalıdır."),
-  expense_title: z.string().min(2, "Gider başlığı en az 2 karakter olmalıdır."),
-  expense_source: z.string().min(2, "Gider kaynağı en az 2 karakter olmalıdır."),
-  entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Geçerli bir tarih formatı girin (YYYY-AA-GG)."),
-  category_id: z.coerce.number().positive("Kategori seçimi zorunludur."),
+  id: z.number().optional(),
+  description: z.string().min(1, "Açıklama gereklidir"),
+  expense_amount: z.coerce.number().positive("Gider tutarı pozitif olmalıdır"),
+  payment_amount: z.coerce.number().positive("Ödeme tutarı pozitif olmalıdır"),
+  expense_title: z.string().min(1, "Gider başlığı gereklidir"),
+  expense_source: z.string().min(1, "Gider kaynağı gereklidir"),
+  entry_date: z.string().min(1, "Tarih gereklidir"),
+  category_id: z.coerce.number().positive("Kategori seçilmelidir"),
   supplier_id: z
-    .union([z.string(), z.null(), z.undefined()])
-    .optional()
-    .transform((val) => {
-      // Transform "no-supplier", empty string, or undefined to null
-      if (!val || val === "" || val === "no-supplier" || val === "none") return null
-      return val
-    })
-    .refine(
-      (val) => {
-        // Allow null values (optional)
-        if (val === null || val === undefined) return true
-        // If a value is provided, it must be a valid UUID (suppliers use UUID)
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        return uuidRegex.test(val)
-      },
-      { message: "Geçerli bir tedarikçi seçin veya boş bırakın." },
-    ),
-  invoice_number: z
-    .union([z.string(), z.null(), z.undefined()])
-    .optional()
-    .transform((val) => {
-      if (!val || val === "") return null
-      return val
-    }),
-  payment_method: z
     .string()
-    .min(1, "Ödeme şekli seçimi zorunludur.")
-    .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
-  receipt_url: z
-    .union([z.string(), z.null(), z.undefined()])
     .optional()
+    .nullable()
     .transform((val) => {
-      if (!val || val === "") return null
-      return val
-    })
-    .refine(
-      (val) => {
-        if (val === null || val === undefined) return true
-        try {
-          new URL(val)
-          return true
-        } catch {
-          return false
-        }
-      },
-      { message: "Geçerli bir URL girin." },
-    ),
-  notes: z
-    .union([z.string(), z.null(), z.undefined()])
-    .optional()
-    .transform((val) => {
-      if (!val || val === "") return null
+      if (!val || val === "no-supplier" || val === "") return null
       return val
     }),
+  invoice_number: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val || null),
+  payment_method: z.enum(PAYMENT_METHODS, {
+    required_error: "Ödeme yöntemi seçilmelidir",
+  }),
+  receipt_url: z
+    .string()
+    .url()
+    .optional()
+    .nullable()
+    .transform((val) => val || null),
+  notes: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => val || null),
 })
+
+export type IncomeEntryFormData = z.infer<typeof IncomeEntrySchema>
+export type ExpenseEntryFormData = z.infer<typeof ExpenseEntrySchema>

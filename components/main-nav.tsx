@@ -3,152 +3,131 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
-import { LayoutDashboard, Users, Package, ShoppingCart, Building, Package2, FileText, Calculator, TrendingUp, Receipt, CreditCard, PieChart } from 'lucide-react'
+  LayoutDashboard,
+  Users,
+  Package,
+  ShoppingCart,
+  Building,
+  Package2,
+  FileText,
+  Calculator,
+  TrendingUp,
+  TrendingDown,
+  BookOpen,
+  Settings,
+  LogOut,
+  Wrench,
+} from "lucide-react"
+import { logoutAction } from "@/app/auth/actions"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const navigation = [
+  { name: "Kontrol Paneli", href: "/", icon: LayoutDashboard },
+  { name: "Müşteriler", href: "/customers", icon: Users },
+  { name: "Ürünler", href: "/products", icon: Package },
+  { name: "Satışlar", href: "/sales", icon: ShoppingCart },
+  { name: "Tedarikçiler", href: "/suppliers", icon: Building },
+  { name: "Envanter", href: "/inventory", icon: Package2 },
+  { name: "Faturalar", href: "/invoices", icon: FileText },
   {
-    name: "Kontrol Paneli",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Müşteriler",
-    href: "/customers",
-    icon: Users,
-  },
-  {
-    name: "Ürünler",
-    href: "/products",
-    icon: Package,
-  },
-  {
-    name: "Satışlar",
-    href: "/sales",
-    icon: ShoppingCart,
-  },
-  {
-    name: "Tedarikçiler",
-    href: "/suppliers",
-    icon: Building,
-  },
-  {
-    name: "Envanter",
-    href: "/inventory",
-    icon: Package2,
-  },
-  {
-    name: "Faturalar",
-    href: "/invoices",
-    icon: FileText,
-  },
-  {
-    name: "Hizmetler",
-    href: "/service",
-    icon: Calculator,
-  },
-]
-
-const financialNavigation = [
-  {
-    name: "Finansal Özet",
+    name: "Finansal",
     href: "/financials",
-    description: "Genel finansal durum ve raporlar",
-    icon: PieChart,
+    icon: Calculator,
+    subItems: [
+      { name: "Finansal Özet", href: "/financials", icon: Calculator },
+      { name: "Gelir Listesi", href: "/financials/income", icon: TrendingUp },
+      { name: "Gider Listesi", href: "/financials/expenses", icon: TrendingDown },
+      { name: "Hesap Planı", href: "/financials/chart-of-accounts", icon: BookOpen },
+    ],
   },
-  {
-    name: "Gelir Listesi",
-    href: "/financials/income",
-    description: "Tüm gelir kayıtlarını görüntüle",
-    icon: TrendingUp,
-  },
-  {
-    name: "Gider Listesi",
-    href: "/financials/expenses",
-    description: "Tüm gider kayıtlarını görüntüle",
-    icon: Receipt,
-  },
-  {
-    name: "Hesap Planı",
-    href: "/financials/chart-of-accounts",
-    description: "Mali hesapları yönet",
-    icon: CreditCard,
-  },
+  { name: "Servis", href: "/service", icon: Wrench },
+  { name: "Kullanıcılar", href: "/users", icon: Settings },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
 
   return (
-    <NavigationMenu>
-      <NavigationMenuList>
-        {navigation.map((item) => {
-          const Icon = item.icon
-          return (
-            <NavigationMenuItem key={item.name}>
-              <Link href={item.href} legacyBehavior passHref>
-                <NavigationMenuLink
-                  className={cn(
-                    navigationMenuTriggerStyle(),
-                    pathname === item.href && "bg-accent text-accent-foreground"
-                  )}
-                >
-                  <Icon className="mr-2 h-4 w-4" />
-                  {item.name}
-                </NavigationMenuLink>
-              </Link>
-            </NavigationMenuItem>
-          )
-        })}
-
-        {/* Finansal Dropdown Menu */}
-        <NavigationMenuItem>
-          <NavigationMenuTrigger
-            className={cn(
-              pathname.startsWith("/financials") && "bg-accent text-accent-foreground"
-            )}
-          >
-            <Calculator className="mr-2 h-4 w-4" />
-            Finansal
-          </NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-              {financialNavigation.map((item) => {
-                const Icon = item.icon
-                return (
-                  <li key={item.name}>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        href={item.href}
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 hidden md:flex">
+          <Link href="/" className="mr-6 flex items-center space-x-2">
+            <Package className="h-6 w-6" />
+            <span className="hidden font-bold sm:inline-block">İş Yönetimi</span>
+          </Link>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
+            {navigation.map((item) => (
+              <div key={item.name}>
+                {item.subItems ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
                         className={cn(
-                          "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                          pathname === item.href && "bg-accent text-accent-foreground"
+                          "transition-colors hover:text-foreground/80",
+                          pathname?.startsWith(item.href) ? "text-foreground" : "text-foreground/60",
                         )}
                       >
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4" />
-                          <div className="text-sm font-medium leading-none">{item.name}</div>
-                        </div>
-                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                          {item.description}
-                        </p>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                )
-              })}
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-      </NavigationMenuList>
-    </NavigationMenu>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.name}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuLabel>Finansal İşlemler</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {item.subItems.map((subItem) => (
+                        <DropdownMenuItem key={subItem.name} asChild>
+                          <Link
+                            href={subItem.href}
+                            className={cn(
+                              "flex items-center w-full",
+                              pathname === subItem.href ? "bg-accent text-accent-foreground" : "",
+                            )}
+                          >
+                            <subItem.icon className="mr-2 h-4 w-4" />
+                            {subItem.name}
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center transition-colors hover:text-foreground/80",
+                      pathname === item.href ? "text-foreground" : "text-foreground/60",
+                    )}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </Link>
+                )}
+              </div>
+            ))}
+          </nav>
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <div className="w-full flex-1 md:w-auto md:flex-none">{/* Mobile menu can be added here */}</div>
+          <nav className="flex items-center">
+            <form action={logoutAction}>
+              <Button variant="ghost" size="sm" type="submit">
+                <LogOut className="mr-2 h-4 w-4" />
+                Çıkış Yap
+              </Button>
+            </form>
+          </nav>
+        </div>
+      </div>
+    </header>
   )
 }
