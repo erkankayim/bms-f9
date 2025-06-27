@@ -3,22 +3,24 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/client"
-import { usePathname, useRouter } from "next/navigation"
+import type { User } from "@supabase/supabase-js"
+import { useRouter, usePathname } from "next/navigation"
 import { MainNav } from "./main-nav"
 
 type AuthContextType = {
   user: User | null
   loading: boolean
-  signOut: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+})
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
@@ -27,9 +29,9 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
-  const pathname = usePathname()
   const router = useRouter()
+  const pathname = usePathname()
+  const supabase = createClient()
 
   const isAuthPage = pathname?.startsWith("/auth/")
 
@@ -52,15 +54,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Auth state changed:", event, session?.user?.email)
       setUser(session?.user ?? null)
       setLoading(false)
+
+      if (event === "SIGNED_IN" && isAuthPage) {
+        router.push("/")
+      } else if (event === "SIGNED_OUT" && !isAuthPage) {
+        router.push("/auth/login")
+      }
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login")
-  }
+  }, [supabase.auth, router, isAuthPage])
 
   // Redirect logic
   useEffect(() => {
@@ -76,32 +79,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
-  // Show auth pages without layout
+  // Show auth pages without navigation
   if (isAuthPage) {
-    return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
+    return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
   }
 
-  // Show main app with layout
+  // Show main app with navigation for authenticated users
   if (user) {
     return (
-      <AuthContext.Provider value={{ user, loading, signOut }}>
+      <AuthContext.Provider value={{ user, loading }}>
         <div className="min-h-screen bg-background">
           <MainNav />
-          <main className="flex-1">{children}</main>
+          <main className="container mx-auto py-6">{children}</main>
         </div>
       </AuthContext.Provider>
     )
   }
 
-  // Loading state or redirecting
+  // Show loading or redirect for unauthenticated users
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
     </div>
   )
 }

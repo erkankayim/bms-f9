@@ -1,6 +1,6 @@
 "use client"
 
-import { deleteAccountAction, toggleAccountStatusAction, type AccountType } from "../_actions/server-actions"
+import { deleteAccountAction, toggleAccountStatusAction } from "../_actions/server-actions"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,23 +14,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { MoreHorizontal, Edit, Trash2, CheckCircle, XCircle } from "lucide-react"
 import { useState } from "react"
 
-/* ——— TYPES ——— */
 export type ChartOfAccount = {
-  id: number
-  account_code: string
-  account_name: string
-  account_type: AccountType
-  parent_account: { id: number; account_code: string; account_name: string } | null
+  id: string
+  code: string
+  name: string
+  type: string
+  parent_id: string | null
   is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
-/* ——— COMPONENT ——— */
 interface Props {
   accounts: ChartOfAccount[]
 }
@@ -41,41 +41,78 @@ export function AccountsTableClient({ accounts }: Props) {
   const [confirm, setConfirm] = useState<ChartOfAccount | null>(null)
   const [working, setWorking] = useState(false)
 
+  // Ensure accounts is always an array
+  const safeAccounts = Array.isArray(accounts) ? accounts : []
+
   const toggleStatus = async (acc: ChartOfAccount) => {
     setWorking(true)
-    const res = await toggleAccountStatusAction(acc.id, !acc.is_active)
+    try {
+      await toggleAccountStatusAction(acc.id, !acc.is_active)
+      toast({
+        title: "Başarılı",
+        description: `Hesap ${!acc.is_active ? "aktif" : "pasif"} hale getirildi.`,
+      })
+      router.refresh()
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Hesap durumu değiştirilirken bir hata oluştu.",
+        variant: "destructive",
+      })
+    }
     setWorking(false)
-    toast({
-      title: res.success ? "Başarılı" : "Hata",
-      description: res.message ?? "",
-      variant: res.success ? "default" : "destructive",
-    })
-    if (res.success) router.refresh()
   }
 
   const remove = async () => {
     if (!confirm) return
     setWorking(true)
-    const res = await deleteAccountAction(confirm.id)
-    setWorking(false)
-    toast({
-      title: res.success ? "Başarılı" : "Hata",
-      description: res.message ?? "",
-      variant: res.success ? "default" : "destructive",
-    })
+    try {
+      await deleteAccountAction(confirm.id)
+      toast({
+        title: "Başarılı",
+        description: "Hesap başarıyla silindi.",
+      })
+      router.refresh()
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Hesap silinirken bir hata oluştu.",
+        variant: "destructive",
+      })
+    }
     setConfirm(null)
-    if (res.success) router.refresh()
+    setWorking(false)
   }
 
-  const badgeVariant = (t: AccountType) =>
-    ({
-      Asset: "default",
-      Liability: "secondary",
-      Equity: "outline",
-      Revenue: "success",
-      Expense: "destructive",
-      "Cost of Goods Sold": "warning",
-    })[t]
+  const getTypeLabel = (type: string) => {
+    const typeMap: Record<string, string> = {
+      asset: "Varlık",
+      liability: "Borç",
+      equity: "Özkaynak",
+      revenue: "Gelir",
+      expense: "Gider",
+    }
+    return typeMap[type] || type
+  }
+
+  const getTypeBadgeVariant = (type: string) => {
+    const variantMap: Record<string, any> = {
+      asset: "default",
+      liability: "secondary",
+      equity: "outline",
+      revenue: "default",
+      expense: "destructive",
+    }
+    return variantMap[type] || "default"
+  }
+
+  if (safeAccounts.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>Henüz hesap bulunmuyor.</p>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -85,24 +122,20 @@ export function AccountsTableClient({ accounts }: Props) {
             <TableHead>Kod</TableHead>
             <TableHead>Hesap Adı</TableHead>
             <TableHead>Tür</TableHead>
-            <TableHead>Üst Hesap</TableHead>
             <TableHead>Durum</TableHead>
             <TableHead className="text-right">İşlemler</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {accounts.map((acc) => (
+          {safeAccounts.map((acc) => (
             <TableRow key={acc.id}>
-              <TableCell className="font-medium">{acc.account_code}</TableCell>
-              <TableCell>{acc.account_name}</TableCell>
+              <TableCell className="font-medium">{acc.code}</TableCell>
+              <TableCell>{acc.name}</TableCell>
               <TableCell>
-                <Badge variant={badgeVariant(acc.account_type)}>{acc.account_type}</Badge>
+                <Badge variant={getTypeBadgeVariant(acc.type)}>{getTypeLabel(acc.type)}</Badge>
               </TableCell>
               <TableCell>
-                {acc.parent_account ? `${acc.parent_account.account_code} - ${acc.parent_account.account_name}` : "-"}
-              </TableCell>
-              <TableCell>
-                <Badge variant={acc.is_active ? "success" : "secondary"}>{acc.is_active ? "Aktif" : "Pasif"}</Badge>
+                <Badge variant={acc.is_active ? "default" : "secondary"}>{acc.is_active ? "Aktif" : "Pasif"}</Badge>
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
@@ -118,7 +151,7 @@ export function AccountsTableClient({ accounts }: Props) {
                         <Edit className="mr-2 h-4 w-4" /> Düzenle
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toggleStatus(acc)}>
+                    <DropdownMenuItem onClick={() => toggleStatus(acc)} disabled={working}>
                       {acc.is_active ? (
                         <>
                           <XCircle className="mr-2 h-4 w-4" /> Pasif Yap
@@ -140,13 +173,12 @@ export function AccountsTableClient({ accounts }: Props) {
         </TableBody>
       </Table>
 
-      {/* confirm dialog */}
       <AlertDialog open={!!confirm} onOpenChange={() => setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hesap Silinsin mi?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu işlem geri alınamaz. <strong>{confirm?.account_name}</strong> adlı hesap silinecek.
+              Bu işlem geri alınamaz. <strong>{confirm?.name}</strong> adlı hesap silinecek.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -23,7 +23,10 @@ export async function getChartOfAccounts(): Promise<{ data?: Account[]; error?: 
   try {
     const { data, error } = await supabase.from("chart_of_accounts").select("*").order("code", { ascending: true })
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap planı alınırken hata:", error)
+      return { error: `Hesap planı alınırken hata: ${error.message}` }
+    }
 
     return { data: data || [] }
   } catch (error: any) {
@@ -38,7 +41,10 @@ export async function getAccountById(id: string): Promise<{ data?: Account; erro
   try {
     const { data, error } = await supabase.from("chart_of_accounts").select("*").eq("id", id).single()
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap alınırken hata:", error)
+      return { error: `Hesap alınırken hata: ${error.message}` }
+    }
 
     return { data }
   } catch (error: any) {
@@ -55,7 +61,10 @@ export async function addAccountAction(formData: z.infer<typeof AccountSchema>) 
 
     const { error } = await supabase.from("chart_of_accounts").insert([validatedData])
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap eklenirken hata:", error)
+      throw new Error(`Hesap eklenirken hata: ${error.message}`)
+    }
 
     revalidatePath("/financials/chart-of-accounts")
     redirect("/financials/chart-of-accounts")
@@ -73,7 +82,10 @@ export async function updateAccountAction(id: string, formData: z.infer<typeof A
 
     const { error } = await supabase.from("chart_of_accounts").update(validatedData).eq("id", id)
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap güncellenirken hata:", error)
+      throw new Error(`Hesap güncellenirken hata: ${error.message}`)
+    }
 
     revalidatePath("/financials/chart-of-accounts")
     redirect("/financials/chart-of-accounts")
@@ -89,7 +101,10 @@ export async function toggleAccountStatusAction(id: string, isActive: boolean) {
   try {
     const { error } = await supabase.from("chart_of_accounts").update({ is_active: isActive }).eq("id", id)
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap durumu değiştirilirken hata:", error)
+      throw new Error(`Hesap durumu değiştirilirken hata: ${error.message}`)
+    }
 
     revalidatePath("/financials/chart-of-accounts")
   } catch (error: any) {
@@ -104,7 +119,10 @@ export async function deleteAccountAction(id: string) {
   try {
     const { error } = await supabase.from("chart_of_accounts").delete().eq("id", id)
 
-    if (error) throw error
+    if (error) {
+      console.error("Hesap silinirken hata:", error)
+      throw new Error(`Hesap silinirken hata: ${error.message}`)
+    }
 
     revalidatePath("/financials/chart-of-accounts")
   } catch (error: any) {

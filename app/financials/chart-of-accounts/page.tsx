@@ -23,20 +23,22 @@ export default async function ChartOfAccountsPage({ searchParams }: Props) {
   let error: string | null = null
 
   try {
-    const result = await getChartOfAccounts({
-      searchTerm: search,
-      accountType: type,
-      page: current,
-      pageSize: 10,
-    })
-    accounts = result.accounts
-    count = result.count
+    const result = await getChartOfAccounts()
+    if (result.data) {
+      accounts = result.data
+      count = result.data.length
+    } else if (result.error) {
+      error = result.error
+    }
   } catch (err) {
     console.error("Chart of accounts error:", err)
     error = err instanceof Error ? err.message : "Veri yüklenirken hata oluştu"
   }
 
-  const total = Math.ceil(count / 10)
+  // Ensure accounts is always an array
+  if (!Array.isArray(accounts)) {
+    accounts = []
+  }
 
   const content = (
     <div className="container mx-auto py-10">
@@ -76,8 +78,8 @@ export default async function ChartOfAccountsPage({ searchParams }: Props) {
                 <SelectContent>
                   <SelectItem value="All">Tüm Türler</SelectItem>
                   {accountTypes.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -89,29 +91,19 @@ export default async function ChartOfAccountsPage({ searchParams }: Props) {
 
         <CardContent>
           {error ? (
-            <div className="text-center py-10 text-destructive">Hata: {error}</div>
+            <div className="text-center py-10 text-destructive">
+              <p className="text-lg font-semibold mb-2">Hata Oluştu</p>
+              <p>{error}</p>
+            </div>
+          ) : accounts.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <p className="text-lg font-semibold mb-2">Henüz hesap bulunmuyor</p>
+              <p>İlk hesabınızı eklemek için "Yeni Hesap" butonuna tıklayın.</p>
+            </div>
           ) : (
             <AccountsTableClient accounts={accounts} />
           )}
         </CardContent>
-
-        {!error && total > 1 && (
-          <CardContent className="border-t pt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">
-                Sayfa {current}/{total} ({count} hesap)
-              </span>
-              <div className="flex gap-2">
-                <Button asChild variant="outline" size="sm" disabled={current <= 1}>
-                  <Link href={`?page=${current - 1}&search=${search}&type=${type}`}>Önceki</Link>
-                </Button>
-                <Button asChild variant="outline" size="sm" disabled={current >= total}>
-                  <Link href={`?page=${current + 1}&search=${search}&type=${type}`}>Sonraki</Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        )}
       </Card>
     </div>
   )
