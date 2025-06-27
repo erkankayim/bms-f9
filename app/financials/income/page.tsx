@@ -1,30 +1,61 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2 } from "lucide-react"
-import { getIncomeEntries } from "../_actions/actions"
+import { Plus, Eye, Edit, TrendingUp } from "lucide-react"
+import { getIncomeEntries } from "../_actions/financial-entries-actions"
+import { DeleteIncomeDialog } from "./_components/delete-income-dialog"
 
-export const dynamic = "force-dynamic" // always revalidate
+async function IncomeList() {
+  const result = await getIncomeEntries()
 
-async function IncomeTable() {
-  const entries = await getIncomeEntries()
+  if (result.error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-destructive">Hata: {result.error}</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const entries = result.data || []
 
   if (entries.length === 0) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        Henüz kayıt yok. Sağ üstteki butonla ilk gelirinizi ekleyin.
-      </div>
+      <Card>
+        <CardContent className="p-6 text-center">
+          <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">Henüz gelir kaydı yok</h3>
+          <p className="text-muted-foreground mb-4">İlk gelir kaydınızı oluşturmak için aşağıdaki butona tıklayın.</p>
+          <Button asChild>
+            <Link href="/financials/income/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Yeni Gelir Kaydı
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gelir Kayıtları</CardTitle>
-        <CardDescription>{entries.length} kayıt bulundu.</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Gelir Kayıtları</CardTitle>
+            <CardDescription>Tüm gelir kayıtlarınızı görüntüleyin ve yönetin</CardDescription>
+          </div>
+          <Button asChild>
+            <Link href="/financials/income/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Yeni Gelir Kaydı
+            </Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -32,9 +63,11 @@ async function IncomeTable() {
             <TableRow>
               <TableHead>Tarih</TableHead>
               <TableHead>Açıklama</TableHead>
-              <TableHead>Müşteri</TableHead>
               <TableHead>Kategori</TableHead>
-              <TableHead className="text-right">Tutar</TableHead>
+              <TableHead>Müşteri</TableHead>
+              <TableHead>Tutar</TableHead>
+              <TableHead>Ödeme Yöntemi</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -42,12 +75,28 @@ async function IncomeTable() {
               <TableRow key={entry.id}>
                 <TableCell>{new Date(entry.entry_date).toLocaleDateString("tr-TR")}</TableCell>
                 <TableCell className="font-medium">{entry.description}</TableCell>
-                <TableCell>{entry.customers?.contact_name || "-"}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{entry.financial_categories?.name || "Atanmamış"}</Badge>
+                  <Badge variant="secondary">{entry.category_name || "Kategori Yok"}</Badge>
                 </TableCell>
-                <TableCell className="text-right font-semibold text-green-600">
-                  {new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(entry.incoming_amount)}
+                <TableCell>{entry.customer_name || "Müşteri Yok"}</TableCell>
+                <TableCell className="font-semibold text-green-600">
+                  ₺{entry.incoming_amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell>{entry.payment_method}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/financials/income/${entry.id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/financials/income/${entry.id}/edit`}>
+                        <Edit className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <DeleteIncomeDialog entryId={entry.id} entryDescription={entry.description} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -58,25 +107,19 @@ async function IncomeTable() {
   )
 }
 
-export default async function IncomePage() {
+export default function IncomePage() {
   return (
-    <main className="p-6 space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Gelir Kayıtları</h1>
-        <Button asChild>
-          <Link href="/financials/income/new">Yeni Gelir Ekle</Link>
-        </Button>
-      </header>
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Gelir Yönetimi</h1>
+          <p className="text-muted-foreground">İşletmenizin gelir kayıtlarını yönetin</p>
+        </div>
+      </div>
 
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        }
-      >
-        <IncomeTable />
+      <Suspense fallback={<div>Yükleniyor...</div>}>
+        <IncomeList />
       </Suspense>
-    </main>
+    </div>
   )
 }

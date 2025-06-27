@@ -1,17 +1,14 @@
+import { AuthWrapper } from "../../_components/auth-wrapper"
 import ExpenseForm from "./_components/expense-form"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function NewExpensePage() {
   return (
-    <main className="p-6 flex justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Yeni Gider Ekle</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AuthWrapper>
+      <div className="container mx-auto py-8">
+        <div className="flex justify-center">
           <ExpenseForm />
-        </CardContent>
-      </Card>
-    </main>
+        </div>
+      </div>
+    </AuthWrapper>
   )
 }

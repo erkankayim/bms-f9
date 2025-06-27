@@ -17,46 +17,78 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({ name, value, ...options })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options })
+          request.cookies.set({
+            name,
+            value: "",
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({ name, value: "", ...options })
+          response.cookies.set({
+            name,
+            value: "",
+            ...options,
+          })
         },
       },
     },
   )
 
+  // Kullanıcı oturumunu kontrol et
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
-  const { pathname } = request.nextUrl
+  // Auth sayfaları ve statik dosyalar için kontrol
+  const isAuthPage = request.nextUrl.pathname.startsWith("/auth")
+  const isStaticFile = request.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|woff|woff2|ttf|eot)$/)
+  const isNextStatic = request.nextUrl.pathname.startsWith("/_next")
 
-  const publicRoutes = ["/auth/login", "/auth/register", "/auth/callback"]
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
-
-  if (!session && !isPublicRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/login"
-    return NextResponse.redirect(url)
+  // Statik dosyalar için middleware'i atla
+  if (isStaticFile || isNextStatic) {
+    return response
   }
 
-  if (session && isPublicRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/"
-    return NextResponse.redirect(url)
+  // Kullanıcı giriş yapmamışsa
+  if (!session) {
+    // Auth sayfasında değilse login'e yönlendir
+    if (!isAuthPage) {
+      const redirectUrl = new URL("/auth/login", request.url)
+      return NextResponse.redirect(redirectUrl)
+    }
+    // Auth sayfasındaysa devam et
+    return response
+  }
+
+  // Kullanıcı giriş yapmışsa
+  if (session) {
+    // Auth sayfasındaysa ana sayfaya yönlendir
+    if (isAuthPage) {
+      const redirectUrl = new URL("/", request.url)
+      return NextResponse.redirect(redirectUrl)
+    }
+    // Diğer sayfalarda devam et
+    return response
   }
 
   return response
