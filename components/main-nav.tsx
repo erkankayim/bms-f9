@@ -1,5 +1,4 @@
 "use client"
-
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -12,7 +11,7 @@ const navigation = [
   {
     name: "Müşteriler",
     href: "/customers",
-    submenu: [
+    children: [
       { name: "Müşteri Listesi", href: "/customers" },
       { name: "Yeni Müşteri", href: "/customers/new" },
     ],
@@ -20,7 +19,7 @@ const navigation = [
   {
     name: "Ürünler",
     href: "/products",
-    submenu: [
+    children: [
       { name: "Ürün Listesi", href: "/products" },
       { name: "Yeni Ürün", href: "/products/new" },
     ],
@@ -28,7 +27,7 @@ const navigation = [
   {
     name: "Satışlar",
     href: "/sales",
-    submenu: [
+    children: [
       { name: "Satış Listesi", href: "/sales" },
       { name: "Yeni Satış", href: "/sales/new" },
     ],
@@ -36,50 +35,51 @@ const navigation = [
   {
     name: "Faturalar",
     href: "/invoices",
-    submenu: [
+    children: [
       { name: "Fatura Listesi", href: "/invoices" },
       { name: "Yeni Fatura", href: "/invoices/new" },
     ],
   },
   {
-    name: "Envanter",
-    href: "/inventory",
-    submenu: [
-      { name: "Stok Durumu", href: "/inventory" },
-      { name: "Stok Ayarla", href: "/inventory/adjust" },
-      { name: "Stok Uyarıları", href: "/inventory/alerts" },
-    ],
-  },
-  {
-    name: "Finans",
+    name: "Finansal",
     href: "/financials",
-    submenu: [
-      { name: "Finans Ana Sayfa", href: "/financials" },
+    children: [
+      { name: "Genel Bakış", href: "/financials" },
       { name: "Gelir Kayıtları", href: "/financials/income" },
       { name: "Gider Kayıtları", href: "/financials/expenses" },
       { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
+      { name: "Kategoriler", href: "/financials/categories" },
     ],
   },
   {
-    name: "Tedarikçiler",
-    href: "/suppliers",
-    submenu: [
-      { name: "Tedarikçi Listesi", href: "/suppliers" },
-      { name: "Yeni Tedarikçi", href: "/suppliers/new" },
+    name: "Envanter",
+    href: "/inventory",
+    children: [
+      { name: "Stok Durumu", href: "/inventory" },
+      { name: "Stok Düzeltme", href: "/inventory/adjust" },
+      { name: "Stok Uyarıları", href: "/inventory/alerts" },
     ],
   },
   {
     name: "Servis",
     href: "/service",
-    submenu: [
+    children: [
       { name: "Servis Listesi", href: "/service" },
       { name: "Yeni Servis", href: "/service/new" },
     ],
   },
   {
+    name: "Tedarikçiler",
+    href: "/suppliers",
+    children: [
+      { name: "Tedarikçi Listesi", href: "/suppliers" },
+      { name: "Yeni Tedarikçi", href: "/suppliers/new" },
+    ],
+  },
+  {
     name: "Kullanıcılar",
     href: "/users",
-    submenu: [
+    children: [
       { name: "Kullanıcı Listesi", href: "/users" },
       { name: "Yeni Kullanıcı", href: "/users/new" },
     ],
@@ -89,66 +89,77 @@ const navigation = [
 export function MainNav() {
   const pathname = usePathname()
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/"
-    return pathname.startsWith(href)
+  const handleSignOut = async () => {
+    await signOut()
   }
 
   return (
-    <div className="flex items-center justify-between w-full px-6 py-4 bg-background border-b">
+    <div className="flex h-16 items-center justify-between px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {/* Sol taraf - Dashboard */}
-      <div className="flex items-center">
-        <Button
-          asChild
-          variant={pathname === "/" ? "default" : "ghost"}
-          className={cn("transition-colors", pathname === "/" && "bg-primary/10 text-primary")}
-        >
-          <Link href="/" className="flex items-center gap-2">
+      <div className="flex items-center space-x-4">
+        <Link href="/">
+          <Button
+            variant={pathname === "/" ? "default" : "ghost"}
+            className={cn(
+              "flex items-center space-x-2 transition-colors",
+              pathname === "/" && "bg-primary/10 text-primary",
+            )}
+          >
             <Home className="h-4 w-4" />
-            Dashboard
-          </Link>
-        </Button>
+            <span>Dashboard</span>
+          </Button>
+        </Link>
       </div>
 
-      {/* Orta - Ana navigasyon */}
-      <div className="flex items-center space-x-1">
-        {navigation.map((item) => (
-          <DropdownMenu key={item.name}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant={isActive(item.href) ? "default" : "ghost"}
-                className={cn("transition-colors", isActive(item.href) && "bg-primary/10 text-primary")}
-              >
-                {item.name}
-                <ChevronDown className="ml-1 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-48">
-              {item.submenu.map((subItem) => (
-                <DropdownMenuItem key={subItem.href} asChild>
-                  <Link
-                    href={subItem.href}
-                    className={cn("w-full cursor-pointer", pathname === subItem.href && "bg-accent")}
-                  >
-                    {subItem.name}
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ))}
-      </div>
+      {/* Orta - Ana navigasyon menüleri */}
+      <nav className="flex items-center space-x-1">
+        {navigation.map((item) => {
+          const isActive = pathname.startsWith(item.href)
 
-      {/* Sağ taraf - Çıkış */}
+          return (
+            <DropdownMenu key={item.name}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "flex items-center space-x-1 transition-colors hover:bg-accent",
+                    isActive && "bg-primary/10 text-primary",
+                  )}
+                >
+                  <span>{item.name}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-48">
+                {item.children.map((child) => (
+                  <DropdownMenuItem key={child.href} asChild>
+                    <Link
+                      href={child.href}
+                      className={cn(
+                        "w-full cursor-pointer transition-colors",
+                        pathname === child.href && "bg-accent text-accent-foreground",
+                      )}
+                    >
+                      {child.name}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        })}
+      </nav>
+
+      {/* Sağ taraf - Çıkış yap */}
       <div className="flex items-center">
-        <form action={signOut}>
+        <form action={handleSignOut}>
           <Button
             type="submit"
             variant="ghost"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            Çıkış Yap
+            <LogOut className="h-4 w-4" />
+            <span>Çıkış Yap</span>
           </Button>
         </form>
       </div>
