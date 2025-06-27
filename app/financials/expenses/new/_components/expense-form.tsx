@@ -226,7 +226,7 @@ export default function ExpenseForm() {
                 <SelectContent>
                   <SelectItem value="no-supplier">Tedarikçi Yok</SelectItem>
                   {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
+                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
                       <div>
                         <div className="font-medium">{supplier.name}</div>
                         {supplier.contact_name && (
@@ -247,18 +247,13 @@ export default function ExpenseForm() {
 
           <div className="space-y-2">
             <Label htmlFor="expense_title">Gider Başlığı *</Label>
-            <Input
-              id="expense_title"
-              name="expense_title"
-              placeholder="Örn: Ofis Malzemeleri, Elektrik Faturası"
-              required
-            />
+            <Input id="expense_title" name="expense_title" placeholder="Örn: Ofis Kirası, Elektrik Faturası" required />
             {getError("expense_title") && <p className="text-sm text-destructive">{getError("expense_title")}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="expense_source">Gider Kaynağı *</Label>
-            <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Şirketi, XYZ Mağazası" required />
+            <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Şirketi, XYZ Market" required />
             {getError("expense_source") && <p className="text-sm text-destructive">{getError("expense_source")}</p>}
           </div>
 
@@ -297,12 +292,12 @@ export default function ExpenseForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="receipt_url">Fiş/Fatura URL (Opsiyonel)</Label>
+            <Label htmlFor="receipt_url">Fiş/Makbuz URL (Opsiyonel)</Label>
             <Input id="receipt_url" name="receipt_url" type="url" placeholder="https://example.com/receipt.pdf" />
             {getError("receipt_url") && <p className="text-sm text-destructive">{getError("receipt_url")}</p>}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Info className="h-3 w-3" />
-              <span>Bu alan opsiyoneldir. Fiş veya fatura linkini ekleyebilirsiniz.</span>
+              <span>Bu alan opsiyoneldir. Fiş/makbuz linkini buraya ekleyebilirsiniz.</span>
             </div>
           </div>
 

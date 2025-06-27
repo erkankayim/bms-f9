@@ -11,18 +11,17 @@ export const IncomeEntrySchema = z.object({
   category_id: z.coerce.number().positive("Kategori seçimi zorunludur."),
   source: z.string().min(2, "Gelir kaynağı en az 2 karakter olmalıdır."),
   customer_id: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
-      // Transform "no-customer" or empty values to null
+      // Transform "no-customer", empty string, or undefined to null
       if (!val || val === "" || val === "no-customer" || val === "none") return null
       return val
     })
     .refine(
       (val) => {
         // Allow null values (optional)
-        if (val === null) return true
+        if (val === null || val === undefined) return true
         // If a value is provided, it must be a valid UUID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         return uuidRegex.test(val)
@@ -30,9 +29,8 @@ export const IncomeEntrySchema = z.object({
       { message: "Geçerli bir müşteri seçin veya boş bırakın." },
     ),
   invoice_number: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
       if (!val || val === "") return null
       return val
@@ -42,9 +40,8 @@ export const IncomeEntrySchema = z.object({
     .min(1, "Ödeme şekli seçimi zorunludur.")
     .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
   notes: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
       if (!val || val === "") return null
       return val
@@ -60,18 +57,17 @@ export const ExpenseEntrySchema = z.object({
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Geçerli bir tarih formatı girin (YYYY-AA-GG)."),
   category_id: z.coerce.number().positive("Kategori seçimi zorunludur."),
   supplier_id: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
-      // Transform "no-supplier" or empty values to null
+      // Transform "no-supplier", empty string, or undefined to null
       if (!val || val === "" || val === "no-supplier" || val === "none") return null
       return val
     })
     .refine(
       (val) => {
         // Allow null values (optional)
-        if (val === null) return true
+        if (val === null || val === undefined) return true
         // If a value is provided, it must be a valid UUID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         return uuidRegex.test(val)
@@ -79,9 +75,8 @@ export const ExpenseEntrySchema = z.object({
       { message: "Geçerli bir tedarikçi seçin veya boş bırakın." },
     ),
   invoice_number: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
       if (!val || val === "") return null
       return val
@@ -91,16 +86,15 @@ export const ExpenseEntrySchema = z.object({
     .min(1, "Ödeme şekli seçimi zorunludur.")
     .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
   receipt_url: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
       if (!val || val === "") return null
       return val
     })
     .refine(
       (val) => {
-        if (val === null) return true
+        if (val === null || val === undefined) return true
         try {
           new URL(val)
           return true
@@ -111,9 +105,8 @@ export const ExpenseEntrySchema = z.object({
       { message: "Geçerli bir URL girin." },
     ),
   notes: z
-    .string()
+    .union([z.string(), z.null(), z.undefined()])
     .optional()
-    .nullable()
     .transform((val) => {
       if (!val || val === "") return null
       return val
