@@ -1,12 +1,13 @@
 "use client"
 
-import { deleteAccountAction, toggleAccountStatusAction } from "../_actions/server-actions"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -14,13 +15,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
+import { MoreHorizontal, Edit, Trash2, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
-import { MoreHorizontal, Edit, Trash2, CheckCircle, XCircle } from "lucide-react"
-import { useState } from "react"
+import { toggleAccountStatusAction, deleteAccountAction } from "../_actions/server-actions"
+import { toast } from "@/hooks/use-toast"
 
-export type ChartOfAccount = {
+interface Account {
   id: string
   code: string
   name: string
@@ -31,161 +31,188 @@ export type ChartOfAccount = {
   updated_at: string
 }
 
-interface Props {
-  accounts: ChartOfAccount[]
+interface AccountsTableClientProps {
+  accounts: Account[]
 }
 
-export function AccountsTableClient({ accounts }: Props) {
-  const { toast } = useToast()
-  const router = useRouter()
-  const [confirm, setConfirm] = useState<ChartOfAccount | null>(null)
-  const [working, setWorking] = useState(false)
+export function AccountsTableClient({ accounts }: AccountsTableClientProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Ensure accounts is always an array
-  const safeAccounts = Array.isArray(accounts) ? accounts : []
-
-  const toggleStatus = async (acc: ChartOfAccount) => {
-    setWorking(true)
+  const handleToggleStatus = async (account: Account) => {
+    setIsLoading(true)
     try {
-      await toggleAccountStatusAction(acc.id, !acc.is_active)
+      await toggleAccountStatusAction(account.id, !account.is_active)
       toast({
         title: "Başarılı",
-        description: `Hesap ${!acc.is_active ? "aktif" : "pasif"} hale getirildi.`,
+        description: `Hesap ${!account.is_active ? "aktif" : "pasif"} hale getirildi.`,
       })
-      router.refresh()
     } catch (error) {
       toast({
         title: "Hata",
         description: "Hesap durumu değiştirilirken bir hata oluştu.",
         variant: "destructive",
       })
+    } finally {
+      setIsLoading(false)
     }
-    setWorking(false)
   }
 
-  const remove = async () => {
-    if (!confirm) return
-    setWorking(true)
+  const handleDeleteConfirm = async () => {
+    if (!accountToDelete) return
+
+    setIsLoading(true)
     try {
-      await deleteAccountAction(confirm.id)
+      await deleteAccountAction(accountToDelete.id)
       toast({
         title: "Başarılı",
         description: "Hesap başarıyla silindi.",
       })
-      router.refresh()
+      setDeleteDialogOpen(false)
+      setAccountToDelete(null)
     } catch (error) {
       toast({
         title: "Hata",
         description: "Hesap silinirken bir hata oluştu.",
         variant: "destructive",
       })
+    } finally {
+      setIsLoading(false)
     }
-    setConfirm(null)
-    setWorking(false)
   }
 
-  const getTypeLabel = (type: string) => {
-    const typeMap: Record<string, string> = {
-      asset: "Varlık",
-      liability: "Borç",
-      equity: "Özkaynak",
-      revenue: "Gelir",
-      expense: "Gider",
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "Varlık":
+        return "bg-green-100 text-green-800"
+      case "Yükümlülük":
+        return "bg-red-100 text-red-800"
+      case "Özkaynak":
+        return "bg-blue-100 text-blue-800"
+      case "Gelir":
+        return "bg-emerald-100 text-emerald-800"
+      case "Gider":
+        return "bg-orange-100 text-orange-800"
+      case "Satılan Malın Maliyeti":
+        return "bg-purple-100 text-purple-800"
+      default:
+        return "bg-gray-100 text-gray-800"
     }
-    return typeMap[type] || type
   }
 
-  const getTypeBadgeVariant = (type: string) => {
-    const variantMap: Record<string, any> = {
-      asset: "default",
-      liability: "secondary",
-      equity: "outline",
-      revenue: "default",
-      expense: "destructive",
-    }
-    return variantMap[type] || "default"
-  }
-
-  if (safeAccounts.length === 0) {
+  if (!accounts || accounts.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <p>Henüz hesap bulunmuyor.</p>
+        <p className="text-sm mt-2">İlk hesabınızı eklemek için "Yeni Hesap" butonuna tıklayın.</p>
       </div>
     )
   }
 
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Kod</TableHead>
-            <TableHead>Hesap Adı</TableHead>
-            <TableHead>Tür</TableHead>
-            <TableHead>Durum</TableHead>
-            <TableHead className="text-right">İşlemler</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {safeAccounts.map((acc) => (
-            <TableRow key={acc.id}>
-              <TableCell className="font-medium">{acc.code}</TableCell>
-              <TableCell>{acc.name}</TableCell>
-              <TableCell>
-                <Badge variant={getTypeBadgeVariant(acc.type)}>{getTypeLabel(acc.type)}</Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={acc.is_active ? "default" : "secondary"}>{acc.is_active ? "Aktif" : "Pasif"}</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Menüyü aç</span>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/financials/chart-of-accounts/${acc.id}/edit`}>
-                        <Edit className="mr-2 h-4 w-4" /> Düzenle
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toggleStatus(acc)} disabled={working}>
-                      {acc.is_active ? (
-                        <>
-                          <XCircle className="mr-2 h-4 w-4" /> Pasif Yap
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" /> Aktif Yap
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={() => setConfirm(acc)}>
-                      <Trash2 className="mr-2 h-4 w-4" /> Sil
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Kod</TableHead>
+              <TableHead>Hesap Adı</TableHead>
+              <TableHead>Tür</TableHead>
+              <TableHead>Durum</TableHead>
+              <TableHead>Oluşturma Tarihi</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {accounts.map((account) => (
+              <TableRow key={account.id}>
+                <TableCell className="font-mono font-medium">{account.code}</TableCell>
+                <TableCell>
+                  <div>
+                    <div className="font-medium">{account.name}</div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge className={getTypeColor(account.type)} variant="secondary">
+                    {account.type}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={account.is_active ? "default" : "secondary"}>
+                    {account.is_active ? "Aktif" : "Pasif"}
+                  </Badge>
+                </TableCell>
+                <TableCell>{new Date(account.created_at).toLocaleDateString("tr-TR")}</TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">Menüyü aç</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/financials/chart-of-accounts/${account.id}/edit`}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Düzenle
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleToggleStatus(account)} disabled={isLoading}>
+                        {account.is_active ? (
+                          <>
+                            <EyeOff className="mr-2 h-4 w-4" />
+                            Pasif Yap
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Aktif Yap
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setAccountToDelete(account)
+                          setDeleteDialogOpen(true)
+                        }}
+                        className="text-red-600"
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Sil
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      <AlertDialog open={!!confirm} onOpenChange={() => setConfirm(null)}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hesap Silinsin mi?</AlertDialogTitle>
+            <AlertDialogTitle>Hesabı Sil</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu işlem geri alınamaz. <strong>{confirm?.name}</strong> adlı hesap silinecek.
+              Bu hesabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              <br />
+              <strong>
+                Hesap: {accountToDelete?.code} - {accountToDelete?.name}
+              </strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={working}>İptal</AlertDialogCancel>
-            <Button onClick={remove} disabled={working} variant="destructive">
-              {working ? "Siliniyor…" : "Sil"}
-            </Button>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isLoading}
+            >
+              {isLoading ? "Siliniyor..." : "Sil"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
