@@ -56,3 +56,5 @@ export async function logoutAction() {
   revalidatePath("/", "layout")
   redirect("/auth/login")
 }
+
+export const signOut = logoutAction

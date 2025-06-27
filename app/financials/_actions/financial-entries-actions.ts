@@ -399,3 +399,160 @@ export async function createExpenseEntryAction(prevState: any, formData: FormDat
     }
   }
 }
+
+// Income entry helper functions
+async function getIncomeEntries(): Promise<{ data?: any[]; error?: string }> {
+  const supabase = createClient()
+
+  try {
+    const { data, error } = await supabase
+      .from("financial_entries")
+      .select("*")
+      .eq("entry_type", "income")
+      .order("entry_date", { ascending: false })
+
+    if (error) {
+      console.error("Gelir kayıtları alınırken hata:", error)
+      return { error: `Gelir kayıtları alınırken hata: ${error.message}` }
+    }
+
+    return { data: data || [] }
+  } catch (error: any) {
+    console.error("Gelir kayıtları alınırken hata:", error)
+    return { error: `Gelir kayıtları alınırken hata: ${error.message}` }
+  }
+}
+
+async function getIncomeEntryById(id: number): Promise<{ data?: any; error?: string }> {
+  const supabase = createClient()
+
+  try {
+    const { data, error } = await supabase
+      .from("financial_entries")
+      .select("*")
+      .eq("entry_type", "income")
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      console.error("Gelir kaydı alınırken hata:", error)
+      return { error: `Gelir kaydı alınırken hata: ${error.message}` }
+    }
+
+    return { data: data || null }
+  } catch (error: any) {
+    console.error("Gelir kaydı alınırken hata:", error)
+    return { error: `Gelir kaydı alınırken hata: ${error.message}` }
+  }
+}
+
+async function updateIncomeEntryAction(
+  id: number,
+  formData: FormData,
+): Promise<{ success: boolean; message: string; errors?: any }> {
+  const supabase = createClient()
+
+  try {
+    const rawData = {
+      incoming_amount: formData.get("incoming_amount"),
+      entry_date: formData.get("entry_date"),
+      category_id: formData.get("category_id"),
+      customer_id: formData.get("customer_id"),
+      source: formData.get("source"),
+      description: formData.get("description"),
+      invoice_number: formData.get("invoice_number"),
+      payment_method: formData.get("payment_method"),
+      notes: formData.get("notes"),
+    }
+
+    const validatedData = IncomeEntrySchema.parse(rawData)
+
+    // Handle customer_id
+    let customerMid = null
+    if (
+      validatedData.customer_id &&
+      validatedData.customer_id !== "none" &&
+      validatedData.customer_id !== "no-customers"
+    ) {
+      customerMid = validatedData.customer_id
+    }
+
+    const entryData = {
+      entry_type: "income" as const,
+      incoming_amount: validatedData.incoming_amount,
+      entry_date: validatedData.entry_date,
+      category_id: validatedData.category_id,
+      customer_id: customerMid,
+      source: validatedData.source,
+      description: validatedData.description,
+      invoice_number: validatedData.invoice_number || null,
+      payment_method: validatedData.payment_method,
+      notes: validatedData.notes || null,
+    }
+
+    const { error } = await supabase.from("financial_entries").update(entryData).eq("id", id)
+
+    if (error) {
+      console.error("Gelir kaydı güncellenirken hata:", error)
+      return {
+        success: false,
+        message: "Gelir kaydı güncellenirken bir hata oluştu",
+        errors: [{ path: ["general"], message: error.message }],
+      }
+    }
+
+    revalidatePath("/financials/income")
+    return {
+      success: true,
+      message: "Gelir kaydı başarıyla güncellendi",
+      errors: undefined,
+    }
+  } catch (error: any) {
+    console.error("Gelir kaydı güncellenirken hata:", error)
+    if (error.errors) {
+      return {
+        success: false,
+        message: "Form verilerinde hata var",
+        errors: error.errors,
+      }
+    }
+    return {
+      success: false,
+      message: "Gelir kaydı güncellenirken beklenmeyen bir hata oluştu",
+      errors: [{ path: ["general"], message: error.message }],
+    }
+  }
+}
+
+async function deleteIncomeEntry(id: number): Promise<{ success: boolean; message: string }> {
+  const supabase = createClient()
+
+  try {
+    const { error } = await supabase.from("financial_entries").delete().eq("id", id).eq("entry_type", "income")
+
+    if (error) {
+      console.error("Gelir kaydı silinirken hata:", error)
+      return {
+        success: false,
+        message: "Gelir kaydı silinirken bir hata oluştu",
+      }
+    }
+
+    revalidatePath("/financials/income")
+    return {
+      success: true,
+      message: "Gelir kaydı başarıyla silindi",
+    }
+  } catch (error: any) {
+    console.error("Gelir kaydı silinirken hata:", error)
+    return {
+      success: false,
+      message: "Gelir kaydı silinirken beklenmeyen bir hata oluştu",
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Explicit re-exports so other modules can always import these helpers
+// -----------------------------------------------------------------------------
+export { getIncomeEntries, getIncomeEntryById, updateIncomeEntryAction, deleteIncomeEntry }
