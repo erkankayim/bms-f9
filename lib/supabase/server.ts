@@ -7,7 +7,7 @@ export function createClient() {
   // Create a server client for Supabase.
   // This client is safe to use in Server Components and Route Handlers.
   // It will automatically read and write cookies to manage the user's session.
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value

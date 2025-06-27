@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Users, Loader2, RefreshCw, Info } from "lucide-react"
+import { AlertCircle, Users, Loader2, Info, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 
@@ -34,32 +34,45 @@ export default function IncomeForm() {
   const [formKey, setFormKey] = useState(Date.now())
   const [loadingData, setLoadingData] = useState(true)
   const [dataError, setDataError] = useState<string | null>(null)
+  const [customerError, setCustomerError] = useState<string | null>(null)
 
   const fetchData = async () => {
     setLoadingData(true)
     setDataError(null)
+    setCustomerError(null)
+
     try {
-      console.log("Starting data fetch...")
+      console.log("Veri yükleme başlıyor...")
 
-      const [catResult, custResult] = await Promise.all([getFinancialCategories("income"), getCustomersForDropdown()])
+      // Kategorileri yükle
+      const catResult = await getFinancialCategories("income")
+      console.log("Kategori sonucu:", catResult)
 
-      console.log("Categories result:", catResult)
-      console.log("Customers result:", custResult)
-
-      if (catResult.error) {
-        throw new Error(`Kategoriler: ${catResult.error}`)
+      if (catResult.data && catResult.data.length > 0) {
+        setCategories(catResult.data)
+        console.log("Kategoriler yüklendi:", catResult.data.length, "adet")
+      } else {
+        console.error("Gelir kategorileri yüklenemedi:", catResult.error)
+        setDataError(catResult.error || "Kategoriler yüklenemedi")
       }
-      setCategories(catResult.data || [])
 
-      if (custResult.error) {
-        throw new Error(`Müşteriler: ${custResult.error}`)
+      // Müşterileri yükle
+      const custResult = await getCustomersForDropdown()
+      console.log("Müşteri sonucu:", custResult)
+
+      if (custResult.data) {
+        setCustomers(custResult.data)
+        console.log("Müşteriler yüklendi:", custResult.data.length, "adet")
+        if (custResult.data.length === 0) {
+          setCustomerError("Henüz hiç müşteri kaydı bulunmuyor. İsterseniz önce müşteri ekleyebilirsiniz.")
+        }
+      } else {
+        console.error("Müşteriler yüklenemedi:", custResult.error)
+        setCustomerError(custResult.error || "Müşteriler yüklenemedi")
       }
-      setCustomers(custResult.data || [])
-
-      console.log(`Loaded ${catResult.data?.length || 0} categories and ${custResult.data?.length || 0} customers`)
-    } catch (error: any) {
-      setDataError(error.message || "Veriler yüklenirken bir hata oluştu.")
-      console.error("Data fetching error:", error)
+    } catch (error) {
+      console.error("Veri yükleme hatası:", error)
+      setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
     } finally {
       setLoadingData(false)
     }
@@ -69,21 +82,27 @@ export default function IncomeForm() {
     fetchData()
   }, [])
 
+  // Form sadece başarılı olduğunda sıfırlansın
   useEffect(() => {
-    if (state.message) {
+    if (state.success) {
+      setFormKey(Date.now())
       toast({
-        title: state.success ? "Başarılı" : "Hata",
+        title: "Başarılı",
         description: state.message,
-        variant: state.success ? "default" : "destructive",
+        variant: "default",
       })
-      if (state.success) {
-        setFormKey(Date.now()) // Reset form on success
-      }
+    } else if (state.message && !state.success) {
+      toast({
+        title: "Hata",
+        description: state.message,
+        variant: "destructive",
+      })
     }
-  }, [state, toast])
+  }, [state.success, state.message, toast])
 
   const getError = (field: string) => {
-    return state.errors?.find((e: any) => e.path[0] === field)?.message
+    if (!state.errors || !Array.isArray(state.errors)) return undefined
+    return state.errors.find((e: any) => e.path && e.path[0] === field)?.message
   }
 
   if (loadingData) {
@@ -94,12 +113,14 @@ export default function IncomeForm() {
             <Users className="h-5 w-5" />
             Yeni Gelir Kaydı
           </CardTitle>
-          <CardDescription>Veriler yükleniyor...</CardDescription>
+          <CardDescription>
+            İşletme gelirlerinizi detaylı olarak kaydedin ve müşteri ile ilişkilendirin.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-16">
           <div className="text-center">
-            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">Kategoriler ve müşteriler yükleniyor...</p>
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg">Veriler yükleniyor, lütfen bekleyin...</p>
           </div>
         </CardContent>
       </Card>
@@ -110,7 +131,7 @@ export default function IncomeForm() {
     return (
       <Card className="w-full max-w-4xl">
         <CardHeader>
-          <CardTitle className="text-destructive flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
             Veri Yükleme Hatası
           </CardTitle>
@@ -118,7 +139,6 @@ export default function IncomeForm() {
         <CardContent className="space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Hata</AlertTitle>
             <AlertDescription>{dataError}</AlertDescription>
           </Alert>
           <Button onClick={fetchData} variant="outline" className="w-full bg-transparent">
@@ -161,6 +181,14 @@ export default function IncomeForm() {
             </Alert>
           )}
 
+          {customerError && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Müşteri Bilgisi</AlertTitle>
+              <AlertDescription>{customerError}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="incoming_amount">Gelen Tutar (TRY) *</Label>
@@ -192,7 +220,7 @@ export default function IncomeForm() {
               <Label htmlFor="category_id">Gelir Kategorisi *</Label>
               <Select name="category_id" required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Bir kategori seçin" />
+                  <SelectValue placeholder="Bir gelir kategorisi seçin" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.length === 0 ? (
@@ -231,7 +259,6 @@ export default function IncomeForm() {
                           <div className="text-xs text-muted-foreground">
                             ID: {customer.mid}
                             {customer.email && ` • ${customer.email}`}
-                            {customer.phone && ` • ${customer.phone}`}
                           </div>
                         </div>
                       </SelectItem>
@@ -246,20 +273,20 @@ export default function IncomeForm() {
               {getError("customer_id") && <p className="text-sm text-destructive">{getError("customer_id")}</p>}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="h-3 w-3" />
-                <span>Bu alan opsiyoneldir. {customers.length} müşteri mevcut.</span>
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="source">Gelir Kaynağı *</Label>
+            <Label htmlFor="source">Gelir Kaynağı (Genel Açıklama) *</Label>
             <Input id="source" name="source" placeholder="Örn: Hizmet Bedeli, Ürün Satışı, Danışmanlık" required />
             {getError("source") && <p className="text-sm text-destructive">{getError("source")}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Detaylı Açıklama *</Label>
-            <Textarea id="description" name="description" placeholder="Gelirin detaylı açıklaması..." required />
+            <Input id="description" name="description" placeholder="Gelirin detaylı açıklaması..." required />
             {getError("description") && <p className="text-sm text-destructive">{getError("description")}</p>}
           </div>
 
@@ -268,6 +295,10 @@ export default function IncomeForm() {
               <Label htmlFor="invoice_number">Fatura No (Opsiyonel)</Label>
               <Input id="invoice_number" name="invoice_number" placeholder="Örn: FAT-2024-001" />
               {getError("invoice_number") && <p className="text-sm text-destructive">{getError("invoice_number")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="payment_method">Ödeme Şekli *</Label>
@@ -291,6 +322,10 @@ export default function IncomeForm() {
             <Label htmlFor="notes">Notlar (Opsiyonel)</Label>
             <Textarea id="notes" name="notes" placeholder="Bu gelirle ilgili ek notlar..." />
             {getError("notes") && <p className="text-sm text-destructive">{getError("notes")}</p>}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+            </div>
           </div>
         </CardContent>
         <CardFooter>
