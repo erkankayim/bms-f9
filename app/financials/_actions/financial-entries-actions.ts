@@ -16,7 +16,6 @@ export type FinancialCategory = {
 
 export type CustomerForDropdown = {
   mid: string
-  id: string
   contact_name: string | null
   email: string | null
 }
@@ -147,9 +146,11 @@ export async function getCustomersForDropdown(): Promise<{ data?: CustomerForDro
 
     console.log("Fetching customers for dropdown...")
 
+    // Only select columns that exist in the customers table
+    // The customers table uses 'mid' as primary key, not 'id'
     const { data, error } = await supabase
       .from("customers")
-      .select("id, mid, contact_name, email")
+      .select("mid, contact_name, email")
       .is("deleted_at", null)
       .order("contact_name")
 
@@ -452,19 +453,19 @@ export async function deleteExpenseEntry(id: number): Promise<{ success: boolean
   }
 }
 
-// Helper function to get customer UUID from MID
-async function getCustomerUUIDFromMID(supabase: any, mid: string): Promise<string | null> {
+// Helper function to verify customer exists by MID
+async function verifyCustomerByMID(supabase: any, mid: string): Promise<boolean> {
   try {
-    const { data: customer, error } = await supabase.from("customers").select("id").eq("mid", mid).single()
+    const { data: customer, error } = await supabase.from("customers").select("mid").eq("mid", mid).single()
 
     if (error || !customer) {
       console.error(`Customer with MID ${mid} not found.`, error)
-      return null
+      return false
     }
-    return customer.id
+    return true
   } catch (error) {
-    console.error(`Error getting customer UUID for MID ${mid}:`, error)
-    return null
+    console.error(`Error verifying customer MID ${mid}:`, error)
+    return false
   }
 }
 
@@ -504,19 +505,14 @@ export async function createIncomeEntryAction(
 
     console.log("Validated data:", validatedFields.data)
 
-    // If customer_id is provided and it's in MID format, convert to UUID
+    // Handle customer_id - if provided and not "none", verify it exists
     let finalCustomerId: string | null = null
-    if (customer_id) {
-      if (customer_id.startsWith("CUST-")) {
-        // It's a MID, convert to UUID
-        finalCustomerId = await getCustomerUUIDFromMID(supabase, customer_id)
-        if (!finalCustomerId) {
-          return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
-        }
-      } else {
-        // It's already a UUID
-        finalCustomerId = customer_id
+    if (customer_id && customer_id !== "none") {
+      const customerExists = await verifyCustomerByMID(supabase, customer_id)
+      if (!customerExists) {
+        return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
       }
+      finalCustomerId = customer_id // Use MID directly as customer_id
     }
 
     const { error } = await supabase.from("income_entries").insert({
@@ -580,19 +576,14 @@ export async function updateIncomeEntryAction(
       notes,
     } = validatedFields.data
 
-    // If customer_id is provided and it's in MID format, convert to UUID
+    // Handle customer_id - if provided and not "none", verify it exists
     let finalCustomerId: string | null = null
-    if (customer_id) {
-      if (customer_id.startsWith("CUST-")) {
-        // It's a MID, convert to UUID
-        finalCustomerId = await getCustomerUUIDFromMID(supabase, customer_id)
-        if (!finalCustomerId) {
-          return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
-        }
-      } else {
-        // It's already a UUID
-        finalCustomerId = customer_id
+    if (customer_id && customer_id !== "none") {
+      const customerExists = await verifyCustomerByMID(supabase, customer_id)
+      if (!customerExists) {
+        return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
       }
+      finalCustomerId = customer_id // Use MID directly as customer_id
     }
 
     const { error } = await supabase
