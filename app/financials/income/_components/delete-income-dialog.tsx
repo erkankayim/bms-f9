@@ -1,7 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,74 +11,52 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Loader2 } from "lucide-react"
-import { deleteIncomeEntry } from "../../_actions/financial-entries-actions"
-import { useToast } from "@/hooks/use-toast"
+import { useTransition } from "react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { deleteIncome } from "@/app/financials/_actions/actions"
 
 interface DeleteIncomeDialogProps {
-  entryId: number
-  entryDescription: string
+  id: string
 }
 
-export function DeleteIncomeDialog({ entryId, entryDescription }: DeleteIncomeDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [open, setOpen] = useState(false)
-  const { toast } = useToast()
-
-  const handleDelete = async () => {
-    setIsDeleting(true)
-    try {
-      const result = await deleteIncomeEntry(entryId)
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: result.message,
-        })
-        setOpen(false)
-      } else {
-        toast({
-          title: "Hata",
-          description: result.message,
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Beklenmeyen bir hata oluştu",
-        variant: "destructive",
-      })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
+export function DeleteIncomeDialog({ id }: DeleteIncomeDialogProps) {
+  const [pending, startTransition] = useTransition()
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Trash2 className="h-4 w-4" />
+        <Button variant="destructive" size="sm">
+          Delete
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Gelir Kaydını Sil</AlertDialogTitle>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            "{entryDescription}" gelir kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            This action cannot be undone. This will permanently delete the income from our servers.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                try {
+                  await deleteIncome(id)
+                  toast.success("Income deleted successfully")
+                } catch (e: any) {
+                  toast.error(e.message)
+                }
+              })
+            }}
           >
-            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sil
+            Continue
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   )
 }
+\`\`\`

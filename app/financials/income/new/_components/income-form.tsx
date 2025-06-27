@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { FinancialCategory } from "@prisma/client"
 
 interface IncomeFormProps {
-  categories: FinancialCategory[]
+  categories: { id: number; name: string }[]
   customers: { mid: string; contact_name: string | null }[]
 }
 

@@ -9,8 +9,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "@clerk/nextjs": "latest",
     "@hookform/resolvers": "latest",
-    "@prisma/client": "latest",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
@@ -21,6 +21,7 @@
     "@radix-ui/react-dialog": "latest",
     "@radix-ui/react-dropdown-menu": "latest",
     "@radix-ui/react-hover-card": "latest",
+    "@radix-ui/react-icons": "latest",
     "@radix-ui/react-label": "latest",
     "@radix-ui/react-menubar": "latest",
     "@radix-ui/react-navigation-menu": "latest",
@@ -51,7 +52,6 @@
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "next-themes": "latest",
-    "prisma": "latest",
     "react": "^19",
     "react-day-picker": "latest",
     "react-dom": "^19",
