@@ -38,33 +38,41 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-  const { pathname } = request.nextUrl
+    const { pathname } = request.nextUrl
 
-  // Public routes that don't require authentication
-  const publicRoutes = ["/auth/login", "/auth/register", "/auth/callback"]
+    // Skip middleware for static files and API routes
+    if (pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.includes(".")) {
+      return response
+    }
 
-  // Check if current path is a public route
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
+    // Public routes that don't require authentication
+    const publicRoutes = ["/auth/login", "/auth/register", "/auth/callback"]
+    const isPublicRoute = publicRoutes.includes(pathname)
 
-  // If user is not authenticated and trying to access protected route
-  if (!session && !isPublicRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/login"
-    return NextResponse.redirect(url)
+    // If user is not authenticated and trying to access protected route
+    if (!session && !isPublicRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth/login"
+      return NextResponse.redirect(url)
+    }
+
+    // If user is authenticated and trying to access auth pages, redirect to dashboard
+    if (session && isPublicRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/"
+      return NextResponse.redirect(url)
+    }
+
+    return response
+  } catch (error) {
+    console.error("Middleware error:", error)
+    return response
   }
-
-  // If user is authenticated and trying to access auth pages, redirect to dashboard
-  if (session && isPublicRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/"
-    return NextResponse.redirect(url)
-  }
-
-  return response
 }
 
 export const config = {

@@ -5,6 +5,15 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 
+export interface IncomeEntry {
+  id: string
+  description: string
+  amount: number
+  date: string
+  customer_name?: string
+  account_name?: string
+}
+
 const incomeSchema = z.object({
   description: z.string().min(1, "Açıklama gereklidir"),
   amount: z.number().positive("Tutar pozitif olmalıdır"),
@@ -43,8 +52,8 @@ export async function createIncomeEntry(formData: FormData) {
     .insert({
       type: "income",
       description: validatedFields.data.description,
-      amount: validatedFields.data.amount,
-      date: validatedFields.data.date,
+      incoming_amount: validatedFields.data.amount,
+      entry_date: validatedFields.data.date,
       customer_id: validatedFields.data.customer_id,
       account_id: validatedFields.data.account_id,
       user_id: user.id,
@@ -63,38 +72,40 @@ export async function createIncomeEntry(formData: FormData) {
   redirect("/financials/income")
 }
 
-export async function getIncomeEntries() {
-  const supabase = createClient()
+export async function getIncomeEntries(): Promise<IncomeEntry[]> {
+  try {
+    const supabase = createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from("financial_entries")
+      .select(`
+        id,
+        description,
+        incoming_amount,
+        entry_date,
+        customers!customer_id(name),
+        chart_of_accounts!account_id(account_name)
+      `)
+      .gt("incoming_amount", 0)
+      .order("entry_date", { ascending: false })
 
-  if (!user) {
+    if (error) {
+      console.error("Error fetching income entries:", error)
+      return []
+    }
+
+    return (data || []).map((entry: any) => ({
+      id: entry.id,
+      description: entry.description,
+      amount: entry.incoming_amount,
+      date: entry.entry_date,
+      customer_name: entry.customers?.name,
+      account_name: entry.chart_of_accounts?.account_name,
+    }))
+  } catch (error) {
+    console.error("Error in getIncomeEntries:", error)
     return []
   }
-
-  const { data, error } = await supabase
-    .from("financial_entries")
-    .select(`
-      *,
-      customers!financial_entries_customer_id_fkey(name),
-      chart_of_accounts!financial_entries_account_id_fkey(name)
-    `)
-    .eq("type", "income")
-    .eq("user_id", user.id)
-    .order("date", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching income entries:", error)
-    return []
-  }
-
-  return data.map((entry) => ({
-    ...entry,
-    customer_name: entry.customers?.name || null,
-    account_name: entry.chart_of_accounts?.name || null,
-  }))
 }
 
 export async function getIncomeEntry(id: string) {
@@ -111,9 +122,12 @@ export async function getIncomeEntry(id: string) {
   const { data, error } = await supabase
     .from("financial_entries")
     .select(`
-      *,
-      customers!financial_entries_customer_id_fkey(name),
-      chart_of_accounts!financial_entries_account_id_fkey(name)
+      id,
+      description,
+      incoming_amount,
+      entry_date,
+      customers!customer_id(name),
+      chart_of_accounts!account_id(account_name)
     `)
     .eq("id", id)
     .eq("type", "income")
@@ -126,9 +140,12 @@ export async function getIncomeEntry(id: string) {
   }
 
   return {
-    ...data,
-    customer_name: data.customers?.name || null,
-    account_name: data.chart_of_accounts?.name || null,
+    id: data.id,
+    description: data.description,
+    amount: data.incoming_amount,
+    date: data.entry_date,
+    customer_name: data.customers?.name,
+    account_name: data.chart_of_accounts?.account_name,
   }
 }
 
@@ -161,8 +178,8 @@ export async function updateIncomeEntry(id: string, formData: FormData) {
     .from("financial_entries")
     .update({
       description: validatedFields.data.description,
-      amount: validatedFields.data.amount,
-      date: validatedFields.data.date,
+      incoming_amount: validatedFields.data.amount,
+      entry_date: validatedFields.data.date,
       customer_id: validatedFields.data.customer_id,
       account_id: validatedFields.data.account_id,
     })
@@ -182,28 +199,22 @@ export async function updateIncomeEntry(id: string, formData: FormData) {
 }
 
 export async function deleteIncomeEntry(id: string) {
-  const supabase = createClient()
+  try {
+    const supabase = createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    const { error } = await supabase.from("financial_entries").delete().eq("id", id)
 
-  if (!user) {
-    redirect("/auth/login")
-  }
-
-  const { error } = await supabase.from("financial_entries").delete().eq("id", id).eq("user_id", user.id)
-
-  if (error) {
-    return {
-      errors: {
-        _form: ["Gelir kaydı silinirken bir hata oluştu"],
-      },
+    if (error) {
+      console.error("Error deleting income entry:", error)
+      return { success: false, error: error.message }
     }
-  }
 
-  revalidatePath("/financials/income")
-  return { success: true }
+    revalidatePath("/financials/income")
+    return { success: true }
+  } catch (error) {
+    console.error("Error in deleteIncomeEntry:", error)
+    return { success: false, error: "Silme işlemi başarısız" }
+  }
 }
 
 export async function getCustomersForDropdown() {
