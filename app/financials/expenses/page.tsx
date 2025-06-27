@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { PlusCircle, Search, Download, Eye, Edit, Trash2 } from "lucide-react"
+import { PlusCircle, Search, Download, Eye, Edit } from "lucide-react"
 import Link from "next/link"
 import { getExpenseEntries } from "./_actions/expense-actions"
+import { DeleteExpenseDialog } from "./[id]/_components/delete-expense-dialog"
 
 type ExpenseEntry = {
   id: number
@@ -287,15 +288,17 @@ export default function ExpensesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Link href={`/financials/expenses/${expense.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <Link href={`/financials/expenses/${expense.id}/edit`}>
+                            <Button variant="ghost" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <DeleteExpenseDialog expenseId={expense.id.toString()} expenseTitle={expense.expense_title} />
                         </div>
                       </TableCell>
                     </TableRow>
