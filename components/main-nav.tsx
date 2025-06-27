@@ -1,25 +1,26 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import {
-  Package2,
-  Users,
-  Building,
-  ShoppingCart,
-  FileText,
-  DollarSign,
-  Briefcase,
-  LayoutDashboard,
-  AlertTriangle,
-  ChevronDown,
-  LogOut,
-  UserPlus,
-  Wrench,
-  Menu,
-} from "lucide-react"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  ShoppingCart,
+  Building,
+  Package2,
+  FileText,
+  Calculator,
+  TrendingUp,
+  TrendingDown,
+  BookOpen,
+  Settings,
+  LogOut,
+  Wrench,
+} from "lucide-react"
+import { signOut } from "@/app/auth/actions"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,162 +29,103 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getSupabaseBrowserClient } from "@/lib/supabase/client"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
-const navItems = [
-  { href: "/", label: "Kontrol Paneli", icon: LayoutDashboard },
-  { href: "/customers", label: "Müşteriler", icon: Users },
-  { href: "/suppliers", label: "Tedarikçiler", icon: Building },
-  { href: "/inventory", label: "Envanter", icon: ShoppingCart },
-  { href: "/inventory/adjust", label: "Stok Ayarla", icon: ShoppingCart },
-  { href: "/inventory/alerts", label: "Stok Uyarıları", icon: AlertTriangle },
-  { href: "/products", label: "Ürünler", icon: Package2 },
-  { href: "/sales", label: "Satışlar", icon: DollarSign },
-  { href: "/service", label: "Servis", icon: Wrench },
+const navigation = [
+  { name: "Kontrol Paneli", href: "/", icon: LayoutDashboard },
+  { name: "Müşteriler", href: "/customers", icon: Users },
+  { name: "Ürünler", href: "/products", icon: Package },
+  { name: "Satışlar", href: "/sales", icon: ShoppingCart },
+  { name: "Tedarikçiler", href: "/suppliers", icon: Building },
+  { name: "Envanter", href: "/inventory", icon: Package2 },
+  { name: "Faturalar", href: "/invoices", icon: FileText },
   {
-    href: "/invoices",
-    label: "Faturalar",
-    icon: FileText,
-    isDropdown: true,
-    subItems: [
-      { href: "/invoices", label: "Fatura Listesi" },
-      { href: "/invoices/new", label: "Yeni Fatura" },
-    ],
-  },
-  {
+    name: "Finansal",
     href: "/financials",
-    label: "Finansal",
-    icon: Briefcase,
-    isDropdown: true,
+    icon: Calculator,
     subItems: [
-      { href: "/financials", label: "Finansal Özet" },
-      { href: "/financials/chart-of-accounts", label: "Hesap Planı" },
-      { href: "/financials/income/new", label: "Yeni Gelir Girişi" },
-      { href: "/financials/expenses/new", label: "Yeni Gider Girişi" },
+      { name: "Finansal Özet", href: "/financials", icon: Calculator },
+      { name: "Gelir Listesi", href: "/financials/income", icon: TrendingUp },
+      { name: "Gider Listesi", href: "/financials/expenses", icon: TrendingDown },
+      { name: "Hesap Planı", href: "/financials/chart-of-accounts", icon: BookOpen },
     ],
   },
-  { href: "/users", label: "Kullanıcılar", icon: UserPlus },
+  { name: "Servis", href: "/service", icon: Wrench },
+  { name: "Kullanıcılar", href: "/users", icon: Settings },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = getSupabaseBrowserClient()
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login")
-    router.refresh()
+  const handleSignOut = async () => {
+    await signOut()
   }
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-      <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
-        <Link href="/" className="flex items-center gap-2 text-lg font-semibold md:text-base">
-          <Package2 className="h-6 w-6" />
-          <span className="sr-only">İş Yönetimi</span>
-        </Link>
-        {navItems.map((item) => {
-          if (item.isDropdown && item.subItems) {
-            return (
-              <DropdownMenu key={item.label}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 hidden md:flex">
+          <Link href="/" className="mr-6 flex items-center space-x-2">
+            <Package className="h-6 w-6" />
+            <span className="hidden font-bold sm:inline-block">İş Yönetimi</span>
+          </Link>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
+            {navigation.map((item) => (
+              <div key={item.name}>
+                {item.subItems ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "transition-colors hover:text-foreground/80",
+                          pathname?.startsWith(item.href) ? "text-foreground" : "text-foreground/60",
+                        )}
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.name}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>Finansal İşlemler</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {item.subItems.map((subItem) => (
+                        <DropdownMenuItem key={subItem.name} asChild>
+                          <Link
+                            href={subItem.href}
+                            className={cn("flex items-center", pathname === subItem.href ? "bg-accent" : "")}
+                          >
+                            <subItem.icon className="mr-2 h-4 w-4" />
+                            {subItem.name}
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Link
+                    href={item.href}
                     className={cn(
-                      "transition-colors hover:text-foreground flex items-center gap-1 px-3 py-2 text-sm font-medium",
-                      pathname.startsWith(item.href) ? "text-foreground bg-accent" : "text-muted-foreground",
+                      "flex items-center transition-colors hover:text-foreground/80",
+                      pathname === item.href ? "text-foreground" : "text-foreground/60",
                     )}
                   >
-                    <item.icon className="mr-1 inline-block h-4 w-4" />
-                    {item.label}
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-75" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {item.subItems.map((subItem) => (
-                    <DropdownMenuItem key={subItem.href} asChild>
-                      <Link href={subItem.href}>{subItem.label}</Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )
-          }
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={cn(
-                "transition-colors hover:text-foreground px-3 py-2 text-sm font-medium",
-                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
-                  ? "text-foreground bg-accent rounded-md"
-                  : "text-muted-foreground",
-              )}
-            >
-              <item.icon className="mr-1 inline-block h-4 w-4" />
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="icon" className="shrink-0 md:hidden bg-transparent">
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Navigasyon menüsünü aç/kapat</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left">
-          <nav className="grid gap-6 text-lg font-medium">
-            <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
-              <Package2 className="h-6 w-6" />
-              <span className="sr-only">İş Yönetimi</span>
-            </Link>
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`flex items-center gap-2 transition-colors hover:text-foreground ${
-                    pathname === item.href ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              )
-            })}
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                  </Link>
+                )}
+              </div>
+            ))}
           </nav>
-        </SheetContent>
-      </Sheet>
-      <div className="ml-auto flex items-center gap-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" className="rounded-full">
-              <Avatar>
-                <AvatarImage src="/placeholder.svg?height=36&width=36" alt="Kullanıcı Avatarı" />
-                <AvatarFallback>KA</AvatarFallback>
-              </Avatar>
-              <span className="sr-only">Kullanıcı menüsünü aç/kapat</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Hesabım</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/users">Kullanıcı Yönetimi</Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="flex items-center cursor-pointer">
-              <LogOut className="h-4 w-4 mr-2" />
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <div className="w-full flex-1 md:w-auto md:flex-none">{/* Mobile menu can be added here */}</div>
+          <nav className="flex items-center">
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
               Çıkış Yap
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </Button>
+          </nav>
+        </div>
       </div>
     </header>
   )
