@@ -7,6 +7,47 @@ import type { z } from "zod"
 
 type AccountFormData = z.infer<typeof AccountSchema>
 
+/* ------------------------------------------------------------------ */
+/*  GET - Chart of Accounts (used by list & table pages)              */
+/* ------------------------------------------------------------------ */
+export async function getChartOfAccounts({
+  searchTerm = "",
+  accountType = "All",
+  page = 1,
+  pageSize = 10,
+}: {
+  searchTerm?: string
+  accountType?: string
+  page?: number
+  pageSize?: number
+}) {
+  const supabase = createClient()
+
+  try {
+    let query = supabase.from("chart_of_accounts").select("*", { count: "exact" })
+
+    if (searchTerm) {
+      query = query.or(`account_code.ilike.%${searchTerm}%,account_name.ilike.%${searchTerm}%`)
+    }
+
+    if (accountType !== "All") {
+      query = query.eq("account_type", accountType)
+    }
+
+    const { data, error, count } = await query.order("account_code").range((page - 1) * pageSize, page * pageSize - 1)
+
+    if (error) {
+      console.error("Chart of accounts query error:", error)
+      return { accounts: [], count: 0 }
+    }
+
+    return { accounts: data || [], count: count || 0 }
+  } catch (err) {
+    console.error("Chart of accounts error:", err)
+    return { accounts: [], count: 0 }
+  }
+}
+
 export async function addAccountAction(data: AccountFormData) {
   try {
     const supabase = createClient()
