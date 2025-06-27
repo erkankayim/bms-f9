@@ -14,15 +14,14 @@ import { Input } from "@/components/ui/input"
 import { useDebounce } from "@/hooks/use-debounce"
 import { format } from "date-fns"
 
-// Satış verisi için tip tanımı
 type Sale = {
   id: number
   sale_date: string
   customer_mid: string | null
-  total_amount: number // Bu genellikle ana para birimindedir, şimdilik TRY varsayıyoruz
-  discount_amount: number // Bu da ana para birimindedir
-  tax_amount: number // Bu da ana para birimindedir
-  final_amount: number // Bu da ana para birimindedir
+  total_amount: number
+  discount_amount: number
+  tax_amount: number
+  final_amount: number
   payment_method: string | null
   status: string
   customers?: {
@@ -32,7 +31,6 @@ type Sale = {
 
 const ITEMS_PER_PAGE = 10
 
-// Satış durumuna göre badge rengi
 const getStatusBadgeVariant = (status: string) => {
   switch (status.toLowerCase()) {
     case "completed":
@@ -49,7 +47,6 @@ const getStatusBadgeVariant = (status: string) => {
   }
 }
 
-// Ödeme yöntemini Türkçe'ye çevir (bu fonksiyonu Sale Detail sayfasından alıp buraya ekleyelim)
 const formatPaymentMethod = (method: string | null) => {
   if (!method) return "-"
   switch (method.toLowerCase()) {
@@ -91,16 +88,13 @@ export default function SalesPage() {
       .select("*, customers(contact_name)", {
         count: "exact",
       })
-      .is("deleted_at", null) // Bu satırı ekle
-      .order("sale_date", { ascending: false }) // En yeni satışlar önce
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: false })
 
-    // Arama terimi varsa müşteri adı veya satış ID'sine göre filtrele
     if (debouncedSearchTerm) {
-      // Sayısal bir arama terimi ise ID'ye göre ara
       if (!isNaN(Number(debouncedSearchTerm))) {
         query = query.eq("id", Number(debouncedSearchTerm))
       } else {
-        // Değilse müşteri adına göre ara (ilişkili tablodan)
         query = query.textSearch("customers.contact_name", debouncedSearchTerm, {
           type: "websearch",
           config: "english",
@@ -144,7 +138,6 @@ export default function SalesPage() {
     }
   }
 
-  // Satış durumunu Türkçe'ye çevir
   const formatStatus = (status: string) => {
     switch (status.toLowerCase()) {
       case "completed":
@@ -171,7 +164,7 @@ export default function SalesPage() {
           </CardHeader>
           <CardContent>
             <p className="text-red-500">{error}</p>
-            <Button variant="outline" className="mt-4" onClick={() => fetchSales()}>
+            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => fetchSales()}>
               Tekrar Dene
             </Button>
             <Link href="/">
@@ -191,15 +184,15 @@ export default function SalesPage() {
         <CardHeader className="px-7">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Sales</CardTitle>
-              <CardDescription>Manage your sales and view their details.</CardDescription>
+              <CardTitle>Satışlar</CardTitle>
+              <CardDescription>Satışlarınızı yönetin ve detaylarını görüntüleyin.</CardDescription>
             </div>
             <div className="flex w-full sm:w-auto items-center gap-2">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by customer or ID..."
+                  placeholder="Müşteri veya ID ile ara..."
                   className="pl-8 w-full"
                   value={searchTerm}
                   onChange={handleSearchChange}
@@ -208,7 +201,7 @@ export default function SalesPage() {
               <Link href="/sales/new">
                 <Button className="w-full sm:w-auto">
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  New Sale
+                  Yeni Satış
                 </Button>
               </Link>
             </div>
@@ -223,12 +216,12 @@ export default function SalesPage() {
           ) : !loading && sales.length === 0 && (debouncedSearchTerm || totalSales === 0) ? (
             <div className="text-center py-10">
               <p className="text-lg font-semibold">
-                {debouncedSearchTerm ? "No sales found matching your search." : "No sales found."}
+                {debouncedSearchTerm ? "Aramanızla eşleşen satış bulunamadı." : "Henüz satış kaydı yok."}
               </p>
               <p className="text-muted-foreground">
-                {debouncedSearchTerm ? "Try a different search term or " : "Get started by "}
+                {debouncedSearchTerm ? "Farklı bir arama terimi deneyin veya " : "Başlamak için "}
                 <Link href="/sales/new" className="text-primary hover:underline">
-                  create a new sale
+                  yeni bir satış oluşturun
                 </Link>
                 .
               </p>
@@ -241,21 +234,21 @@ export default function SalesPage() {
                   <TableHead>
                     <div className="flex items-center">
                       <Calendar className="mr-2 h-4 w-4" />
-                      Date
+                      Tarih
                     </div>
                   </TableHead>
                   <TableHead>
                     <div className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
-                      Customer
+                      Müşteri
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Discount</TableHead>
-                  <TableHead className="text-right">Final Amount</TableHead>
-                  <TableHead>Payment Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Toplam</TableHead>
+                  <TableHead className="text-right">İndirim</TableHead>
+                  <TableHead className="text-right">Son Tutar</TableHead>
+                  <TableHead>Ödeme Yöntemi</TableHead>
+                  <TableHead>Durum</TableHead>
+                  <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -284,7 +277,7 @@ export default function SalesPage() {
                     <TableCell className="text-right">
                       <Link href={`/sales/${sale.id}`}>
                         <Button variant="outline" size="sm">
-                          View
+                          Görüntüle
                         </Button>
                       </Link>
                     </TableCell>
@@ -297,7 +290,7 @@ export default function SalesPage() {
         {totalPages > 1 && (
           <CardFooter className="flex items-center justify-between border-t px-7 py-4">
             <div className="text-xs text-muted-foreground">
-              Page {currentPage} of {totalPages} ({totalSales} sales)
+              Sayfa {currentPage} / {totalPages} ({totalSales} satış)
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -307,7 +300,7 @@ export default function SalesPage() {
                 disabled={currentPage === 1 || loading}
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
+                Önceki
               </Button>
               <Button
                 variant="outline"
@@ -315,7 +308,7 @@ export default function SalesPage() {
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages || loading}
               >
-                Next
+                Sonraki
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>

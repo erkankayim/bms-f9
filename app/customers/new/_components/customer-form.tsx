@@ -13,12 +13,11 @@ import { useToast } from "@/components/ui/use-toast"
 import { addCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
 import { useRouter } from "next/navigation"
 
-// Define the Zod schema for form validation
 const customerFormSchema = z.object({
-  mid: z.string().min(1, "Customer ID is required"),
+  mid: z.string().min(1, "Müşteri ID gereklidir"),
   service_name: z.string().optional(),
-  contact_name: z.string().min(1, "Contact name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  contact_name: z.string().min(1, "İletişim adı gereklidir"),
+  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")),
   phone: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -40,7 +39,6 @@ interface CustomerFormProps {
 }
 
 export function CustomerForm({ initialData, isEditMode = false, customerId }: CustomerFormProps) {
-  // console.log("Rendering CustomerForm (Client Component)", { isEditMode, customerId, initialData }); // For debugging
   const { toast } = useToast()
   const router = useRouter()
   const form = useForm<CustomerFormValues>({
@@ -79,8 +77,8 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
 
     if (result.success) {
       toast({
-        title: isEditMode ? "Customer Updated" : "Customer Added",
-        description: `Customer ${data.contact_name} has been successfully ${isEditMode ? "updated" : "added"}.`,
+        title: isEditMode ? "Müşteri Güncellendi" : "Müşteri Eklendi",
+        description: `Müşteri ${data.contact_name} başarıyla ${isEditMode ? "güncellendi" : "eklendi"}.`,
       })
       if (!isEditMode) {
         form.reset()
@@ -89,8 +87,8 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
       router.refresh()
     } else {
       toast({
-        title: "Error",
-        description: result.error || `Could not ${isEditMode ? "update" : "add"} customer. Please try again.`,
+        title: "Hata",
+        description: result.error || `Müşteri ${isEditMode ? "güncellenemedi" : "eklenemedi"}. Lütfen tekrar deneyin.`,
         variant: "destructive",
       })
     }
@@ -99,18 +97,17 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* ... (rest of the form fields are the same as before) ... */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
             control={form.control}
             name="mid"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer ID *</FormLabel>
+                <FormLabel>Müşteri ID *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., CUST-0001" {...field} readOnly={isEditMode} />
+                  <Input placeholder="örn: MSTR-0001" {...field} readOnly={isEditMode} />
                 </FormControl>
-                {isEditMode && <FormDescription>Customer ID cannot be changed.</FormDescription>}
+                {isEditMode && <FormDescription>Müşteri ID değiştirilemez.</FormDescription>}
                 <FormMessage />
               </FormItem>
             )}
@@ -120,9 +117,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="contact_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Contact Name *</FormLabel>
+                <FormLabel>İletişim Adı *</FormLabel>
                 <FormControl>
-                  <Input placeholder="John Doe" {...field} />
+                  <Input placeholder="Ahmet Yılmaz" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -133,9 +130,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>E-posta</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="john.doe@example.com" {...field} />
+                  <Input type="email" placeholder="ahmet.yilmaz@ornek.com" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -146,9 +143,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Telefon</FormLabel>
                 <FormControl>
-                  <Input placeholder="+1 234 567 890" {...field} />
+                  <Input placeholder="+90 555 123 45 67" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -159,9 +156,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="service_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Service/Subscription Name</FormLabel>
+                <FormLabel>Hizmet/Abonelik Adı</FormLabel>
                 <FormControl>
-                  <Input placeholder="Premium Support" {...field} />
+                  <Input placeholder="Premium Destek" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -172,9 +169,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="customer_group"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Customer Group</FormLabel>
+                <FormLabel>Müşteri Grubu</FormLabel>
                 <FormControl>
-                  <Input placeholder="Retail / Wholesale" {...field} />
+                  <Input placeholder="Perakende / Toptan" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -185,11 +182,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="balance"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Balance</FormLabel>
+                <FormLabel>Bakiye</FormLabel>
                 <FormControl>
                   <Input type="number" step="0.01" placeholder="0.00" {...field} />
                 </FormControl>
-                <FormDescription>Current outstanding balance.</FormDescription>
+                <FormDescription>Mevcut ödenmemiş bakiye.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -201,9 +198,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Street Address</FormLabel>
+              <FormLabel>Sokak Adresi</FormLabel>
               <FormControl>
-                <Textarea placeholder="123 Main St, Anytown" {...field} />
+                <Textarea placeholder="Atatürk Cad. No:123, Merkez" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -215,9 +212,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>City/Town</FormLabel>
+                <FormLabel>Şehir</FormLabel>
                 <FormControl>
-                  <Input placeholder="Anytown" {...field} />
+                  <Input placeholder="İstanbul" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -228,9 +225,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="province"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Province/State</FormLabel>
+                <FormLabel>İlçe/Eyalet</FormLabel>
                 <FormControl>
-                  <Input placeholder="CA" {...field} />
+                  <Input placeholder="Kadıköy" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -241,9 +238,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="postal_code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Postal Code</FormLabel>
+                <FormLabel>Posta Kodu</FormLabel>
                 <FormControl>
-                  <Input placeholder="90210" {...field} />
+                  <Input placeholder="34710" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -256,9 +253,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="tax_office"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Tax Office</FormLabel>
+                <FormLabel>Vergi Dairesi</FormLabel>
                 <FormControl>
-                  <Input placeholder="City Tax Office" {...field} />
+                  <Input placeholder="Kadıköy Vergi Dairesi" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -269,7 +266,7 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
             name="tax_number"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Tax Number</FormLabel>
+                <FormLabel>Vergi Numarası</FormLabel>
                 <FormControl>
                   <Input placeholder="1234567890" {...field} />
                 </FormControl>
@@ -283,9 +280,9 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
           name="notes"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel>Notlar</FormLabel>
               <FormControl>
-                <Textarea placeholder="Any additional notes about the customer..." {...field} />
+                <Textarea placeholder="Müşteri hakkında ek notlar..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -294,11 +291,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting
             ? isEditMode
-              ? "Updating Customer..."
-              : "Adding Customer..."
+              ? "Müşteri Güncelleniyor..."
+              : "Müşteri Ekleniyor..."
             : isEditMode
-              ? "Save Changes"
-              : "Add Customer"}
+              ? "Değişiklikleri Kaydet"
+              : "Müşteri Ekle"}
         </Button>
       </form>
     </Form>

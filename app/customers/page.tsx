@@ -5,18 +5,17 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Loader2, Search, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react" // Edit ve Trash2 eklendi
+import { PlusCircle, Loader2, Search, ChevronLeft, ChevronRight, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useToast } from "@/components/ui/use-toast"
-import { DeleteCustomerDialog } from "./[mid]/_components/delete-customer-dialog" // Dialog import edildi
+import { DeleteCustomerDialog } from "./[mid]/_components/delete-customer-dialog"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-// Add 'deleted_at' to the Customer type
 type Customer = {
   mid: string
   contact_name: string | null
@@ -25,10 +24,9 @@ type Customer = {
   balance: number | null
   customer_group: string | null
   service_name: string | null
-  deleted_at: string | null // Add this line
+  deleted_at: string | null
 }
 
-// Define FilterStatus type (if not already defined globally or in a shared types file)
 type FilterStatus = "active" | "archived" | "all"
 
 const ITEMS_PER_PAGE = 10
@@ -40,14 +38,12 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // const [customerToArchive, setCustomerToArchive] = useState<{ id: string; name: string | null } | null>(null); // BU SATIRI SİLİN
 
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCustomers, setTotalCustomers] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
   const debouncedSearchTerm = useDebounce(searchTerm, 500)
 
-  // Add filterStatus state
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("active")
 
   const router = useRouter()
@@ -55,7 +51,6 @@ export default function CustomersPage() {
 
   const totalPages = useMemo(() => Math.ceil(totalCustomers / ITEMS_PER_PAGE), [totalCustomers])
 
-  // useEffect to sync filterStatus from URL
   useEffect(() => {
     const filterQuery = searchParams.get("filter")
     if (filterQuery === "archived" || filterQuery === "all") {
@@ -73,7 +68,6 @@ export default function CustomersPage() {
     setSearchTerm(searchQuery || "")
   }, [searchParams])
 
-  // useEffect to update URL when filterStatus, currentPage or searchTerm changes
   useEffect(() => {
     const params = new URLSearchParams()
     if (filterStatus !== "active") {
@@ -88,7 +82,6 @@ export default function CustomersPage() {
     router.replace(`/customers?${params.toString()}`, { scroll: false })
   }, [filterStatus, currentPage, debouncedSearchTerm, router])
 
-  // Update fetchCustomers useCallback
   const fetchCustomers = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -99,7 +92,6 @@ export default function CustomersPage() {
     let query = supabase
       .from("customers")
       .select("mid, contact_name, email, phone, balance, customer_group, service_name, deleted_at", {
-        // Ensure deleted_at is selected
         count: "exact",
       })
 
@@ -108,7 +100,6 @@ export default function CustomersPage() {
     } else if (filterStatus === "archived") {
       query = query.not("deleted_at", "is", null)
     }
-    // For "all", no additional filter on deleted_at is needed
 
     if (debouncedSearchTerm) {
       const searchPattern = `%${debouncedSearchTerm}%`
@@ -129,20 +120,18 @@ export default function CustomersPage() {
       setTotalCustomers(count || 0)
     }
     setLoading(false)
-  }, [supabase, currentPage, debouncedSearchTerm, filterStatus]) // Add filterStatus to dependencies
+  }, [supabase, currentPage, debouncedSearchTerm, filterStatus])
 
   useEffect(() => {
     fetchCustomers()
-  }, [fetchCustomers]) // Add filterStatus
+  }, [fetchCustomers])
 
-  // Update useEffect for resetting page when search/filter changes
   useEffect(() => {
     if ((debouncedSearchTerm || filterStatus !== "active") && currentPage !== 1) {
       setCurrentPage(1)
     }
-  }, [debouncedSearchTerm, filterStatus]) // Add filterStatus
+  }, [debouncedSearchTerm, filterStatus])
 
-  // Update handleCustomerArchived
   const handleCustomerArchived = () => {
     toast({
       title: "Müşteri Arşivlendi",
@@ -151,7 +140,7 @@ export default function CustomersPage() {
     if (customers.length === 1 && currentPage > 1) {
       setCurrentPage((prev) => prev - 1)
     } else {
-      fetchCustomers() // This will now use the current filterStatus
+      fetchCustomers()
     }
   }
 
@@ -174,7 +163,7 @@ export default function CustomersPage() {
           </CardHeader>
           <CardContent>
             <p className="text-red-500">{error}</p>
-            <Button variant="outline" className="mt-4" onClick={() => fetchCustomers()}>
+            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => fetchCustomers()}>
               Tekrar Dene
             </Button>
             <Link href="/">
@@ -194,15 +183,15 @@ export default function CustomersPage() {
         <CardHeader className="px-7">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Customers</CardTitle>
-              <CardDescription>Manage your customers and view their details.</CardDescription>
+              <CardTitle>Müşteriler</CardTitle>
+              <CardDescription>Müşterilerinizi yönetin ve detaylarını görüntüleyin.</CardDescription>
             </div>
             <div className="flex w-full sm:w-auto items-center gap-2">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by ID, name, or email..."
+                  placeholder="ID, isim veya e-posta ile ara..."
                   className="pl-8 w-full"
                   value={searchTerm}
                   onChange={handleSearchChange}
@@ -221,7 +210,7 @@ export default function CustomersPage() {
               <Link href="/customers/new">
                 <Button className="w-full sm:w-auto">
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Customer
+                  Müşteri Ekle
                 </Button>
               </Link>
             </div>
@@ -252,15 +241,15 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer ID</TableHead>
-                  <TableHead>Contact Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Service</TableHead>
+                  <TableHead>Müşteri ID</TableHead>
+                  <TableHead>İletişim Adı</TableHead>
+                  <TableHead>E-posta</TableHead>
+                  <TableHead>Telefon</TableHead>
+                  <TableHead className="text-right">Bakiye</TableHead>
+                  <TableHead>Grup</TableHead>
+                  <TableHead>Hizmet</TableHead>
                   <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">Actions</TableHead> {/* Actions sütunu eklendi */}
+                  <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -271,7 +260,7 @@ export default function CustomersPage() {
                     <TableCell>{customer.email || "-"}</TableCell>
                     <TableCell>{customer.phone || "-"}</TableCell>
                     <TableCell className="text-right">
-                      {customer.balance !== null ? `$${customer.balance.toFixed(2)}` : "-"}
+                      {customer.balance !== null ? `₺${customer.balance.toFixed(2)}` : "-"}
                     </TableCell>
                     <TableCell>
                       {customer.customer_group ? <Badge variant="outline">{customer.customer_group}</Badge> : "-"}
@@ -294,14 +283,14 @@ export default function CustomersPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="hidden md:inline-flex px-2 py-1 h-auto text-xs"
+                            className="hidden md:inline-flex px-2 py-1 h-auto text-xs bg-transparent"
                           >
-                            View
+                            Görüntüle
                           </Button>
                         </Link>
                         {!customer.deleted_at && (
                           <Link href={`/customers/${customer.mid}/edit`}>
-                            <Button variant="ghost" size="icon" aria-label="Edit Customer">
+                            <Button variant="ghost" size="icon" aria-label="Müşteriyi Düzenle">
                               <Edit className="h-4 w-4" />
                             </Button>
                           </Link>
@@ -311,7 +300,7 @@ export default function CustomersPage() {
                           customerName={customer.contact_name}
                           onDelete={handleCustomerArchived}
                         >
-                          <Button variant="ghost" size="icon" aria-label="Archive Customer">
+                          <Button variant="ghost" size="icon" aria-label="Müşteriyi Arşivle">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </DeleteCustomerDialog>
@@ -326,7 +315,7 @@ export default function CustomersPage() {
         {totalPages > 1 && (
           <CardFooter className="flex items-center justify-between border-t px-7 py-4">
             <div className="text-xs text-muted-foreground">
-              Page {currentPage} of {totalPages} ({totalCustomers} customers)
+              Sayfa {currentPage} / {totalPages} ({totalCustomers} müşteri)
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -335,7 +324,7 @@ export default function CustomersPage() {
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1 || loading}
               >
-                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                <ChevronLeft className="h-4 w-4 mr-1" /> Önceki
               </Button>
               <Button
                 variant="outline"
@@ -343,7 +332,7 @@ export default function CustomersPage() {
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages || loading}
               >
-                Next <ChevronRight className="h-4 w-4 ml-1" />
+                Sonraki <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           </CardFooter>

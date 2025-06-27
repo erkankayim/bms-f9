@@ -49,7 +49,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // State for managing which product to delete and dialog visibility
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string | null } | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
@@ -164,12 +163,6 @@ export default function ProductsPage() {
   }
 
   const handleProductArchived = () => {
-    // Renamed from handleProductDeleted for clarity
-    // setIsDeleteDialogOpen(false); // Dialog will be closed by its onOpenChange
-    // setProductToDelete(null); // Not strictly necessary here as dialog closes, but good for cleanup
-
-    // Toast is handled inside DeleteProductDialog after successful action
-
     if (products.length === 1 && currentPage > 1) {
       setCurrentPage((prev) => prev - 1)
     } else {
@@ -200,7 +193,7 @@ export default function ProductsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-red-500">{error}</p>
-            <Button variant="outline" className="mt-4" onClick={() => fetchProducts()}>
+            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => fetchProducts()}>
               Tekrar Dene
             </Button>
             <Link href="/">
@@ -220,15 +213,15 @@ export default function ProductsPage() {
         <CardHeader className="px-7">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Products / Inventory</CardTitle>
-              <CardDescription>Manage your product stock, pricing, and details.</CardDescription>
+              <CardTitle>Ürünler / Envanter</CardTitle>
+              <CardDescription>Ürün stoklarınızı, fiyatlarınızı ve detaylarınızı yönetin.</CardDescription>
             </div>
             <div className="flex w-full flex-col sm:flex-row sm:w-auto items-center gap-2">
               <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by product name..."
+                  placeholder="Ürün adı ile ara..."
                   className="pl-8 w-full sm:w-52"
                   value={searchTerm}
                   onChange={handleSearchChange}
@@ -236,10 +229,10 @@ export default function ProductsPage() {
               </div>
               <Select value={selectedCategoryId} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by category" />
+                  <SelectValue placeholder="Kategoriye göre filtrele" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="all">Tüm Kategoriler</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>
                       {cat.name}
@@ -260,7 +253,7 @@ export default function ProductsPage() {
               <Link href="/products/new" className="w-full sm:w-auto">
                 <Button className="w-full sm:w-auto">
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Product
+                  Ürün Ekle
                 </Button>
               </Link>
             </div>
@@ -293,15 +286,15 @@ export default function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[80px]">Image</TableHead>
-                  <TableHead>Stock Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead className="w-[80px]">Resim</TableHead>
+                  <TableHead>Stok Kodu</TableHead>
+                  <TableHead>Adı</TableHead>
+                  <TableHead>Kategori</TableHead>
                   <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">Qty on Hand</TableHead>
-                  <TableHead className="text-right">Sale Price</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Eldeki Miktar</TableHead>
+                  <TableHead className="text-right">Satış Fiyatı</TableHead>
+                  <TableHead>Etiketler</TableHead>
+                  <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -366,7 +359,7 @@ export default function ProductsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="hidden md:inline-flex px-2 py-1 h-auto text-xs"
+                            className="hidden md:inline-flex px-2 py-1 h-auto text-xs bg-transparent"
                           >
                             Görüntüle
                           </Button>
@@ -406,7 +399,7 @@ export default function ProductsPage() {
         {totalPages > 1 && (
           <CardFooter className="flex items-center justify-between border-t px-7 py-4">
             <div className="text-xs text-muted-foreground">
-              Page {currentPage} of {totalPages} ({totalProducts} products)
+              Sayfa {currentPage} / {totalPages} ({totalProducts} ürün)
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -415,7 +408,7 @@ export default function ProductsPage() {
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1 || loading}
               >
-                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                <ChevronLeft className="h-4 w-4 mr-1" /> Önceki
               </Button>
               <Button
                 variant="outline"
@@ -423,7 +416,7 @@ export default function ProductsPage() {
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages || loading}
               >
-                Next <ChevronRight className="h-4 w-4 ml-1" />
+                Sonraki <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           </CardFooter>
@@ -436,8 +429,7 @@ export default function ProductsPage() {
             onOpenChange={(open) => {
               setIsDeleteDialogOpen(open)
               if (!open) {
-                // If dialog is closed (e.g. by Cancel button or ESC)
-                setProductToDelete(null) // Clear the product to delete
+                setProductToDelete(null)
               }
             }}
             onDelete={handleProductArchived}

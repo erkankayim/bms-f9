@@ -33,18 +33,18 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/suppliers", label: "Suppliers", icon: Building },
-  { href: "/inventory", label: "Inventory", icon: ShoppingCart },
+  { href: "/", label: "Kontrol Paneli", icon: LayoutDashboard },
+  { href: "/customers", label: "Müşteriler", icon: Users },
+  { href: "/suppliers", label: "Tedarikçiler", icon: Building },
+  { href: "/inventory", label: "Envanter", icon: ShoppingCart },
   { href: "/inventory/adjust", label: "Stok Ayarla", icon: ShoppingCart },
   { href: "/inventory/alerts", label: "Stok Uyarıları", icon: AlertTriangle },
-  { href: "/products", label: "Products", icon: Package2 },
-  { href: "/sales", label: "Sales", icon: DollarSign },
+  { href: "/products", label: "Ürünler", icon: Package2 },
+  { href: "/sales", label: "Satışlar", icon: DollarSign },
   { href: "/service", label: "Servis", icon: Wrench },
   {
     href: "/invoices",
-    label: "Invoices",
+    label: "Faturalar",
     icon: FileText,
     isDropdown: true,
     subItems: [
@@ -54,7 +54,7 @@ const navItems = [
   },
   {
     href: "/financials",
-    label: "Financials",
+    label: "Finansal",
     icon: Briefcase,
     isDropdown: true,
     subItems: [
@@ -75,7 +75,7 @@ export function MainNav() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push("/auth/login")
-    router.refresh() // Ensures the server components are re-rendered with the new auth state.
+    router.refresh()
   }
 
   return (
@@ -83,7 +83,7 @@ export function MainNav() {
       <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold md:text-base">
           <Package2 className="h-6 w-6" />
-          <span className="sr-only">BizManage Inc</span>
+          <span className="sr-only">İş Yönetimi</span>
         </Link>
         {navItems.map((item) => {
           if (item.isDropdown && item.subItems) {
@@ -133,7 +133,7 @@ export function MainNav() {
         <SheetTrigger asChild>
           <Button variant="outline" size="icon" className="shrink-0 md:hidden bg-transparent">
             <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle navigation menu</span>
+            <span className="sr-only">Navigasyon menüsünü aç/kapat</span>
           </Button>
         </SheetTrigger>
         <SheetContent side="left">
@@ -165,10 +165,10 @@ export function MainNav() {
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" size="icon" className="rounded-full">
               <Avatar>
-                <AvatarImage src="/placeholder.svg?height=36&width=36" alt="User Avatar" />
-                <AvatarFallback>UA</AvatarFallback>
+                <AvatarImage src="/placeholder.svg?height=36&width=36" alt="Kullanıcı Avatarı" />
+                <AvatarFallback>KA</AvatarFallback>
               </Avatar>
-              <span className="sr-only">Toggle user menu</span>
+              <span className="sr-only">Kullanıcı menüsünü aç/kapat</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
