@@ -15,9 +15,9 @@ export type FinancialCategory = {
 
 export type CustomerForDropdown = {
   mid: string
-  id: string
   contact_name: string | null
   email: string | null
+  phone: string | null
 }
 
 export type SupplierForDropdown = {
@@ -82,9 +82,11 @@ export async function getFinancialCategories(
 export async function getCustomersForDropdown(): Promise<{ data?: CustomerForDropdown[]; error?: string }> {
   const supabase = createClient()
   console.log("Fetching customers with service role...")
+
+  // First, let's check what columns exist in the customers table
   const { data, error } = await supabase
     .from("customers")
-    .select("id, mid, contact_name, email")
+    .select("mid, contact_name, email, phone")
     .is("deleted_at", null)
     .order("contact_name")
 
@@ -94,6 +96,8 @@ export async function getCustomersForDropdown(): Promise<{ data?: CustomerForDro
   }
 
   console.log(`Successfully fetched ${data.length} customers.`)
+  console.log("Sample customer data:", data.slice(0, 2))
+
   return { data: data as CustomerForDropdown[] }
 }
 
@@ -358,15 +362,17 @@ export async function deleteExpenseEntry(id: number): Promise<{ success: boolean
   }
 }
 
-// Helper function to get customer UUID from MID
+// Helper function to get customer UUID from MID - Updated to use correct customer table structure
 async function getCustomerUUIDFromMID(supabase: any, mid: string): Promise<string | null> {
-  const { data: customer, error } = await supabase.from("customers").select("id").eq("mid", mid).single()
+  // Since customers table uses 'mid' as primary key, we'll return the mid itself
+  // But first let's verify the customer exists
+  const { data: customer, error } = await supabase.from("customers").select("mid").eq("mid", mid).single()
 
   if (error || !customer) {
     console.error(`Customer with MID ${mid} not found.`, error)
     return null
   }
-  return customer.id
+  return customer.mid // Return the MID as the identifier
 }
 
 // Server Actions
@@ -377,9 +383,12 @@ export async function createIncomeEntryAction(
   const supabase = createClient()
   const rawData = Object.fromEntries(formData)
 
+  console.log("Raw form data:", rawData)
+
   const validatedFields = IncomeEntrySchema.safeParse(rawData)
 
   if (!validatedFields.success) {
+    console.log("Validation errors:", validatedFields.error.issues)
     return {
       success: false,
       message: "Lütfen hataları düzeltip tekrar deneyin.",
@@ -390,16 +399,13 @@ export async function createIncomeEntryAction(
   const { customer_id: customerIdentifier, ...restOfData } = validatedFields.data
 
   let finalCustomerId: string | null = null
-  if (customerIdentifier) {
-    // Check if it's a MID (like CUST-001) or a UUID
-    if (customerIdentifier.startsWith("CUST-")) {
-      finalCustomerId = await getCustomerUUIDFromMID(supabase, customerIdentifier)
-      if (!finalCustomerId) {
-        return { success: false, message: `Seçilen müşteri (${customerIdentifier}) geçersiz.` }
-      }
-    } else {
-      finalCustomerId = customerIdentifier // Assume it's a UUID
+  if (customerIdentifier && customerIdentifier !== "none") {
+    // Verify customer exists
+    const customerExists = await getCustomerUUIDFromMID(supabase, customerIdentifier)
+    if (!customerExists) {
+      return { success: false, message: `Seçilen müşteri (${customerIdentifier}) geçersiz.` }
     }
+    finalCustomerId = customerIdentifier // Use MID directly
   }
 
   const dataToUpsert = {
@@ -407,6 +413,8 @@ export async function createIncomeEntryAction(
     customer_id: finalCustomerId,
     amount: restOfData.incoming_amount,
   }
+
+  console.log("Data to insert:", dataToUpsert)
 
   const { error } = await supabase.from("income_entries").insert(dataToUpsert).select()
 
@@ -453,19 +461,14 @@ export async function updateIncomeEntryAction(
       notes,
     } = validatedFields.data
 
-    // If customer_id is provided and it's in MID format, convert to UUID
     let finalCustomerId: string | null = null
-    if (customer_id) {
-      if (customer_id.startsWith("CUST-")) {
-        // It's a MID, convert to UUID
-        finalCustomerId = await getCustomerUUIDFromMID(supabase, customer_id)
-        if (!finalCustomerId) {
-          return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
-        }
-      } else {
-        // It's already a UUID
-        finalCustomerId = customer_id
+    if (customer_id && customer_id !== "none") {
+      // Verify customer exists
+      const customerExists = await getCustomerUUIDFromMID(supabase, customer_id)
+      if (!customerExists) {
+        return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
       }
+      finalCustomerId = customer_id // Use MID directly
     }
 
     const { error } = await supabase

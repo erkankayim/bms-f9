@@ -1,101 +1,138 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import { ChevronDown, LogOut } from "lucide-react"
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu"
+import { Button } from "@/components/ui/button"
 import { logoutAction } from "@/app/auth/actions"
 
-const navigation = [
-  { name: "Dashboard", href: "/" },
-  { name: "Müşteriler", href: "/customers" },
-  { name: "Ürünler", href: "/products" },
-  { name: "Satışlar", href: "/sales" },
-  { name: "Faturalar", href: "/invoices" },
-  { name: "Envanter", href: "/inventory" },
-  { name: "Servis", href: "/service" },
-  { name: "Tedarikçiler", href: "/suppliers" },
-  { name: "Kullanıcılar", href: "/users" },
-]
-
-const financialNavigation = [
-  { name: "Finansal Özet", href: "/financials" },
-  { name: "Gelir Listesi", href: "/financials/income" },
-  { name: "Gider Listesi", href: "/financials/expenses" },
-  { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
+const components: { title: string; href: string; description: string }[] = [
+  {
+    title: "Finansal Özet",
+    href: "/financials",
+    description: "Genel finansal durum ve özet bilgiler",
+  },
+  {
+    title: "Gelir Listesi",
+    href: "/financials/income",
+    description: "Tüm gelir kayıtlarını görüntüle ve yönet",
+  },
+  {
+    title: "Gider Listesi",
+    href: "/financials/expenses",
+    description: "Tüm gider kayıtlarını görüntüle ve yönet",
+  },
+  {
+    title: "Hesap Planı",
+    href: "/financials/chart-of-accounts",
+    description: "Finansal hesap planını yönet",
+  },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
 
-  const isFinancialActive = pathname.startsWith("/financials")
-
   return (
-    <nav className="flex items-center space-x-4 lg:space-x-6">
-      {navigation.map((item) => (
-        <Link
-          key={item.name}
-          href={item.href}
-          className={cn(
-            "text-sm font-medium transition-colors hover:text-primary",
-            pathname === item.href ? "text-foreground" : "text-muted-foreground",
-          )}
-        >
-          {item.name}
-        </Link>
-      ))}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className={cn(
-              "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",
-              isFinancialActive ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            Finansal
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          {financialNavigation.map((item) => (
-            <DropdownMenuItem key={item.name} asChild>
-              <Link
-                href={item.href}
-                className={cn(
-                  "w-full cursor-pointer",
-                  pathname === item.href ? "bg-accent text-accent-foreground" : "",
-                )}
-              >
-                {item.name}
-              </Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenuSeparator className="h-6" />
-
+    <div className="flex items-center space-x-4 lg:space-x-6">
+      <NavigationMenu>
+        <NavigationMenuList>
+          <NavigationMenuItem>
+            <Link href="/" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Ana Sayfa</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/customers" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Müşteriler</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/products" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Ürünler</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/inventory" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Envanter</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/sales" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Satışlar</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/invoices" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Faturalar</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>Finansal</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                {components.map((component) => (
+                  <ListItem key={component.title} title={component.title} href={component.href}>
+                    {component.description}
+                  </ListItem>
+                ))}
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/suppliers" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Tedarikçiler</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/service" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Servis</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/users" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>Kullanıcılar</NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
       <form action={logoutAction}>
-        <Button
-          type="submit"
-          variant="ghost"
-          size="sm"
-          className="text-sm font-medium text-muted-foreground hover:text-primary flex items-center gap-2"
-        >
-          <LogOut className="h-4 w-4" />
+        <Button type="submit" variant="outline" size="sm">
           Çıkış Yap
         </Button>
       </form>
-    </nav>
+    </div>
   )
 }
+
+const ListItem = React.forwardRef<React.ElementRef<"a">, React.ComponentPropsWithoutRef<"a">>(
+  ({ className, title, children, ...props }, ref) => {
+    return (
+      <li>
+        <NavigationMenuLink asChild>
+          <a
+            ref={ref}
+            className={cn(
+              "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+              className,
+            )}
+            {...props}
+          >
+            <div className="text-sm font-medium leading-none">{title}</div>
+            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{children}</p>
+          </a>
+        </NavigationMenuLink>
+      </li>
+    )
+  },
+)
+ListItem.displayName = "ListItem"
