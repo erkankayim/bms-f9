@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useFormStatus } from "react-dom"
-import { createExpense } from "../../_actions/actions"
+import { createExpense } from "../../../_actions/actions"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
