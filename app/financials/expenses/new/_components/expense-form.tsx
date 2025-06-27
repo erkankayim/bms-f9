@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, Building, Loader2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, Building, Loader2, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const initialState = {
@@ -68,6 +68,7 @@ export default function ExpenseForm() {
     fetchData()
   }, [])
 
+  // Form sadece başarılı olduğunda sıfırlansın
   useEffect(() => {
     if (state.success) {
       setFormKey(Date.now())
@@ -137,7 +138,19 @@ export default function ExpenseForm() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Hata</AlertTitle>
-              <AlertDescription>{state.message}</AlertDescription>
+              <AlertDescription>
+                {state.message}
+                {state.errors && state.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium">Lütfen aşağıdaki alanları kontrol edin:</p>
+                    <ul className="list-disc list-inside text-sm mt-1">
+                      {state.errors.map((error: any, index: number) => (
+                        <li key={index}>{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </AlertDescription>
             </Alert>
           )}
           {state.success && state.message && (
@@ -210,9 +223,9 @@ export default function ExpenseForm() {
                   <SelectValue placeholder="Bir tedarikçi seçin (varsa)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Tedarikçi Yok</SelectItem>
+                  <SelectItem value="no-supplier">Tedarikçi Yok</SelectItem>
                   {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
+                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
                       <div>
                         <div className="font-medium">{supplier.name}</div>
                         {supplier.contact_name && (
@@ -224,6 +237,10 @@ export default function ExpenseForm() {
                 </SelectContent>
               </Select>
               {getError("supplier_id") && <p className="text-sm text-destructive">{getError("supplier_id")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
             </div>
           </div>
 
@@ -251,6 +268,10 @@ export default function ExpenseForm() {
               <Label htmlFor="invoice_number">Fatura No (Opsiyonel)</Label>
               <Input id="invoice_number" name="invoice_number" placeholder="Örn: FAT-2024-001" />
               {getError("invoice_number") && <p className="text-sm text-destructive">{getError("invoice_number")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="payment_method">Ödeme Şekli *</Label>
@@ -274,12 +295,20 @@ export default function ExpenseForm() {
             <Label htmlFor="receipt_url">Fiş/Fatura URL'si (Opsiyonel)</Label>
             <Input id="receipt_url" name="receipt_url" type="url" placeholder="https://..." />
             {getError("receipt_url") && <p className="text-sm text-destructive">{getError("receipt_url")}</p>}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notlar (Opsiyonel)</Label>
             <Textarea id="notes" name="notes" placeholder="Bu giderle ilgili ek notlar..." />
             {getError("notes") && <p className="text-sm text-destructive">{getError("notes")}</p>}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+            </div>
           </div>
         </CardContent>
         <CardFooter>

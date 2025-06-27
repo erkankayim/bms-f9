@@ -148,8 +148,18 @@ export async function createIncomeEntryAction(
   const supabase = createClient()
   const rawData = Object.fromEntries(formData)
 
-  if (rawData.customer_id === "none" || rawData.customer_id === "") {
+  // Handle optional customer_id
+  if (rawData.customer_id === "none" || rawData.customer_id === "" || !rawData.customer_id) {
     rawData.customer_id = null
+  }
+
+  // Handle optional fields
+  if (!rawData.invoice_number || rawData.invoice_number === "") {
+    rawData.invoice_number = null
+  }
+
+  if (!rawData.notes || rawData.notes === "") {
+    rawData.notes = null
   }
 
   if (rawData.category_id && typeof rawData.category_id === "string") {
@@ -161,7 +171,7 @@ export async function createIncomeEntryAction(
   if (!validatedFields.success) {
     return {
       success: false,
-      message: "Lütfen formdaki hataları düzeltin.",
+      message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
       errors: validatedFields.error.issues,
     }
   }
@@ -208,8 +218,22 @@ export async function createExpenseEntryAction(
   const supabase = createClient()
   const rawData = Object.fromEntries(formData)
 
-  if (rawData.supplier_id === "none" || rawData.supplier_id === "") {
+  // Handle optional supplier_id
+  if (rawData.supplier_id === "none" || rawData.supplier_id === "" || !rawData.supplier_id) {
     rawData.supplier_id = null
+  }
+
+  // Handle optional fields
+  if (!rawData.invoice_number || rawData.invoice_number === "") {
+    rawData.invoice_number = null
+  }
+
+  if (!rawData.receipt_url || rawData.receipt_url === "") {
+    rawData.receipt_url = null
+  }
+
+  if (!rawData.notes || rawData.notes === "") {
+    rawData.notes = null
   }
 
   if (rawData.category_id && typeof rawData.category_id === "string") {
@@ -221,7 +245,7 @@ export async function createExpenseEntryAction(
   if (!validatedFields.success) {
     return {
       success: false,
-      message: "Lütfen formdaki hataları düzeltin.",
+      message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
       errors: validatedFields.error.issues,
     }
   }
