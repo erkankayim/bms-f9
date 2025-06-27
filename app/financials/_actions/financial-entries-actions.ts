@@ -148,27 +148,12 @@ export async function createIncomeEntryAction(
   const supabase = createClient()
   const rawData = Object.fromEntries(formData)
 
-  // Handle optional customer_id
-  if (rawData.customer_id === "none" || rawData.customer_id === "" || !rawData.customer_id) {
-    rawData.customer_id = null
-  }
-
-  // Handle optional fields
-  if (!rawData.invoice_number || rawData.invoice_number === "") {
-    rawData.invoice_number = null
-  }
-
-  if (!rawData.notes || rawData.notes === "") {
-    rawData.notes = null
-  }
-
-  if (rawData.category_id && typeof rawData.category_id === "string") {
-    rawData.category_id = Number.parseInt(rawData.category_id as string, 10)
-  }
+  console.log("Raw form data:", rawData)
 
   const validatedFields = IncomeEntrySchema.safeParse(rawData)
 
   if (!validatedFields.success) {
+    console.log("Validation errors:", validatedFields.error.issues)
     return {
       success: false,
       message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
@@ -188,16 +173,18 @@ export async function createIncomeEntryAction(
     notes,
   } = validatedFields.data
 
+  console.log("Validated data:", validatedFields.data)
+
   const { error } = await supabase.from("income_entries").insert({
     description,
     incoming_amount,
     entry_date,
     category_id,
     source,
-    customer_id: customer_id || null,
-    invoice_number: invoice_number || null,
+    customer_id,
+    invoice_number,
     payment_method,
-    notes: notes || null,
+    notes,
     amount: incoming_amount,
   })
 
@@ -218,31 +205,12 @@ export async function createExpenseEntryAction(
   const supabase = createClient()
   const rawData = Object.fromEntries(formData)
 
-  // Handle optional supplier_id
-  if (rawData.supplier_id === "none" || rawData.supplier_id === "" || !rawData.supplier_id) {
-    rawData.supplier_id = null
-  }
-
-  // Handle optional fields
-  if (!rawData.invoice_number || rawData.invoice_number === "") {
-    rawData.invoice_number = null
-  }
-
-  if (!rawData.receipt_url || rawData.receipt_url === "") {
-    rawData.receipt_url = null
-  }
-
-  if (!rawData.notes || rawData.notes === "") {
-    rawData.notes = null
-  }
-
-  if (rawData.category_id && typeof rawData.category_id === "string") {
-    rawData.category_id = Number.parseInt(rawData.category_id as string, 10)
-  }
+  console.log("Raw expense form data:", rawData)
 
   const validatedFields = ExpenseEntrySchema.safeParse(rawData)
 
   if (!validatedFields.success) {
+    console.log("Expense validation errors:", validatedFields.error.issues)
     return {
       success: false,
       message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
@@ -265,6 +233,8 @@ export async function createExpenseEntryAction(
     notes,
   } = validatedFields.data
 
+  console.log("Validated expense data:", validatedFields.data)
+
   const { error } = await supabase.from("expense_entries").insert({
     description,
     expense_amount,
@@ -273,11 +243,11 @@ export async function createExpenseEntryAction(
     expense_source,
     entry_date,
     category_id,
-    supplier_id: supplier_id || null,
-    invoice_number: invoice_number || null,
+    supplier_id,
+    invoice_number,
     payment_method,
-    receipt_url: receipt_url || null,
-    notes: notes || null,
+    receipt_url,
+    notes,
     amount: expense_amount,
   })
 

@@ -14,22 +14,41 @@ export const IncomeEntrySchema = z.object({
     .string()
     .optional()
     .nullable()
+    .transform((val) => {
+      // Transform "no-customer" or empty values to null
+      if (!val || val === "" || val === "no-customer" || val === "none") return null
+      return val
+    })
     .refine(
       (val) => {
-        // Allow null, undefined, empty string, or "none"
-        if (!val || val === "" || val === "none") return true
+        // Allow null values (optional)
+        if (val === null) return true
         // If a value is provided, it must be a valid UUID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         return uuidRegex.test(val)
       },
       { message: "Geçerli bir müşteri seçin veya boş bırakın." },
     ),
-  invoice_number: z.string().optional(),
+  invoice_number: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val === "") return null
+      return val
+    }),
   payment_method: z
     .string()
     .min(1, "Ödeme şekli seçimi zorunludur.")
     .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val === "") return null
+      return val
+    }),
 })
 
 export const ExpenseEntrySchema = z.object({
@@ -44,21 +63,59 @@ export const ExpenseEntrySchema = z.object({
     .string()
     .optional()
     .nullable()
+    .transform((val) => {
+      // Transform "no-supplier" or empty values to null
+      if (!val || val === "" || val === "no-supplier" || val === "none") return null
+      return val
+    })
     .refine(
       (val) => {
-        // Allow null, undefined, empty string, or "none"
-        if (!val || val === "" || val === "none") return true
+        // Allow null values (optional)
+        if (val === null) return true
         // If a value is provided, it must be a valid UUID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         return uuidRegex.test(val)
       },
       { message: "Geçerli bir tedarikçi seçin veya boş bırakın." },
     ),
-  invoice_number: z.string().optional(),
+  invoice_number: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val === "") return null
+      return val
+    }),
   payment_method: z
     .string()
     .min(1, "Ödeme şekli seçimi zorunludur.")
     .refine((val) => PAYMENT_METHODS.includes(val), { message: "Geçersiz ödeme şekli." }),
-  receipt_url: z.string().url("Geçerli bir URL girin.").optional().or(z.literal("")),
-  notes: z.string().optional(),
+  receipt_url: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val === "") return null
+      return val
+    })
+    .refine(
+      (val) => {
+        if (val === null) return true
+        try {
+          new URL(val)
+          return true
+        } catch {
+          return false
+        }
+      },
+      { message: "Geçerli bir URL girin." },
+    ),
+  notes: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val || val === "") return null
+      return val
+    }),
 })

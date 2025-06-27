@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, Building, Loader2, Info } from "lucide-react"
+import { AlertCircle, CheckCircle2, Receipt, Loader2, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const initialState = {
@@ -39,7 +39,7 @@ export default function ExpenseForm() {
       setDataError(null)
 
       try {
-        const [catResult, supResult] = await Promise.all([
+        const [catResult, suppResult] = await Promise.all([
           getFinancialCategories("expense").catch((err) => ({ error: err.message })),
           getSuppliersForDropdown().catch((err) => ({ error: err.message })),
         ])
@@ -51,10 +51,10 @@ export default function ExpenseForm() {
           setDataError(catResult.error || "Kategoriler yüklenemedi")
         }
 
-        if (supResult.data) {
-          setSuppliers(supResult.data)
+        if (suppResult.data) {
+          setSuppliers(suppResult.data)
         } else {
-          console.error("Tedarikçiler yüklenemedi:", supResult.error)
+          console.error("Tedarikçiler yüklenemedi:", suppResult.error)
           // Tedarikçi hatası kritik değil, sadece log'la
         }
       } catch (error) {
@@ -85,7 +85,7 @@ export default function ExpenseForm() {
       <Card className="w-full max-w-4xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Building className="h-5 w-5" />
+            <Receipt className="h-5 w-5" />
             Yeni Gider Kaydı
           </CardTitle>
           <CardDescription>
@@ -125,7 +125,7 @@ export default function ExpenseForm() {
     <Card className="w-full max-w-4xl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Building className="h-5 w-5" />
+          <Receipt className="h-5 w-5" />
           Yeni Gider Kaydı
         </CardTitle>
         <CardDescription>
@@ -164,28 +164,29 @@ export default function ExpenseForm() {
             </Alert>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="expense_amount">Gider Tutarı (TRY) *</Label>
               <Input id="expense_amount" name="expense_amount" type="number" step="0.01" placeholder="0.00" required />
               {getError("expense_amount") && <p className="text-sm text-destructive">{getError("expense_amount")}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="payment_amount">Ödeme Tutarı (TRY) *</Label>
+              <Label htmlFor="payment_amount">Ödenen Tutar (TRY) *</Label>
               <Input id="payment_amount" name="payment_amount" type="number" step="0.01" placeholder="0.00" required />
               {getError("payment_amount") && <p className="text-sm text-destructive">{getError("payment_amount")}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="entry_date">Tarih *</Label>
-              <Input
-                id="entry_date"
-                name="entry_date"
-                type="date"
-                defaultValue={new Date().toISOString().split("T")[0]}
-                required
-              />
-              {getError("entry_date") && <p className="text-sm text-destructive">{getError("entry_date")}</p>}
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="entry_date">Tarih *</Label>
+            <Input
+              id="entry_date"
+              name="entry_date"
+              type="date"
+              defaultValue={new Date().toISOString().split("T")[0]}
+              required
+            />
+            {getError("entry_date") && <p className="text-sm text-destructive">{getError("entry_date")}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -225,7 +226,7 @@ export default function ExpenseForm() {
                 <SelectContent>
                   <SelectItem value="no-supplier">Tedarikçi Yok</SelectItem>
                   {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                    <SelectItem key={supplier.id} value={supplier.id}>
                       <div>
                         <div className="font-medium">{supplier.name}</div>
                         {supplier.contact_name && (
@@ -244,17 +245,21 @@ export default function ExpenseForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="expense_title">Gider Başlığı *</Label>
-              <Input id="expense_title" name="expense_title" placeholder="Örn: Ofis Kirası, Malzeme Alımı" required />
-              {getError("expense_title") && <p className="text-sm text-destructive">{getError("expense_title")}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expense_source">Gider Kaynağı (Ödeme Yapılan Yer) *</Label>
-              <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Emlak, XYZ Tedarik" required />
-              {getError("expense_source") && <p className="text-sm text-destructive">{getError("expense_source")}</p>}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="expense_title">Gider Başlığı *</Label>
+            <Input
+              id="expense_title"
+              name="expense_title"
+              placeholder="Örn: Ofis Malzemeleri, Elektrik Faturası"
+              required
+            />
+            {getError("expense_title") && <p className="text-sm text-destructive">{getError("expense_title")}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense_source">Gider Kaynağı *</Label>
+            <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Şirketi, XYZ Mağazası" required />
+            {getError("expense_source") && <p className="text-sm text-destructive">{getError("expense_source")}</p>}
           </div>
 
           <div className="space-y-2">
@@ -292,12 +297,12 @@ export default function ExpenseForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="receipt_url">Fiş/Fatura URL'si (Opsiyonel)</Label>
-            <Input id="receipt_url" name="receipt_url" type="url" placeholder="https://..." />
+            <Label htmlFor="receipt_url">Fiş/Fatura URL (Opsiyonel)</Label>
+            <Input id="receipt_url" name="receipt_url" type="url" placeholder="https://example.com/receipt.pdf" />
             {getError("receipt_url") && <p className="text-sm text-destructive">{getError("receipt_url")}</p>}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Info className="h-3 w-3" />
-              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              <span>Bu alan opsiyoneldir. Fiş veya fatura linkini ekleyebilirsiniz.</span>
             </div>
           </div>
 
