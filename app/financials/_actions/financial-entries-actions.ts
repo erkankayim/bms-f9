@@ -17,6 +17,7 @@ export type CustomerForDropdown = {
   mid: string
   contact_name: string | null
   email: string | null
+  phone: string | null
 }
 
 export type SupplierForDropdown = {
@@ -85,7 +86,7 @@ export async function getCustomersForDropdown(): Promise<{ data?: CustomerForDro
   // First, let's check what columns exist in the customers table
   const { data, error } = await supabase
     .from("customers")
-    .select("mid, contact_name, email")
+    .select("mid, contact_name, email, phone")
     .is("deleted_at", null)
     .order("contact_name")
 
