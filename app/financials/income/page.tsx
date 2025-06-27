@@ -4,27 +4,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle, Loader2, TrendingUp } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { getIncomeEntries } from "../_actions/actions"
+
+export const dynamic = "force-dynamic" // always revalidate
 
 async function IncomeTable() {
   const entries = await getIncomeEntries()
 
   if (entries.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">Henüz gelir kaydı yok</h3>
-          <p className="text-muted-foreground mb-4">İlk gelirinizi ekleyerek başlayın.</p>
-          <Button asChild>
-            <Link href="/financials/income/new">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Yeni Gelir Ekle
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="p-6 text-sm text-muted-foreground">
+        Henüz kayıt yok. Sağ üstteki butonla ilk gelirinizi ekleyin.
+      </div>
     )
   }
 
@@ -66,21 +58,16 @@ async function IncomeTable() {
   )
 }
 
-export default function IncomePage() {
+export default async function IncomePage() {
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gelirler</h1>
-          <p className="text-muted-foreground">Tüm gelir kayıtlarınızı görüntüleyin ve yönetin.</p>
-        </div>
+    <main className="p-6 space-y-4">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Gelir Kayıtları</h1>
         <Button asChild>
-          <Link href="/financials/income/new">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Yeni Gelir Ekle
-          </Link>
+          <Link href="/financials/income/new">Yeni Gelir Ekle</Link>
         </Button>
-      </div>
+      </header>
+
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-64">
@@ -90,6 +77,6 @@ export default function IncomePage() {
       >
         <IncomeTable />
       </Suspense>
-    </div>
+    </main>
   )
 }

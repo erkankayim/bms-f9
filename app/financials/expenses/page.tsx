@@ -1,38 +1,19 @@
-import { lusitana } from "@/app/ui/fonts"
-import { ExpensesTable } from "./expenses-table"
-import { CreateExpense } from "./create-expense"
-import { getExpenseEntries } from "../_actions/actions"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
-async function Expenses({
-  query,
-  currentPage,
-}: {
-  query?: string
-  currentPage?: number
-}) {
-  const expenseEntries = await getExpenseEntries(query, currentPage)
+export const dynamic = "force-dynamic"
 
+export default async function ExpensesPage() {
   return (
-    <div className="w-full">
-      <div className="flex w-full items-center justify-between">
-        <h1 className={`${lusitana.className} text-2xl`}>Expenses</h1>
-      </div>
-      <CreateExpense />
-      <ExpensesTable expenseEntries={expenseEntries} query={query || ""} currentPage={currentPage || 1} />
-    </div>
+    <main className="p-6 space-y-4">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Gider Kayıtları</h1>
+        <Button asChild>
+          <Link href="/financials/expenses/new">Yeni Gider Ekle</Link>
+        </Button>
+      </header>
+
+      <p className="text-sm text-muted-foreground">Henüz kayıt yok. Sağ üstteki butonla ilk giderinizi ekleyin.</p>
+    </main>
   )
-}
-
-export default async function Page({
-  searchParams,
-}: {
-  searchParams?: {
-    query?: string
-    page?: string
-  }
-}) {
-  const query = searchParams?.query || ""
-  const currentPage = Number(searchParams?.page) || 1
-
-  return <Expenses query={query} currentPage={currentPage} />
 }

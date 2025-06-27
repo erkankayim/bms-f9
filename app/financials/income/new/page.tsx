@@ -1,21 +1,17 @@
-import { getFinancialCategories, getCustomers } from "../../_actions/actions"
-import { IncomeForm } from "./_components/income-form"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import IncomeForm from "./_components/income-form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default async function NewIncomePage() {
-  const [categories, customers] = await Promise.all([getFinancialCategories("income"), getCustomers()])
-
+export default function NewIncomePage() {
   return (
-    <div className="container mx-auto py-8 max-w-2xl">
-      <Card>
+    <main className="p-6 flex justify-center">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Yeni Gelir Kaydı</CardTitle>
-          <CardDescription>Yeni bir gelir işlemi ekleyin.</CardDescription>
+          <CardTitle>Yeni Gelir Ekle</CardTitle>
         </CardHeader>
         <CardContent>
-          <IncomeForm categories={categories} customers={customers} />
+          <IncomeForm />
         </CardContent>
       </Card>
-    </div>
+    </main>
   )
 }

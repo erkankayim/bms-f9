@@ -116,3 +116,23 @@ export async function createExpenseEntry(formData: FormData) {
   revalidatePath("/financials/expenses")
   redirect("/financials/expenses")
 }
+
+// ---------- Income ----------
+export async function createIncome(form: FormData) {
+  console.log("createIncome →", Object.fromEntries(form))
+  revalidatePath("/financials/income")
+}
+export async function deleteIncome(id: string) {
+  console.log("deleteIncome →", id)
+  revalidatePath("/financials/income")
+}
+
+// ---------- Expense ----------
+export async function createExpense(form: FormData) {
+  console.log("createExpense →", Object.fromEntries(form))
+  revalidatePath("/financials/expenses")
+}
+export async function deleteExpense(id: string) {
+  console.log("deleteExpense →", id)
+  revalidatePath("/financials/expenses")
+}
