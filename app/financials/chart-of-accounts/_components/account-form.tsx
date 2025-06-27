@@ -1,204 +1,128 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { accountSchema, accountTypes, type AccountFormValues } from "../_lib/schema"
-import { addAccountAction, updateAccountAction } from "../_actions/server-actions"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
-import { Form, FormField, FormItem, FormLabel, FormMessage, FormControl } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Loader2 } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
-import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import type { ChartOfAccount } from "./accounts-table-client"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AccountSchema, type AccountFormData } from "../_lib/schema"
+import { addAccountAction, updateAccountAction } from "../_actions/server-actions"
 
-interface Props {
-  initialData?: ChartOfAccount | null
-  accountId?: number | null
+interface AccountFormProps {
+  initialData?: AccountFormData & { id?: string }
+  mode?: "create" | "edit"
 }
 
-export default function AccountForm({ initialData, accountId }: Props) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [parentOpts, setParentOpts] = useState<ChartOfAccount[]>([])
-  const [pending, setPending] = useState(false)
+export function AccountForm({ initialData, mode = "create" }: AccountFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const form = useForm<AccountFormValues>({
-    resolver: zodResolver(accountSchema),
-    defaultValues: {
-      account_code: initialData?.account_code ?? "",
-      account_name: initialData?.account_name ?? "",
-      account_type: initialData?.account_type ?? undefined,
-      parent_account_id: initialData?.parent_account_id ?? null,
-      description: initialData?.description ?? "",
-      is_active: initialData?.is_active ?? true,
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<AccountFormData>({
+    resolver: zodResolver(AccountSchema),
+    defaultValues: initialData || {
+      account_code: "",
+      account_name: "",
+      account_type: "ASSET",
+      parent_account_id: "",
+      description: "",
+      is_active: true,
     },
   })
 
-  /* fetch parent accounts in the browser */
-  useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from("chart_of_accounts")
-      .select("id, account_code, account_name")
-      .eq("is_active", true)
-      .order("account_code")
-      .then(({ data }) => {
-        const filtered = initialData && data ? data.filter((d) => d.id !== initialData.id) : (data ?? [])
-        setParentOpts(filtered as ChartOfAccount[])
-      })
-  }, [initialData])
-
-  async function onSubmit(values: AccountFormValues) {
-    setPending(true)
-    const res = initialData && accountId ? await updateAccountAction(accountId, values) : await addAccountAction(values)
-
-    setPending(false)
-    toast({
-      title: res.success ? "Başarılı" : "Hata",
-      description: res.success ? (initialData ? "Hesap güncellendi." : "Hesap oluşturuldu.") : (res.message ?? ""),
-      variant: res.success ? "default" : "destructive",
-    })
-
-    if (res.success) {
-      router.push("/financials/chart-of-accounts")
-      router.refresh()
+  const onSubmit = async (data: AccountFormData) => {
+    setIsSubmitting(true)
+    try {
+      if (mode === "edit" && initialData?.id) {
+        await updateAccountAction(initialData.id, data)
+      } else {
+        await addAccountAction(data)
+      }
+    } catch (error) {
+      console.error("Form submission error:", error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* code + name */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="account_code"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Kod *</FormLabel>
-                <FormControl>
-                  <Input placeholder="100.01" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="account_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Hesap Adı *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Kasa Hesabı" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>{mode === "edit" ? "Hesabı Düzenle" : "Yeni Hesap Ekle"}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="account_code">Hesap Kodu</Label>
+              <Input id="account_code" {...register("account_code")} placeholder="Örn: 100" />
+              {errors.account_code && <p className="text-sm text-red-600">{errors.account_code.message}</p>}
+            </div>
 
-        {/* type + parent */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="account_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tür *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seçin" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {accountTypes.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="parent_account_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Üst Hesap</FormLabel>
-                <Select
-                  onValueChange={(v) => field.onChange(v ? Number(v) : null)}
-                  defaultValue={field.value?.toString() ?? "0"}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Yok" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="0">Yok</SelectItem>
-                    {parentOpts.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.account_code} – {p.account_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="account_name">Hesap Adı</Label>
+              <Input id="account_name" {...register("account_name")} placeholder="Örn: Kasa" />
+              {errors.account_name && <p className="text-sm text-red-600">{errors.account_name.message}</p>}
+            </div>
+          </div>
 
-        {/* description */}
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Açıklama</FormLabel>
-              <FormControl>
-                <Textarea rows={3} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <div className="space-y-2">
+            <Label htmlFor="account_type">Hesap Türü</Label>
+            <Select value={watch("account_type")} onValueChange={(value) => setValue("account_type", value as any)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Hesap türü seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ASSET">Varlık</SelectItem>
+                <SelectItem value="LIABILITY">Borç</SelectItem>
+                <SelectItem value="EQUITY">Özkaynak</SelectItem>
+                <SelectItem value="REVENUE">Gelir</SelectItem>
+                <SelectItem value="EXPENSE">Gider</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.account_type && <p className="text-sm text-red-600">{errors.account_type.message}</p>}
+          </div>
 
-        {/* active switch */}
-        <FormField
-          control={form.control}
-          name="is_active"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between rounded-md border p-4">
-              <FormLabel className="text-base">Aktif mi?</FormLabel>
-              <FormControl>
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+          <div className="space-y-2">
+            <Label htmlFor="description">Açıklama</Label>
+            <Textarea
+              id="description"
+              {...register("description")}
+              placeholder="Hesap açıklaması (isteğe bağlı)"
+              rows={3}
+            />
+          </div>
 
-        <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            İptal
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {initialData ? "Güncelle" : "Oluştur"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="is_active"
+              checked={watch("is_active")}
+              onCheckedChange={(checked) => setValue("is_active", checked)}
+            />
+            <Label htmlFor="is_active">Aktif</Label>
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Kaydediliyor..." : mode === "edit" ? "Güncelle" : "Kaydet"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => window.history.back()}>
+              İptal
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
+
+export default AccountForm

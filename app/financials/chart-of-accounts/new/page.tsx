@@ -1,20 +1,15 @@
 "use client"
 
-import AccountForm from "../_components/account-form"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { AccountForm } from "../_components/account-form"
 
 export default function NewAccountPage() {
   return (
-    <div className="container mx-auto py-10">
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-          <CardTitle>Yeni Hesap Oluştur</CardTitle>
-          <CardDescription>Hesap planınıza yeni bir mali hesap ekleyin.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AccountForm />
-        </CardContent>
-      </Card>
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Yeni Hesap Ekle</h1>
+        <p className="text-muted-foreground">Hesap planınıza yeni bir hesap ekleyin.</p>
+      </div>
+      <AccountForm mode="create" />
     </div>
   )
 }

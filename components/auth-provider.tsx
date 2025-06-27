@@ -1,10 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
+import { MainNav } from "@/components/main-nav"
+import { usePathname } from "next/navigation"
 
 interface AuthContextType {
   user: User | null
@@ -16,10 +17,19 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 })
 
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = getSupabaseBrowserClient()
+  const pathname = usePathname()
 
   useEffect(() => {
     // Get initial session
@@ -45,13 +55,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [supabase.auth])
 
-  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
-}
-
-export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    )
   }
-  return context
+
+  const isAuthPage = pathname.startsWith("/auth")
+
+  // If user is logged in and not on auth page, show main layout with header
+  // If no user or on auth page, just show children (auth pages)
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {user && !isAuthPage ? (
+        <div className="flex min-h-screen w-full flex-col">
+          <MainNav />
+          <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">{children}</main>
+        </div>
+      ) : (
+        <>{children}</>
+      )}
+    </AuthContext.Provider>
+  )
 }
