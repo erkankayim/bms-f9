@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
+    let mounted = true
+
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -37,14 +39,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { session },
           error,
         } = await supabase.auth.getSession()
+
         if (error) {
           console.error("Error getting session:", error)
         }
-        setUser(session?.user ?? null)
-        setLoading(false)
+
+        if (mounted) {
+          setUser(session?.user ?? null)
+          setLoading(false)
+        }
       } catch (error) {
         console.error("Error in getInitialSession:", error)
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -55,11 +63,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, !!session?.user)
-      setUser(session?.user ?? null)
-      setLoading(false)
+
+      if (mounted) {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
     })
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
   }, [supabase.auth])
@@ -72,9 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
-
-  // Check if current page is an auth page
-  const isAuthPage = typeof window !== "undefined" && window.location.pathname.startsWith("/auth")
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
