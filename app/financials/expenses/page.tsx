@@ -39,14 +39,20 @@ export default function ExpensesPage() {
   useEffect(() => {
     async function fetchExpenses() {
       try {
+        console.log("Fetching expenses from client...")
         const result = await getExpenseEntries()
+
+        console.log("Expense fetch result:", result)
+
         if (result.data) {
           setExpenses(result.data)
           setFilteredExpenses(result.data)
+          setError(null)
         } else {
           setError(result.error || "Veri yüklenirken hata oluştu")
         }
       } catch (err) {
+        console.error("Client error:", err)
         setError("Beklenmeyen bir hata oluştu")
       } finally {
         setLoading(false)
@@ -63,9 +69,9 @@ export default function ExpensesPage() {
     if (searchTerm) {
       filtered = filtered.filter(
         (expense) =>
-          expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          expense.expense_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          expense.expense_source.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          expense.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          expense.expense_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          expense.expense_source?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           expense.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           expense.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
@@ -79,9 +85,9 @@ export default function ExpensesPage() {
     setFilteredExpenses(filtered)
   }, [expenses, searchTerm, selectedPaymentMethod])
 
-  const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.expense_amount, 0)
-  const totalPayment = filteredExpenses.reduce((sum, expense) => sum + expense.payment_amount, 0)
-  const paymentMethods = [...new Set(expenses.map((expense) => expense.payment_method))]
+  const totalAmount = filteredExpenses.reduce((sum, expense) => sum + (expense.expense_amount || 0), 0)
+  const totalPayment = filteredExpenses.reduce((sum, expense) => sum + (expense.payment_amount || 0), 0)
+  const paymentMethods = [...new Set(expenses.map((expense) => expense.payment_method).filter(Boolean))]
 
   if (loading) {
     return (
@@ -98,7 +104,13 @@ export default function ExpensesPage() {
       <div className="container mx-auto py-8">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-red-500">{error}</p>
+            <div className="text-center space-y-4">
+              <p className="text-red-500 font-medium">Hata: {error}</p>
+              <p className="text-sm text-muted-foreground">
+                Veritabanı bağlantısı kontrol ediliyor. Lütfen daha sonra tekrar deneyin.
+              </p>
+              <Button onClick={() => window.location.reload()}>Sayfayı Yenile</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -242,22 +254,32 @@ export default function ExpensesPage() {
                           ? "Filtrelere uygun kayıt bulunamadı."
                           : "Henüz gider kaydı bulunmuyor."}
                       </div>
+                      {!searchTerm && selectedPaymentMethod === "all" && (
+                        <div className="mt-4">
+                          <Link href="/financials/expenses/new">
+                            <Button>
+                              <PlusCircle className="mr-2 h-4 w-4" />
+                              İlk Gider Kaydını Oluştur
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredExpenses.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">
-                        {new Date(expense.entry_date).toLocaleDateString("tr-TR")}
+                        {expense.entry_date ? new Date(expense.entry_date).toLocaleDateString("tr-TR") : "-"}
                       </TableCell>
                       <TableCell>
                         <div className="max-w-32 truncate" title={expense.expense_title}>
-                          {expense.expense_title}
+                          {expense.expense_title || "-"}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="max-w-48 truncate" title={expense.description}>
-                          {expense.description}
+                          {expense.description || "-"}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -275,13 +297,17 @@ export default function ExpensesPage() {
                         )}
                       </TableCell>
                       <TableCell className="font-medium text-red-600">
-                        ₺{expense.expense_amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                        ₺{(expense.expense_amount || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="font-medium text-orange-600">
-                        ₺{expense.payment_amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                        ₺{(expense.payment_amount || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default">{expense.payment_method}</Badge>
+                        {expense.payment_method ? (
+                          <Badge variant="default">{expense.payment_method}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {expense.invoice_number || <span className="text-muted-foreground text-sm">-</span>}
@@ -298,7 +324,10 @@ export default function ExpensesPage() {
                               <Edit className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <DeleteExpenseDialog expenseId={expense.id.toString()} expenseTitle={expense.expense_title} />
+                          <DeleteExpenseDialog
+                            expenseId={expense.id.toString()}
+                            expenseTitle={expense.expense_title || "Gider"}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
