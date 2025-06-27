@@ -66,12 +66,6 @@ export const ExpenseEntrySchema = z.object({
   payment_method: z.enum(PAYMENT_METHODS, {
     required_error: "Ödeme yöntemi seçilmelidir",
   }),
-  receipt_url: z
-    .string()
-    .url()
-    .optional()
-    .nullable()
-    .transform((val) => val || null),
   notes: z
     .string()
     .optional()

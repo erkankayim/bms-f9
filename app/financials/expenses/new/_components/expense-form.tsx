@@ -228,7 +228,7 @@ export default function ExpenseForm() {
                   {suppliers.map((supplier) => (
                     <SelectItem key={supplier.id} value={supplier.id.toString()}>
                       <div>
-                        <div className="font-medium">{supplier.name}</div>
+                        <div className="font-medium">{supplier.company_name}</div>
                         {supplier.contact_name && (
                           <div className="text-xs text-muted-foreground">{supplier.contact_name}</div>
                         )}
@@ -288,16 +288,6 @@ export default function ExpenseForm() {
                 </SelectContent>
               </Select>
               {getError("payment_method") && <p className="text-sm text-destructive">{getError("payment_method")}</p>}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="receipt_url">Fiş/Makbuz URL (Opsiyonel)</Label>
-            <Input id="receipt_url" name="receipt_url" type="url" placeholder="https://example.com/receipt.pdf" />
-            {getError("receipt_url") && <p className="text-sm text-destructive">{getError("receipt_url")}</p>}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Info className="h-3 w-3" />
-              <span>Bu alan opsiyoneldir. Fiş/makbuz linkini buraya ekleyebilirsiniz.</span>
             </div>
           </div>
 

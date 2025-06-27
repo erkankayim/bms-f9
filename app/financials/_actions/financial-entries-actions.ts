@@ -53,7 +53,6 @@ export type ExpenseEntry = {
   entry_date: string
   invoice_number?: string
   payment_method: string
-  receipt_url?: string
   notes?: string
   supplier_id?: string
   supplier_name?: string
@@ -301,7 +300,6 @@ export async function getExpenseEntries(): Promise<{ data?: ExpenseEntry[]; erro
         entry_date,
         invoice_number,
         payment_method,
-        receipt_url,
         notes,
         supplier_id,
         category_id,
@@ -327,7 +325,6 @@ export async function getExpenseEntries(): Promise<{ data?: ExpenseEntry[]; erro
         entry_date: entry.entry_date,
         invoice_number: entry.invoice_number,
         payment_method: entry.payment_method,
-        receipt_url: entry.receipt_url,
         notes: entry.notes,
         supplier_id: entry.supplier_id,
         supplier_name: entry.suppliers?.name,
@@ -358,7 +355,6 @@ export async function getExpenseEntryById(id: number): Promise<{ data?: ExpenseE
         entry_date,
         invoice_number,
         payment_method,
-        receipt_url,
         notes,
         supplier_id,
         category_id,
@@ -384,7 +380,6 @@ export async function getExpenseEntryById(id: number): Promise<{ data?: ExpenseE
       entry_date: data.entry_date,
       invoice_number: data.invoice_number,
       payment_method: data.payment_method,
-      receipt_url: data.receipt_url,
       notes: data.notes,
       supplier_id: data.supplier_id,
       supplier_name: data.suppliers?.name,
@@ -633,7 +628,6 @@ export async function createExpenseEntryAction(
       supplier_id,
       invoice_number,
       payment_method,
-      receipt_url,
       notes,
     } = validatedFields.data
 
@@ -650,7 +644,6 @@ export async function createExpenseEntryAction(
       supplier_id,
       invoice_number,
       payment_method,
-      receipt_url,
       notes,
       amount: expense_amount,
     })

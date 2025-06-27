@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Save } from "lucide-react"
 import { updateExpense, getFinancialCategories, getSuppliers } from "../../../_actions/expense-actions"
+import { PAYMENT_METHODS } from "@/app/financials/_lib/financial-entry-shared"
 import { toast } from "sonner"
 
 interface EditExpenseFormProps {
@@ -130,11 +131,11 @@ export function EditExpenseForm({ expense, expenseId }: EditExpenseFormProps) {
                   <SelectValue placeholder="Ödeme yöntemi seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Nakit">Nakit</SelectItem>
-                  <SelectItem value="Kredi Kartı">Kredi Kartı</SelectItem>
-                  <SelectItem value="Banka Transferi">Banka Transferi</SelectItem>
-                  <SelectItem value="Çek">Çek</SelectItem>
-                  <SelectItem value="Senet">Senet</SelectItem>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
