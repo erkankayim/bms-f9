@@ -4,11 +4,9 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 
-export async function login(formData: FormData) {
+export async function loginAction(prevState: any, formData: FormData) {
   const supabase = createClient()
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
   const data = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
@@ -17,34 +15,42 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword(data)
 
   if (error) {
-    redirect("/error")
+    return {
+      message: "Giriş başarısız. E-posta ve şifrenizi kontrol edin.",
+    }
   }
 
   revalidatePath("/", "layout")
   redirect("/")
 }
 
-export async function signup(formData: FormData) {
+export async function registerAction(prevState: any, formData: FormData) {
   const supabase = createClient()
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
   const data = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
+    options: {
+      data: {
+        full_name: formData.get("name") as string,
+      },
+    },
   }
 
   const { error } = await supabase.auth.signUp(data)
 
   if (error) {
-    redirect("/error")
+    return {
+      message: "Kayıt başarısız. Lütfen tekrar deneyin.",
+    }
   }
 
-  revalidatePath("/", "layout")
-  redirect("/")
+  return {
+    message: "Kayıt başarılı! E-posta adresinizi kontrol edin.",
+  }
 }
 
-export async function signOut() {
+export async function logoutAction() {
   const supabase = createClient()
   await supabase.auth.signOut()
   revalidatePath("/", "layout")

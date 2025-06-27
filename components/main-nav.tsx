@@ -1,165 +1,108 @@
 "use client"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Home, LogOut } from "lucide-react"
-import { signOut } from "@/app/auth/actions"
+import { ChevronDown, LogOut, Home } from "lucide-react"
+import { logoutAction } from "@/app/auth/actions"
 
 const navigation = [
-  {
-    name: "Müşteriler",
-    href: "/customers",
-    children: [
-      { name: "Müşteri Listesi", href: "/customers" },
-      { name: "Yeni Müşteri", href: "/customers/new" },
-    ],
-  },
-  {
-    name: "Ürünler",
-    href: "/products",
-    children: [
-      { name: "Ürün Listesi", href: "/products" },
-      { name: "Yeni Ürün", href: "/products/new" },
-    ],
-  },
-  {
-    name: "Satışlar",
-    href: "/sales",
-    children: [
-      { name: "Satış Listesi", href: "/sales" },
-      { name: "Yeni Satış", href: "/sales/new" },
-    ],
-  },
-  {
-    name: "Faturalar",
-    href: "/invoices",
-    children: [
-      { name: "Fatura Listesi", href: "/invoices" },
-      { name: "Yeni Fatura", href: "/invoices/new" },
-    ],
-  },
-  {
-    name: "Finansal",
-    href: "/financials",
-    children: [
-      { name: "Genel Bakış", href: "/financials" },
-      { name: "Gelir Kayıtları", href: "/financials/income" },
-      { name: "Gider Kayıtları", href: "/financials/expenses" },
-      { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
-      { name: "Kategoriler", href: "/financials/categories" },
-    ],
-  },
-  {
-    name: "Envanter",
-    href: "/inventory",
-    children: [
-      { name: "Stok Durumu", href: "/inventory" },
-      { name: "Stok Düzeltme", href: "/inventory/adjust" },
-      { name: "Stok Uyarıları", href: "/inventory/alerts" },
-    ],
-  },
-  {
-    name: "Servis",
-    href: "/service",
-    children: [
-      { name: "Servis Listesi", href: "/service" },
-      { name: "Yeni Servis", href: "/service/new" },
-    ],
-  },
-  {
-    name: "Tedarikçiler",
-    href: "/suppliers",
-    children: [
-      { name: "Tedarikçi Listesi", href: "/suppliers" },
-      { name: "Yeni Tedarikçi", href: "/suppliers/new" },
-    ],
-  },
-  {
-    name: "Kullanıcılar",
-    href: "/users",
-    children: [
-      { name: "Kullanıcı Listesi", href: "/users" },
-      { name: "Yeni Kullanıcı", href: "/users/new" },
-    ],
-  },
+  { name: "Müşteriler", href: "/customers" },
+  { name: "Ürünler", href: "/products" },
+  { name: "Satışlar", href: "/sales" },
+  { name: "Faturalar", href: "/invoices" },
+  { name: "Envanter", href: "/inventory" },
+  { name: "Servis", href: "/service" },
+  { name: "Tedarikçiler", href: "/suppliers" },
+  { name: "Kullanıcılar", href: "/users" },
+]
+
+const financialNavigation = [
+  { name: "Finansal Özet", href: "/financials" },
+  { name: "Gelir Listesi", href: "/financials/income" },
+  { name: "Gider Listesi", href: "/financials/expenses" },
+  { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
-
-  const handleSignOut = async () => {
-    await signOut()
-  }
+  const isFinancialActive = pathname.startsWith("/financials")
 
   return (
-    <div className="flex h-16 items-center justify-between px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="flex items-center justify-between w-full">
       {/* Sol taraf - Dashboard */}
-      <div className="flex items-center space-x-4">
-        <Link href="/">
-          <Button
-            variant={pathname === "/" ? "default" : "ghost"}
-            className={cn(
-              "flex items-center space-x-2 transition-colors",
-              pathname === "/" && "bg-primary/10 text-primary",
-            )}
-          >
-            <Home className="h-4 w-4" />
-            <span>Dashboard</span>
-          </Button>
+      <div className="flex items-center">
+        <Link
+          href="/"
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors hover:text-primary rounded-md",
+            pathname === "/" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
+          )}
+        >
+          <Home className="h-4 w-4" />
+          Dashboard
         </Link>
       </div>
 
-      {/* Orta - Ana navigasyon menüleri */}
+      {/* Orta - Ana navigasyon */}
       <nav className="flex items-center space-x-1">
-        {navigation.map((item) => {
-          const isActive = pathname.startsWith(item.href)
+        {navigation.map((item) => (
+          <Link
+            key={item.name}
+            href={item.href}
+            className={cn(
+              "px-3 py-2 text-sm font-medium transition-colors hover:text-primary rounded-md hover:bg-accent",
+              pathname === item.href ? "text-primary bg-primary/10" : "text-muted-foreground",
+            )}
+          >
+            {item.name}
+          </Link>
+        ))}
 
-          return (
-            <DropdownMenu key={item.name}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                "px-3 py-2 text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 rounded-md",
+                isFinancialActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
+              )}
+            >
+              Finansal
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" className="w-56">
+            {financialNavigation.map((item) => (
+              <DropdownMenuItem key={item.name} asChild>
+                <Link
+                  href={item.href}
                   className={cn(
-                    "flex items-center space-x-1 transition-colors hover:bg-accent",
-                    isActive && "bg-primary/10 text-primary",
+                    "w-full cursor-pointer",
+                    pathname === item.href ? "bg-accent text-accent-foreground font-medium" : "",
                   )}
                 >
-                  <span>{item.name}</span>
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-48">
-                {item.children.map((child) => (
-                  <DropdownMenuItem key={child.href} asChild>
-                    <Link
-                      href={child.href}
-                      className={cn(
-                        "w-full cursor-pointer transition-colors",
-                        pathname === child.href && "bg-accent text-accent-foreground",
-                      )}
-                    >
-                      {child.name}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
-        })}
+                  {item.name}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </nav>
 
-      {/* Sağ taraf - Çıkış yap */}
+      {/* Sağ taraf - Çıkış */}
       <div className="flex items-center">
-        <form action={handleSignOut}>
+        <form action={logoutAction}>
           <Button
             type="submit"
             variant="ghost"
-            className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
+            size="sm"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-accent rounded-md flex items-center gap-2 transition-colors"
           >
             <LogOut className="h-4 w-4" />
-            <span>Çıkış Yap</span>
+            Çıkış Yap
           </Button>
         </form>
       </div>

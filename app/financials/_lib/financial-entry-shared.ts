@@ -1,17 +1,6 @@
 import { z } from "zod"
 
-export const PAYMENT_METHODS = [
-  "Nakit",
-  "Kredi Kartı",
-  "Banka Kartı",
-  "Havale/EFT",
-  "Çek",
-  "Senet",
-  "Kripto Para",
-  "Diğer",
-] as const
-
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+export const PAYMENT_METHODS = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"] as const
 
 // MID format regex for customer IDs like CUST-004
 const midRegex = /^CUST-\d{3}$/
