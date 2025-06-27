@@ -16,8 +16,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, Users, Loader2, Info } from "lucide-react"
+import { AlertCircle, Users, Loader2, Info, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
 
 const initialState = {
   success: false,
@@ -26,42 +27,58 @@ const initialState = {
 }
 
 export default function IncomeForm() {
+  const { toast } = useToast()
   const [state, formAction, isPending] = useActionState(createIncomeEntryAction, initialState)
   const [categories, setCategories] = useState<FinancialCategory[]>([])
   const [customers, setCustomers] = useState<CustomerForDropdown[]>([])
   const [formKey, setFormKey] = useState(Date.now())
   const [loadingData, setLoadingData] = useState(true)
   const [dataError, setDataError] = useState<string | null>(null)
+  const [customerError, setCustomerError] = useState<string | null>(null)
+
+  const fetchData = async () => {
+    setLoadingData(true)
+    setDataError(null)
+    setCustomerError(null)
+
+    try {
+      console.log("Veri yükleme başlıyor...")
+
+      // Kategorileri yükle
+      const catResult = await getFinancialCategories("income")
+      console.log("Kategori sonucu:", catResult)
+
+      if (catResult.data && catResult.data.length > 0) {
+        setCategories(catResult.data)
+        console.log("Kategoriler yüklendi:", catResult.data.length, "adet")
+      } else {
+        console.error("Gelir kategorileri yüklenemedi:", catResult.error)
+        setDataError(catResult.error || "Kategoriler yüklenemedi")
+      }
+
+      // Müşterileri yükle
+      const custResult = await getCustomersForDropdown()
+      console.log("Müşteri sonucu:", custResult)
+
+      if (custResult.data) {
+        setCustomers(custResult.data)
+        console.log("Müşteriler yüklendi:", custResult.data.length, "adet")
+        if (custResult.data.length === 0) {
+          setCustomerError("Henüz hiç müşteri kaydı bulunmuyor. İsterseniz önce müşteri ekleyebilirsiniz.")
+        }
+      } else {
+        console.error("Müşteriler yüklenemedi:", custResult.error)
+        setCustomerError(custResult.error || "Müşteriler yüklenemedi")
+      }
+    } catch (error) {
+      console.error("Veri yükleme hatası:", error)
+      setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
+    } finally {
+      setLoadingData(false)
+    }
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      setLoadingData(true)
-      setDataError(null)
-
-      try {
-        const [catResult, custResult] = await Promise.all([getFinancialCategories("income"), getCustomersForDropdown()])
-
-        if (catResult.data) {
-          setCategories(catResult.data)
-        } else {
-          console.error("Gelir kategorileri yüklenemedi:", catResult.error)
-          setDataError(catResult.error || "Kategoriler yüklenemedi")
-        }
-
-        if (custResult.data) {
-          setCustomers(custResult.data)
-        } else {
-          console.error("Müşteriler yüklenemedi:", custResult.error)
-          // Müşteri hatası kritik değil, sadece log'la
-        }
-      } catch (error) {
-        console.error("Veri yükleme hatası:", error)
-        setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
-      } finally {
-        setLoadingData(false)
-      }
-    }
-
     fetchData()
   }, [])
 
@@ -69,8 +86,19 @@ export default function IncomeForm() {
   useEffect(() => {
     if (state.success) {
       setFormKey(Date.now())
+      toast({
+        title: "Başarılı",
+        description: state.message,
+        variant: "default",
+      })
+    } else if (state.message && !state.success) {
+      toast({
+        title: "Hata",
+        description: state.message,
+        variant: "destructive",
+      })
     }
-  }, [state.success])
+  }, [state.success, state.message, toast])
 
   const getError = (field: string) => {
     if (!state.errors || !Array.isArray(state.errors)) return undefined
@@ -108,11 +136,15 @@ export default function IncomeForm() {
             Veri Yükleme Hatası
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{dataError}</AlertDescription>
           </Alert>
+          <Button onClick={fetchData} variant="outline" className="w-full bg-transparent">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Tekrar Dene
+          </Button>
         </CardContent>
       </Card>
     )
@@ -148,14 +180,12 @@ export default function IncomeForm() {
               </AlertDescription>
             </Alert>
           )}
-          {state.success && state.message && (
-            <Alert
-              variant="default"
-              className="border-green-200 bg-green-50 dark:bg-green-900/30 dark:border-green-700"
-            >
-              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-              <AlertTitle className="text-green-800 dark:text-green-300">Başarılı</AlertTitle>
-              <AlertDescription className="text-green-700 dark:text-green-400">{state.message}</AlertDescription>
+
+          {customerError && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Müşteri Bilgisi</AlertTitle>
+              <AlertDescription>{customerError}</AlertDescription>
             </Alert>
           )}
 
@@ -220,15 +250,24 @@ export default function IncomeForm() {
                   <SelectValue placeholder="Bir müşteri seçin (varsa)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="no-customer">Müşteri Yok</SelectItem>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.mid} value={customer.mid}>
-                      <div>
-                        <div className="font-medium">{customer.contact_name || `Müşteri ID: ${customer.mid}`}</div>
-                        {customer.email && <div className="text-xs text-muted-foreground">{customer.email}</div>}
-                      </div>
+                  <SelectItem value="none">Müşteri Yok</SelectItem>
+                  {customers.length > 0 ? (
+                    customers.map((customer) => (
+                      <SelectItem key={customer.mid} value={customer.mid}>
+                        <div className="flex flex-col">
+                          <div className="font-medium">{customer.contact_name || `Müşteri ${customer.mid}`}</div>
+                          <div className="text-xs text-muted-foreground">
+                            ID: {customer.mid}
+                            {customer.email && ` • ${customer.email}`}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-customers" disabled>
+                      Henüz müşteri kaydı yok
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
               {getError("customer_id") && <p className="text-sm text-destructive">{getError("customer_id")}</p>}
@@ -291,6 +330,7 @@ export default function IncomeForm() {
         </CardContent>
         <CardFooter>
           <Button type="submit" disabled={isPending} className="ml-auto">
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isPending ? "Kaydediliyor..." : "Gelir Kaydet"}
           </Button>
         </CardFooter>
