@@ -1,3 +1,5 @@
+"use server"
+
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { accountSchema, type AccountFormValues, type AccountType } from "../_lib/schema"
