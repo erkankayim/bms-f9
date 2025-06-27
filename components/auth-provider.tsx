@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
@@ -31,22 +30,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
-    setLoading(true) // Set loading to true when the component mounts or supabase.auth changes
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        if (error) {
+          console.error("Error getting session:", error)
+        }
+        setUser(session?.user ?? null)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error in getInitialSession:", error)
+        setLoading(false)
+      }
+    }
 
+    getInitialSession()
+
+    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, !!session?.user)
       setUser(session?.user ?? null)
-      setLoading(false) // Set loading to false once the auth state is determined
+      setLoading(false)
+
+      // Force a page refresh for login/logout to ensure proper state sync
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          window.location.reload()
+        }, 100)
+      }
     })
 
-    // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase.auth]) // Dependency array ensures this runs when supabase.auth object instance changes (typically once)
+  }, [supabase.auth])
 
-  // Yükleme durumunda
+  // Loading state
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -55,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Auth sayfaları için kontrol
+  // Check if current page is an auth page
   const isAuthPage = typeof window !== "undefined" && window.location.pathname.startsWith("/auth")
 
   return (
