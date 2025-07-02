@@ -17,7 +17,9 @@ export default async function UsersPage() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Yetkisiz Erişim</AlertTitle>
-          <AlertDescription>Bu sayfayı görüntüleme yetkiniz yok.</AlertDescription>
+          <AlertDescription>
+            Bu sayfayı görüntüleme yetkiniz yok. Sadece yöneticiler kullanıcı yönetimi yapabilir.
+          </AlertDescription>
         </Alert>
       </div>
     )
@@ -26,7 +28,12 @@ export default async function UsersPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
+          <p className="text-muted-foreground mt-2">
+            Sistemdeki tüm kullanıcıları görüntüleyin, düzenleyin ve yönetin.
+          </p>
+        </div>
         <Button asChild>
           <Link href="/users/new">
             <Plus className="mr-2 h-4 w-4" />
@@ -41,7 +48,7 @@ export default async function UsersPage() {
           <CardDescription>Sistemdeki tüm kullanıcıları yönetin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>
+          <Suspense fallback={<div className="text-center py-8">Kullanıcılar yükleniyor...</div>}>
             <UsersList />
           </Suspense>
         </CardContent>

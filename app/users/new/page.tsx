@@ -1,19 +1,28 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCurrentUserRole } from "../_actions/users-actions"
 import { UserForm } from "../_components/user-form"
-import { createUser } from "../_actions/users-actions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
-export default function NewUserPage() {
+export default async function NewUserPage() {
+  const role = await getCurrentUserRole()
+
+  if (role !== "admin") {
+    return (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Yetkisiz Erişim</AlertTitle>
+          <AlertDescription>
+            Bu sayfayı görüntüleme yetkiniz yok. Sadece yöneticiler kullanıcı oluşturabilir.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   return (
-    <div className="container mx-auto py-10">
-      <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Yeni Kullanıcı Oluştur</CardTitle>
-          <CardDescription>Sisteme yeni bir kullanıcı ekleyin.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UserForm action={createUser} />
-        </CardContent>
-      </Card>
+    <div className="container mx-auto py-6">
+      <UserForm mode="create" />
     </div>
   )
 }

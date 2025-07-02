@@ -1,98 +1,95 @@
--- Önceki trigger ve fonksiyonları kaldır
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS create_user_profile();
+-- Drop existing user_profiles table if it exists
+DROP TABLE IF EXISTS user_profiles CASCADE;
 
--- Önceki user_profiles tablosunu kaldır
-DROP TABLE IF EXISTS public.user_profiles;
-
--- Kullanıcı rolleri için ENUM tipi
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        CREATE TYPE user_role AS ENUM ('admin', 'acc', 'tech');
-    END IF;
-END$$;
-
--- Kullanıcı durumu için ENUM tipi
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
-        CREATE TYPE user_status AS ENUM ('active', 'inactive');
-    END IF;
-END$$;
-
-
--- Yeni user_profiles tablosunu oluştur
-CREATE TABLE public.user_profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+-- Create user_profiles table with proper structure
+CREATE TABLE user_profiles (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
     full_name TEXT,
-    role user_role NOT NULL DEFAULT 'tech',
-    status user_status NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    role TEXT CHECK (role IN ('admin', 'acc', 'tech')) DEFAULT 'tech',
+    status TEXT CHECK (status IN ('active', 'inactive')) DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tablo için yorumlar
-COMMENT ON TABLE public.user_profiles IS 'Stores public profile information for each user.';
+-- Create RLS policies
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
--- RLS (Row Level Security) Aktifleştir
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+-- Policy for users to read their own profile
+CREATE POLICY "Users can view own profile" ON user_profiles
+    FOR SELECT USING (auth.uid() = user_id);
 
--- RLS Politikaları
--- Kullanıcılar kendi profillerini görebilir
-CREATE POLICY "Users can view their own profile."
-ON public.user_profiles FOR SELECT
-USING (auth.uid() = user_id);
+-- Policy for admins to view all profiles
+CREATE POLICY "Admins can view all profiles" ON user_profiles
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() AND role = 'admin'
+        )
+    );
 
--- Adminler tüm profilleri görebilir
-CREATE POLICY "Admins can view all profiles."
-ON public.user_profiles FOR SELECT
-USING (
-  (SELECT role FROM public.user_profiles WHERE user_id = auth.uid()) = 'admin'
-);
+-- Policy for admins to insert profiles
+CREATE POLICY "Admins can insert profiles" ON user_profiles
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() AND role = 'admin'
+        )
+    );
 
--- Kullanıcılar kendi profillerini güncelleyebilir
-CREATE POLICY "Users can update their own profile."
-ON public.user_profiles FOR UPDATE
-USING (auth.uid() = user_id);
+-- Policy for admins to update profiles
+CREATE POLICY "Admins can update profiles" ON user_profiles
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() AND role = 'admin'
+        )
+    );
 
--- Adminler tüm profilleri güncelleyebilir
-CREATE POLICY "Admins can update any profile."
-ON public.user_profiles FOR UPDATE
-USING (
-  (SELECT role FROM public.user_profiles WHERE user_id = auth.uid()) = 'admin'
-);
+-- Policy for admins to delete profiles
+CREATE POLICY "Admins can delete profiles" ON user_profiles
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() AND role = 'admin'
+        )
+    );
 
--- Yeni kullanıcı eklendiğinde profil oluşturan trigger fonksiyonu
+-- Create trigger to automatically create user profile when auth user is created
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
-AS $$
-BEGIN
-  INSERT INTO public.user_profiles (user_id, full_name)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name');
-  RETURN NEW;
-END;
-$$;
-
--- Trigger'ı oluştur
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- updated_at sütununu güncelleyen trigger fonksiyonu
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = timezone('utc'::text, now());
+    INSERT INTO public.user_profiles (user_id, full_name, role, status)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
+        'tech',
+        'active'
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create updated_at trigger
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger'ı user_profiles tablosuna ekle
-CREATE TRIGGER update_user_profiles_updated_at
-BEFORE UPDATE ON public.user_profiles
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+DROP TRIGGER IF EXISTS handle_updated_at ON user_profiles;
+CREATE TRIGGER handle_updated_at
+    BEFORE UPDATE ON user_profiles
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Insert default admin user profile if it doesn't exist
+-- This assumes you have an admin user in auth.users already
+-- You may need to adjust this based on your setup

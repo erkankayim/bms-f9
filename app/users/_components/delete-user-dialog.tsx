@@ -1,55 +1,79 @@
 "use client"
 
 import { useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Trash2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Trash2, Loader2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
-import { toast } from "sonner"
 
-export function DeleteUserDialog({ userId }: { userId: string }) {
-  const [isPending, setIsPending] = useState(false)
+interface DeleteUserDialogProps {
+  userId: string
+  userName: string
+}
+
+export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
+  const [open, setOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDelete = async () => {
-    setIsPending(true)
-    const result = await deleteUser(userId)
-    if (result.success) {
-      toast.success(result.message)
-    } else {
-      toast.error(result.message)
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      const result = await deleteUser(userId)
+      if (result.success) {
+        setOpen(false)
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      setError("Beklenmeyen bir hata oluştu")
+    } finally {
+      setIsDeleting(false)
     }
-    setIsPending(false)
   }
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="icon">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm">
           <Trash2 className="h-4 w-4" />
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Emin misiniz?</AlertDialogTitle>
-          <AlertDialogDescription>Bu işlem geri alınamaz. Kullanıcı kalıcı olarak silinecektir.</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
-            {isPending ? "Siliniyor..." : "Sil"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Kullanıcıyı Sil</DialogTitle>
+          <DialogDescription>
+            <strong>{userName}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
+            İptal
+          </Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Sil
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
