@@ -1,87 +1,166 @@
 "use client"
 
+import type * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Home, Package, Users, ShoppingCart, FileText, Calculator, Truck, Settings, Wrench, LogOut } from "lucide-react"
-import { logoutAction } from "@/app/auth/actions"
-import { useActionState } from "react"
-import { useEffect } from "react"
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  ShoppingCart,
+  FileText,
+  DollarSign,
+  Wrench,
+  Building,
+  UserCog,
+  LogOut,
+} from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: Home },
-  { name: "Ürünler", href: "/products", icon: Package },
-  { name: "Müşteriler", href: "/customers", icon: Users },
-  { name: "Satışlar", href: "/sales", icon: ShoppingCart },
-  { name: "Faturalar", href: "/invoices", icon: FileText },
-  { name: "Finansal", href: "/financials", icon: Calculator },
-  { name: "Tedarikçiler", href: "/suppliers", icon: Truck },
-  { name: "Envanter", href: "/inventory", icon: Package },
-  { name: "Servis", href: "/service", icon: Wrench },
-  { name: "Kullanıcılar", href: "/users", icon: Settings },
+  {
+    name: "Dashboard",
+    href: "/",
+    icon: LayoutDashboard,
+  },
+  {
+    name: "Müşteriler",
+    href: "/customers",
+    icon: Users,
+  },
+  {
+    name: "Ürünler",
+    href: "/products",
+    icon: Package,
+  },
+  {
+    name: "Satışlar",
+    href: "/sales",
+    icon: ShoppingCart,
+  },
+  {
+    name: "Faturalar",
+    href: "/invoices",
+    icon: FileText,
+  },
+  {
+    name: "Finansal",
+    href: "/financials",
+    icon: DollarSign,
+  },
+  {
+    name: "Envanter",
+    href: "/inventory",
+    icon: Package,
+  },
+  {
+    name: "Servis",
+    href: "/service",
+    icon: Wrench,
+  },
+  {
+    name: "Tedarikçiler",
+    href: "/suppliers",
+    icon: Building,
+  },
+  {
+    name: "Kullanıcılar",
+    href: "/users",
+    icon: UserCog,
+  },
 ]
 
-export function MainNav() {
-  const pathname = usePathname()
-  const [logoutState, logoutFormAction, isLoggingOut] = useActionState(logoutAction, null)
+interface MainNavProps {
+  children: React.ReactNode
+}
 
-  // Çıkış başarılı olduğunda client-side yönlendirme
-  useEffect(() => {
-    if (logoutState?.success) {
-      window.location.href = "/auth/login"
-    }
-  }, [logoutState?.success])
+export function MainNav({ children }: MainNavProps) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
-    await logoutFormAction()
+    try {
+      setIsLoggingOut(true)
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      window.location.href = "/auth/login"
+    } catch (error) {
+      console.error("Logout error:", error)
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white flex flex-col">
-        <div className="p-4">
-          <h1 className="text-xl font-bold">İşletme Yönetimi</h1>
-        </div>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-4 py-2">
+            <Package className="h-6 w-6" />
+            <span className="font-semibold">İş Yönetimi</span>
+          </div>
+        </SidebarHeader>
 
-        <nav className="flex-1 px-4 py-2">
-          <ul className="space-y-2">
-            {navigation.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Ana Menü</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navigation.map((item) => (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton asChild isActive={pathname === item.href}>
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-              return (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                      isActive ? "bg-gray-800 text-white" : "text-gray-300 hover:bg-gray-700 hover:text-white",
-                    )}
-                  >
-                    <Icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <Button variant="ghost" className="w-full justify-start" onClick={handleLogout} disabled={isLoggingOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                {isLoggingOut ? "Çıkış yapılıyor..." : "Çıkış Yap"}
+              </Button>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
 
-        {/* Logout Button */}
-        <div className="p-4 border-t border-gray-700">
-          <Button
-            onClick={handleLogout}
-            variant="ghost"
-            className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white"
-            disabled={isLoggingOut}
-          >
-            <LogOut className="mr-3 h-5 w-5" />
-            {isLoggingOut ? "Çıkış yapılıyor..." : "Çıkış Yap"}
-          </Button>
-        </div>
-      </div>
-    </div>
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium">İş Yönetim Uygulaması</span>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-4">{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
