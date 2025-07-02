@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,54 +12,41 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
 
-interface DeleteUserDialogProps {
-  userId: string
-  userEmail: string
-}
-
-export function DeleteUserDialog({ userId, userEmail }: DeleteUserDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [open, setOpen] = useState(false)
-  const router = useRouter()
+export function DeleteUserDialog({ userId }: { userId: string }) {
+  const [isPending, setIsPending] = useState(false)
 
   const handleDelete = async () => {
-    try {
-      setIsDeleting(true)
-      await deleteUser(userId)
-      toast.success("Kullanıcı başarıyla silindi")
-      setOpen(false)
-      router.refresh()
-    } catch (error: any) {
-      toast.error(error.message || "Kullanıcı silinirken bir hata oluştu")
-    } finally {
-      setIsDeleting(false)
+    setIsPending(true)
+    const result = await deleteUser(userId)
+    if (result.success) {
+      toast.success(result.message)
+    } else {
+      toast.error(result.message)
     }
+    setIsPending(false)
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="destructive" size="icon">
           <Trash2 className="h-4 w-4" />
-          <span className="sr-only">Sil</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
-          <AlertDialogDescription>
-            <strong>{userEmail}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-          </AlertDialogDescription>
+          <AlertDialogTitle>Emin misiniz?</AlertDialogTitle>
+          <AlertDialogDescription>Bu işlem geri alınamaz. Kullanıcı kalıcı olarak silinecektir.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-            {isDeleting ? "Siliniyor..." : "Sil"}
+          <AlertDialogCancel disabled={isPending}>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+            {isPending ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

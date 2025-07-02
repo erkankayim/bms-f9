@@ -1,23 +1,35 @@
 import { Suspense } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { UserPlus } from "lucide-react"
-import Link from "next/link"
+import { Plus } from "lucide-react"
 import { UsersList } from "./_components/users-list"
+import { getCurrentUserRole } from "./_actions/users-actions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
-export default function UsersPage() {
+export default async function UsersPage() {
+  const role = await getCurrentUserRole()
+
+  if (role !== "admin") {
+    return (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Yetkisiz Erişim</AlertTitle>
+          <AlertDescription>Bu sayfayı görüntüleme yetkiniz yok.</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
-          <p className="text-muted-foreground mt-2">
-            Sistemde kayıtlı tüm kullanıcıları görüntüleyin, düzenleyin veya silin.
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
         <Button asChild>
           <Link href="/users/new">
-            <UserPlus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4" />
             Yeni Kullanıcı
           </Link>
         </Button>
@@ -26,10 +38,10 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Kullanıcılar</CardTitle>
-          <CardDescription>Sistemde kayıtlı tüm kullanıcıları görüntüleyin, düzenleyin veya silin.</CardDescription>
+          <CardDescription>Sistemdeki tüm kullanıcıları yönetin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Suspense fallback={<div className="text-center py-4">Kullanıcılar yükleniyor...</div>}>
+          <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>
             <UsersList />
           </Suspense>
         </CardContent>
