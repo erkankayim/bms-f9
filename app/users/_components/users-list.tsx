@@ -1,14 +1,10 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { Edit } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getUsers } from "../_actions/users-actions"
 import { DeleteUserDialog } from "./delete-user-dialog"
-import { getUsers, type UserProfile } from "../_actions/users-actions"
+import { Button } from "@/components/ui/button"
+import { Edit } from "lucide-react"
+import Link from "next/link"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 const roleLabels = {
   admin: "Yönetici",
@@ -22,41 +18,8 @@ const roleColors = {
   acc: "secondary",
 } as const
 
-export function UsersList() {
-  const [users, setUsers] = useState<UserProfile[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const result = await getUsers()
-        if (result.error) {
-          setError(result.error)
-        } else {
-          setUsers(result.data || [])
-        }
-      } catch (err) {
-        setError("Kullanıcılar yüklenirken hata oluştu")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchUsers()
-  }, [])
-
-  if (loading) {
-    return <div className="text-center py-4">Kullanıcılar yükleniyor...</div>
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
+export async function UsersList() {
+  const users = await getUsers()
 
   if (users.length === 0) {
     return (

@@ -31,7 +31,7 @@ export async function getCurrentUserRole(): Promise<UserRole | null> {
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
       .select("role")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .single()
 
     if (profileError) {
@@ -46,15 +46,16 @@ export async function getCurrentUserRole(): Promise<UserRole | null> {
   }
 }
 
-export async function getUsers(): Promise<{ data?: UserProfile[]; error?: string }> {
+export async function getUsers(): Promise<UserProfile[]> {
   try {
     const supabase = createClient()
 
+    // Join user_profiles with auth.users to get email
     const { data: profiles, error } = await supabase
       .from("user_profiles")
       .select(`
         id,
-        email,
+        user_id,
         full_name,
         role,
         created_at,
@@ -63,19 +64,50 @@ export async function getUsers(): Promise<{ data?: UserProfile[]; error?: string
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching users:", error)
-      return { error: `Kullanıcılar alınırken hata: ${error.message}` }
+      console.error("Error fetching user profiles:", error)
+      return []
     }
 
-    return { data: profiles || [] }
+    if (!profiles || profiles.length === 0) {
+      return []
+    }
+
+    // Get auth users to fetch emails
+    const userIds = profiles.map((p) => p.user_id)
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+
+    if (authError) {
+      console.error("Error fetching auth users:", authError)
+      return []
+    }
+
+    // Combine profile data with auth user data
+    const usersWithEmails = profiles.map((profile) => {
+      const authUser = authUsers.users.find((u) => u.id === profile.user_id)
+      return {
+        id: profile.user_id, // Use user_id as the main id
+        email: authUser?.email || "Email bulunamadı",
+        full_name: profile.full_name,
+        role: profile.role,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      }
+    })
+
+    return usersWithEmails
   } catch (error) {
     console.error("Unexpected error fetching users:", error)
-    return { error: "Beklenmeyen bir hata oluştu" }
+    return []
   }
 }
 
 export async function getAllUsers(): Promise<{ data?: UserProfile[]; error?: string }> {
-  return getUsers()
+  try {
+    const users = await getUsers()
+    return { data: users }
+  } catch (error) {
+    return { error: "Kullanıcılar alınırken hata oluştu" }
+  }
 }
 
 export async function getUserById(id: string): Promise<{ data?: UserProfile; error?: string }> {
@@ -86,21 +118,38 @@ export async function getUserById(id: string): Promise<{ data?: UserProfile; err
       .from("user_profiles")
       .select(`
         id,
-        email,
+        user_id,
         full_name,
         role,
         created_at,
         updated_at
       `)
-      .eq("id", id)
+      .eq("user_id", id)
       .single()
 
     if (error) {
-      console.error("Error fetching user:", error)
+      console.error("Error fetching user profile:", error)
       return { error: `Kullanıcı alınırken hata: ${error.message}` }
     }
 
-    return { data: profile }
+    // Get auth user for email
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(id)
+
+    if (authError) {
+      console.error("Error fetching auth user:", authError)
+      return { error: "Kullanıcı bilgileri alınırken hata oluştu" }
+    }
+
+    const userWithEmail = {
+      id: profile.user_id,
+      email: authUser.user?.email || "Email bulunamadı",
+      full_name: profile.full_name,
+      role: profile.role,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+    }
+
+    return { data: userWithEmail }
   } catch (error) {
     console.error("Unexpected error fetching user:", error)
     return { error: "Beklenmeyen bir hata oluştu" }
@@ -134,8 +183,7 @@ export async function createUser(formData: FormData): Promise<{ success: boolean
 
     // Create user profile
     const { error: profileError } = await supabase.from("user_profiles").insert({
-      id: authData.user.id,
-      email,
+      user_id: authData.user.id,
       full_name: fullName,
       role,
     })
@@ -175,7 +223,7 @@ export async function updateUser(id: string, formData: FormData): Promise<{ succ
         role,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq("user_id", id)
 
     if (error) {
       console.error("Update error:", error)
@@ -197,7 +245,7 @@ export async function deleteUser(id: string): Promise<{ success: boolean; error?
     const supabase = createClient()
 
     // Delete user profile first
-    const { error: profileError } = await supabase.from("user_profiles").delete().eq("id", id)
+    const { error: profileError } = await supabase.from("user_profiles").delete().eq("user_id", id)
 
     if (profileError) {
       console.error("Profile deletion error:", profileError)
