@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Trash2, Loader2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
 
 interface DeleteUserDialogProps {
@@ -31,6 +31,7 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
 
     try {
       const result = await deleteUser(userId)
+
       if (result.success) {
         setOpen(false)
       } else {
@@ -46,7 +47,7 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="outline" size="sm">
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -69,8 +70,7 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
             İptal
           </Button>
           <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sil
+            {isDeleting ? "Siliniyor..." : "Sil"}
           </Button>
         </DialogFooter>
       </DialogContent>

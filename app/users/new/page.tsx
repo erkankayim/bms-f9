@@ -1,28 +1,23 @@
 import { getCurrentUserRole } from "../_actions/users-actions"
 import { UserForm } from "../_components/user-form"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { redirect } from "next/navigation"
 
 export default async function NewUserPage() {
-  const role = await getCurrentUserRole()
+  const userRole = await getCurrentUserRole()
 
-  if (role !== "admin") {
-    return (
-      <div className="container mx-auto py-10">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Yetkisiz Erişim</AlertTitle>
-          <AlertDescription>
-            Bu sayfayı görüntüleme yetkiniz yok. Sadece yöneticiler kullanıcı oluşturabilir.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
+  // Sadece adminler yeni kullanıcı oluşturabilir
+  if (userRole !== "admin") {
+    redirect("/")
   }
 
   return (
     <div className="container mx-auto py-6">
-      <UserForm mode="create" />
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Yeni Kullanıcı</h1>
+        <p className="text-muted-foreground">Sisteme yeni kullanıcı ekleyin</p>
+      </div>
+
+      <UserForm />
     </div>
   )
 }

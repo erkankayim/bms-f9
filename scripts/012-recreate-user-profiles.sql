@@ -89,7 +89,3 @@ DROP TRIGGER IF EXISTS handle_updated_at ON user_profiles;
 CREATE TRIGGER handle_updated_at
     BEFORE UPDATE ON user_profiles
     FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
--- Insert default admin user profile if it doesn't exist
--- This assumes you have an admin user in auth.users already
--- You may need to adjust this based on your setup

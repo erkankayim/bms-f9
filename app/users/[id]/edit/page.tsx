@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation"
 import { getCurrentUserRole, getUserById } from "../../_actions/users-actions"
 import { UserForm } from "../../_components/user-form"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { redirect, notFound } from "next/navigation"
 
 interface EditUserPageProps {
   params: {
@@ -11,20 +9,11 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const role = await getCurrentUserRole()
+  const userRole = await getCurrentUserRole()
 
-  if (role !== "admin") {
-    return (
-      <div className="container mx-auto py-10">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Yetkisiz Erişim</AlertTitle>
-          <AlertDescription>
-            Bu sayfayı görüntüleme yetkiniz yok. Sadece yöneticiler kullanıcı düzenleyebilir.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
+  // Sadece adminler kullanıcı düzenleyebilir
+  if (userRole !== "admin") {
+    redirect("/")
   }
 
   const { user, error } = await getUserById(params.id)
@@ -35,7 +24,12 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
 
   return (
     <div className="container mx-auto py-6">
-      <UserForm user={user} mode="edit" />
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Kullanıcı Düzenle</h1>
+        <p className="text-muted-foreground">{user.full_name || user.email} kullanıcısını düzenleyin</p>
+      </div>
+
+      <UserForm user={user} isEdit />
     </div>
   )
 }

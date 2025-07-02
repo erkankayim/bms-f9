@@ -1,12 +1,10 @@
-import { notFound } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Edit, ArrowLeft } from "lucide-react"
 import { getCurrentUserRole, getUserById } from "../_actions/users-actions"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Edit, ArrowLeft } from "lucide-react"
+import Link from "next/link"
+import { redirect, notFound } from "next/navigation"
 
 interface UserDetailPageProps {
   params: {
@@ -14,30 +12,12 @@ interface UserDetailPageProps {
   }
 }
 
-const roleLabels = {
-  admin: "Yönetici",
-  acc: "Muhasebe",
-  tech: "Teknisyen",
-}
-
-const statusLabels = {
-  active: "Aktif",
-  inactive: "Pasif",
-}
-
 export default async function UserDetailPage({ params }: UserDetailPageProps) {
-  const role = await getCurrentUserRole()
+  const userRole = await getCurrentUserRole()
 
-  if (role !== "admin") {
-    return (
-      <div className="container mx-auto py-10">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Yetkisiz Erişim</AlertTitle>
-          <AlertDescription>Bu sayfayı görüntüleme yetkiniz yok.</AlertDescription>
-        </Alert>
-      </div>
-    )
+  // Sadece adminler kullanıcı detaylarını görebilir
+  if (userRole !== "admin") {
+    redirect("/")
   }
 
   const { user, error } = await getUserById(params.id)
@@ -46,52 +26,92 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
     notFound()
   }
 
+  const getRoleBadge = (role: string) => {
+    const variants = {
+      admin: "destructive",
+      acc: "secondary",
+      tech: "outline",
+    } as const
+
+    const labels = {
+      admin: "Yönetici",
+      acc: "Muhasebe",
+      tech: "Teknisyen",
+    } as const
+
+    return (
+      <Badge variant={variants[role as keyof typeof variants] || "outline"}>
+        {labels[role as keyof typeof labels] || role}
+      </Badge>
+    )
+  }
+
+  const getStatusBadge = (status: string) => {
+    return (
+      <Badge variant={status === "active" ? "default" : "secondary"}>{status === "active" ? "Aktif" : "Pasif"}</Badge>
+    )
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/users">
+        <Link href="/users">
+          <Button variant="outline" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Geri
-          </Link>
-        </Button>
-        <h1 className="text-3xl font-bold">Kullanıcı Detayı</h1>
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold">Kullanıcı Detayları</h1>
+          <p className="text-muted-foreground">{user.full_name || user.email} kullanıcısının bilgileri</p>
+        </div>
       </div>
 
       <div className="grid gap-6">
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>{user.full_name || "N/A"}</CardTitle>
-                <CardDescription>{user.email}</CardDescription>
-              </div>
-              <Button asChild>
-                <Link href={`/users/${user.id}/edit`}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Düzenle
-                </Link>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Kullanıcı Bilgileri</CardTitle>
+            <Link href={`/users/${user.id}/edit`}>
+              <Button variant="outline">
+                <Edit className="h-4 w-4 mr-2" />
+                Düzenle
               </Button>
-            </div>
+            </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Rol</h3>
-                <Badge variant={user.role === "admin" ? "default" : user.role === "acc" ? "secondary" : "outline"}>
-                  {roleLabels[user.role]}
-                </Badge>
+                <label className="text-sm font-medium text-gray-500">Ad Soyad</label>
+                <p className="text-lg">{user.full_name || "N/A"}</p>
               </div>
               <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Durum</h3>
-                <Badge variant={user.status === "active" ? "default" : "destructive"}>
-                  {statusLabels[user.status]}
-                </Badge>
+                <label className="text-sm font-medium text-gray-500">E-posta</label>
+                <p className="text-lg">{user.email}</p>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Rol</label>
+                <div className="mt-1">{getRoleBadge(user.role)}</div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Durum</label>
+                <div className="mt-1">{getStatusBadge(user.status)}</div>
+              </div>
+            </div>
+
             <div>
-              <h3 className="font-medium text-sm text-muted-foreground">Oluşturulma Tarihi</h3>
-              <p>{new Date(user.created_at).toLocaleString("tr-TR")}</p>
+              <label className="text-sm font-medium text-gray-500">Oluşturulma Tarihi</label>
+              <p className="text-lg">
+                {new Date(user.created_at).toLocaleDateString("tr-TR", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
             </div>
           </CardContent>
         </Card>
