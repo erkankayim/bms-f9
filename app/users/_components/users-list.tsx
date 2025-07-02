@@ -21,12 +21,14 @@ const roleColors = {
 export async function UsersList() {
   const users = await getUsers()
 
+  console.log("UsersList component - users:", users.length)
+
   if (users.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Henüz kullanıcı bulunmuyor.</p>
+        <p className="text-muted-foreground">Kullanıcı bulunamadı. Veritabanı bağlantısını kontrol edin.</p>
         <Button asChild className="mt-4">
-          <Link href="/users/new">İlk kullanıcıyı ekle</Link>
+          <Link href="/users/new">Yeni kullanıcı ekle</Link>
         </Button>
       </div>
     )
@@ -34,6 +36,7 @@ export async function UsersList() {
 
   return (
     <div className="space-y-4">
+      <div className="text-sm text-muted-foreground">Toplam {users.length} kullanıcı bulundu</div>
       <Table>
         <TableHeader>
           <TableRow>

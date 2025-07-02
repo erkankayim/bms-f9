@@ -50,11 +50,10 @@ export async function getUsers(): Promise<UserProfile[]> {
   try {
     const supabase = createClient()
 
-    // Join user_profiles with auth.users to get email
-    const { data: profiles, error } = await supabase
+    // Get user profiles first
+    const { data: profiles, error: profileError } = await supabase
       .from("user_profiles")
       .select(`
-        id,
         user_id,
         full_name,
         role,
@@ -63,29 +62,39 @@ export async function getUsers(): Promise<UserProfile[]> {
       `)
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching user profiles:", error)
+    if (profileError) {
+      console.error("Error fetching user profiles:", profileError)
       return []
     }
 
     if (!profiles || profiles.length === 0) {
+      console.log("No user profiles found")
       return []
     }
 
+    console.log(`Found ${profiles.length} user profiles`)
+
     // Get auth users to fetch emails
-    const userIds = profiles.map((p) => p.user_id)
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
 
     if (authError) {
       console.error("Error fetching auth users:", authError)
-      return []
+      // Return profiles without emails if auth fails
+      return profiles.map((profile) => ({
+        id: profile.user_id,
+        email: "Email alınamadı",
+        full_name: profile.full_name,
+        role: profile.role,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      }))
     }
 
     // Combine profile data with auth user data
     const usersWithEmails = profiles.map((profile) => {
-      const authUser = authUsers.users.find((u) => u.id === profile.user_id)
+      const authUser = authData.users.find((u) => u.id === profile.user_id)
       return {
-        id: profile.user_id, // Use user_id as the main id
+        id: profile.user_id,
         email: authUser?.email || "Email bulunamadı",
         full_name: profile.full_name,
         role: profile.role,
@@ -94,6 +103,7 @@ export async function getUsers(): Promise<UserProfile[]> {
       }
     })
 
+    console.log(`Returning ${usersWithEmails.length} users with emails`)
     return usersWithEmails
   } catch (error) {
     console.error("Unexpected error fetching users:", error)
@@ -117,7 +127,6 @@ export async function getUserById(id: string): Promise<{ data?: UserProfile; err
     const { data: profile, error } = await supabase
       .from("user_profiles")
       .select(`
-        id,
         user_id,
         full_name,
         role,
