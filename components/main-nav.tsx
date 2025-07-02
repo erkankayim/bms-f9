@@ -4,107 +4,83 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ChevronDown, LogOut, Home } from "lucide-react"
+import { Home, Package, Users, ShoppingCart, FileText, Calculator, Truck, Settings, Wrench, LogOut } from "lucide-react"
 import { logoutAction } from "@/app/auth/actions"
+import { useActionState } from "react"
+import { useEffect } from "react"
 
 const navigation = [
-  { name: "Müşteriler", href: "/customers" },
-  { name: "Ürünler", href: "/products" },
-  { name: "Satışlar", href: "/sales" },
-  { name: "Faturalar", href: "/invoices" },
-  { name: "Envanter", href: "/inventory" },
-  { name: "Servis", href: "/service" },
-  { name: "Tedarikçiler", href: "/suppliers" },
-  { name: "Kullanıcılar", href: "/users" },
-]
-
-const financialNavigation = [
-  { name: "Finansal Özet", href: "/financials" },
-  { name: "Gelir Listesi", href: "/financials/income" },
-  { name: "Gider Listesi", href: "/financials/expenses" },
-  { name: "Hesap Planı", href: "/financials/chart-of-accounts" },
+  { name: "Dashboard", href: "/", icon: Home },
+  { name: "Ürünler", href: "/products", icon: Package },
+  { name: "Müşteriler", href: "/customers", icon: Users },
+  { name: "Satışlar", href: "/sales", icon: ShoppingCart },
+  { name: "Faturalar", href: "/invoices", icon: FileText },
+  { name: "Finansal", href: "/financials", icon: Calculator },
+  { name: "Tedarikçiler", href: "/suppliers", icon: Truck },
+  { name: "Envanter", href: "/inventory", icon: Package },
+  { name: "Servis", href: "/service", icon: Wrench },
+  { name: "Kullanıcılar", href: "/users", icon: Settings },
 ]
 
 export function MainNav() {
   const pathname = usePathname()
-  const isFinancialActive = pathname.startsWith("/financials")
+  const [logoutState, logoutFormAction, isLoggingOut] = useActionState(logoutAction, null)
+
+  // Çıkış başarılı olduğunda client-side yönlendirme
+  useEffect(() => {
+    if (logoutState?.success) {
+      window.location.href = "/auth/login"
+    }
+  }, [logoutState?.success])
+
+  const handleLogout = async () => {
+    await logoutFormAction()
+  }
 
   return (
-    <div className="flex items-center justify-between w-full">
-      {/* Sol taraf - Dashboard */}
-      <div className="flex items-center">
-        <Link
-          href="/"
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors hover:text-primary rounded-md",
-            pathname === "/" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
-          )}
-        >
-          <Home className="h-4 w-4" />
-          Dashboard
-        </Link>
-      </div>
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <div className="w-64 bg-gray-900 text-white flex flex-col">
+        <div className="p-4">
+          <h1 className="text-xl font-bold">İşletme Yönetimi</h1>
+        </div>
 
-      {/* Orta - Ana navigasyon */}
-      <nav className="flex items-center space-x-1">
-        {navigation.map((item) => (
-          <Link
-            key={item.name}
-            href={item.href}
-            className={cn(
-              "px-3 py-2 text-sm font-medium transition-colors hover:text-primary rounded-md hover:bg-accent",
-              pathname === item.href ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            {item.name}
-          </Link>
-        ))}
+        <nav className="flex-1 px-4 py-2">
+          <ul className="space-y-2">
+            {navigation.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn(
-                "px-3 py-2 text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 rounded-md",
-                isFinancialActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent",
-              )}
-            >
-              Finansal
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-56">
-            {financialNavigation.map((item) => (
-              <DropdownMenuItem key={item.name} asChild>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "w-full cursor-pointer",
-                    pathname === item.href ? "bg-accent text-accent-foreground font-medium" : "",
-                  )}
-                >
-                  {item.name}
-                </Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </nav>
+              return (
+                <li key={item.name}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      isActive ? "bg-gray-800 text-white" : "text-gray-300 hover:bg-gray-700 hover:text-white",
+                    )}
+                  >
+                    <Icon className="mr-3 h-5 w-5" />
+                    {item.name}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-      {/* Sağ taraf - Çıkış */}
-      <div className="flex items-center">
-        <form action={logoutAction}>
+        {/* Logout Button */}
+        <div className="p-4 border-t border-gray-700">
           <Button
-            type="submit"
+            onClick={handleLogout}
             variant="ghost"
-            size="sm"
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-accent rounded-md flex items-center gap-2 transition-colors"
+            className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white"
+            disabled={isLoggingOut}
           >
-            <LogOut className="h-4 w-4" />
-            Çıkış Yap
+            <LogOut className="mr-3 h-5 w-5" />
+            {isLoggingOut ? "Çıkış yapılıyor..." : "Çıkış Yap"}
           </Button>
-        </form>
+        </div>
       </div>
     </div>
   )

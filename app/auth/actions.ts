@@ -1,7 +1,6 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 
 export async function loginAction(prevState: any, formData: FormData) {
@@ -21,7 +20,12 @@ export async function loginAction(prevState: any, formData: FormData) {
   }
 
   revalidatePath("/", "layout")
-  redirect("/")
+
+  // redirect yerine success flag döndürüyoruz
+  return {
+    success: true,
+    message: "Giriş başarılı!",
+  }
 }
 
 export async function registerAction(prevState: any, formData: FormData) {
@@ -54,5 +58,9 @@ export async function logoutAction() {
   const supabase = createClient()
   await supabase.auth.signOut()
   revalidatePath("/", "layout")
-  redirect("/auth/login")
+
+  // Client-side yönlendirme için success flag
+  return {
+    success: true,
+  }
 }
