@@ -1,24 +1,24 @@
 import { z } from "zod"
 
-export const accountTypes = ["asset", "liability", "equity", "revenue", "expense"] as const
+export const accountTypes = [
+  { value: "Varlık", label: "Varlık" },
+  { value: "Yükümlülük", label: "Yükümlülük" },
+  { value: "Özkaynak", label: "Özkaynak" },
+  { value: "Gelir", label: "Gelir" },
+  { value: "Gider", label: "Gider" },
+  { value: "Satılan Malın Maliyeti", label: "Satılan Malın Maliyeti" },
+] as const
 
 export const accountFormSchema = z.object({
-  account_code: z
-    .string()
-    .min(1, "Kod zorunludur")
-    .max(20)
-    .regex(/^[A-Za-z0-9.-]+$/, "Kod yalnızca harf, rakam, nokta ve tire içerebilir"),
-  account_name: z.string().min(1, "Ad zorunludur").max(255),
-  account_type: z.enum(accountTypes, { errorMap: () => ({ message: "Geçerli bir tür seçin" }) }),
-  parent_account_id: z
-    .union([z.string().transform(Number), z.number(), z.null(), z.undefined()])
-    .nullable()
-    .optional(),
-  description: z.string().nullable().optional(),
-  is_active: z.boolean().optional(),
+  code: z.string().min(1, "Hesap kodu gereklidir"),
+  name: z.string().min(1, "Hesap adı gereklidir"),
+  type: z.enum(["Varlık", "Yükümlülük", "Özkaynak", "Gelir", "Gider", "Satılan Malın Maliyeti"]),
+  parent_id: z.string().optional(),
+  description: z.string().optional(),
+  is_active: z.boolean().default(true),
 })
 
 export type AccountFormData = z.infer<typeof accountFormSchema>
 
-/*  ------  Legacy export names (eski kod uyumu)  ------ */
-export { accountFormSchema as AccountSchema }
+// Legacy export for backward compatibility
+export const AccountSchema = accountFormSchema

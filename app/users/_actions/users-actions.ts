@@ -3,243 +3,219 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
-export async function getCurrentUserRole() {
-  const supabase = await createClient()
+export type UserRole = "admin" | "tech" | "acc"
 
+export type UserProfile = {
+  id: string
+  email: string
+  full_name: string | null
+  role: UserRole
+  created_at: string
+  updated_at: string
+}
+
+export async function getCurrentUserRole(): Promise<UserRole | null> {
   try {
+    const supabase = createClient()
+
     const {
       data: { user },
-      error: userError,
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (userError || !user) {
-      console.log("User not found:", userError)
+    if (authError || !user) {
+      console.error("Auth error:", authError)
       return null
     }
 
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
       .select("role")
-      .eq("user_id", user.id)
+      .eq("id", user.id)
       .single()
 
     if (profileError) {
-      console.log("Profile error:", profileError)
+      console.error("Profile error:", profileError)
       return "admin" // Default to admin if no profile found
     }
 
     return profile?.role || "admin"
   } catch (error) {
     console.error("Error getting user role:", error)
-    return "admin"
+    return null
   }
 }
 
-export async function getAllUsers() {
-  const supabase = await createClient()
-
+export async function getUsers(): Promise<{ data?: UserProfile[]; error?: string }> {
   try {
-    // First check if current user is admin
-    const currentUserRole = await getCurrentUserRole()
-    if (currentUserRole !== "admin") {
-      return { error: "Yetkisiz erişim" }
-    }
+    const supabase = createClient()
 
-    const { data: users, error } = await supabase
+    const { data: profiles, error } = await supabase
       .from("user_profiles")
       .select(`
-        user_id,
+        id,
         email,
         full_name,
         role,
-        created_at
+        created_at,
+        updated_at
       `)
       .order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching users:", error)
-      return { error: "Kullanıcılar yüklenemedi" }
+      return { error: `Kullanıcılar alınırken hata: ${error.message}` }
     }
 
-    return { data: users }
+    return { data: profiles || [] }
   } catch (error) {
-    console.error("Error in getAllUsers:", error)
+    console.error("Unexpected error fetching users:", error)
     return { error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
-export async function getUserById(userId: string) {
-  const supabase = await createClient()
+export async function getAllUsers(): Promise<{ data?: UserProfile[]; error?: string }> {
+  return getUsers()
+}
 
+export async function getUserById(id: string): Promise<{ data?: UserProfile; error?: string }> {
   try {
-    const { data: user, error } = await supabase
+    const supabase = createClient()
+
+    const { data: profile, error } = await supabase
       .from("user_profiles")
       .select(`
-        user_id,
+        id,
         email,
         full_name,
         role,
-        created_at
+        created_at,
+        updated_at
       `)
-      .eq("user_id", userId)
+      .eq("id", id)
       .single()
 
     if (error) {
       console.error("Error fetching user:", error)
-      return { error: "Kullanıcı bulunamadı" }
+      return { error: `Kullanıcı alınırken hata: ${error.message}` }
     }
 
-    return { data: user }
+    return { data: profile }
   } catch (error) {
-    console.error("Error in getUserById:", error)
+    console.error("Unexpected error fetching user:", error)
     return { error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
-export async function createUser(formData: FormData) {
-  const supabase = await createClient()
-
+export async function createUser(formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if current user is admin
-    const currentUserRole = await getCurrentUserRole()
-    if (currentUserRole !== "admin") {
-      return { error: "Yetkisiz erişim" }
-    }
+    const supabase = createClient()
 
     const email = formData.get("email") as string
     const password = formData.get("password") as string
     const fullName = formData.get("full_name") as string
-    const role = formData.get("role") as string
+    const role = formData.get("role") as UserRole
 
     if (!email || !password || !fullName || !role) {
-      return { error: "Tüm alanlar zorunludur" }
+      return { success: false, error: "Tüm alanlar gereklidir" }
     }
 
-    // Create user in auth
+    // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
     })
 
-    if (authError) {
-      console.error("Auth error:", authError)
-      return { error: "Kullanıcı oluşturulamadı: " + authError.message }
-    }
-
-    if (!authData.user) {
-      return { error: "Kullanıcı oluşturulamadı" }
+    if (authError || !authData.user) {
+      console.error("Auth creation error:", authError)
+      return { success: false, error: `Kullanıcı oluşturulurken hata: ${authError?.message}` }
     }
 
     // Create user profile
     const { error: profileError } = await supabase.from("user_profiles").insert({
-      user_id: authData.user.id,
+      id: authData.user.id,
       email,
       full_name: fullName,
       role,
     })
 
     if (profileError) {
-      console.error("Profile error:", profileError)
-      return { error: "Kullanıcı profili oluşturulamadı" }
+      console.error("Profile creation error:", profileError)
+      // Try to delete the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id)
+      return { success: false, error: `Kullanıcı profili oluşturulurken hata: ${profileError.message}` }
     }
 
     revalidatePath("/users")
     return { success: true }
   } catch (error) {
-    console.error("Error in createUser:", error)
-    return { error: "Beklenmeyen bir hata oluştu" }
+    console.error("Unexpected error creating user:", error)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
-export async function updateUser(userId: string, formData: FormData) {
-  const supabase = await createClient()
-
+export async function updateUser(id: string, formData: FormData): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if current user is admin
-    const currentUserRole = await getCurrentUserRole()
-    if (currentUserRole !== "admin") {
-      return { error: "Yetkisiz erişim" }
-    }
+    const supabase = createClient()
 
-    const email = formData.get("email") as string
     const fullName = formData.get("full_name") as string
-    const role = formData.get("role") as string
+    const role = formData.get("role") as UserRole
 
-    if (!email || !fullName || !role) {
-      return { error: "Tüm alanlar zorunludur" }
+    console.log("Updating user:", { id, fullName, role })
+
+    if (!fullName || !role) {
+      return { success: false, error: "Tüm alanlar gereklidir" }
     }
 
-    console.log("Updating user:", { userId, email, fullName, role })
-
-    // Update user profile
-    const { error: profileError } = await supabase
+    const { error } = await supabase
       .from("user_profiles")
       .update({
-        email,
         full_name: fullName,
         role,
+        updated_at: new Date().toISOString(),
       })
-      .eq("user_id", userId)
+      .eq("id", id)
 
-    if (profileError) {
-      console.error("Profile update error:", profileError)
-      return { error: "Kullanıcı güncellenemedi: " + profileError.message }
+    if (error) {
+      console.error("Update error:", error)
+      return { success: false, error: `Kullanıcı güncellenirken hata: ${error.message}` }
     }
-
-    // Update auth user email if changed
-    const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
-      email,
-    })
-
-    if (authError) {
-      console.error("Auth update error:", authError)
-      // Don't return error here as profile update succeeded
-    }
-
-    revalidatePath("/users")
-    revalidatePath(`/users/${userId}/edit`)
 
     console.log("User updated successfully")
+    revalidatePath("/users")
+    revalidatePath(`/users/${id}/edit`)
     return { success: true }
   } catch (error) {
-    console.error("Error in updateUser:", error)
-    return { error: "Beklenmeyen bir hata oluştu" }
+    console.error("Unexpected error updating user:", error)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
-export async function deleteUser(userId: string) {
-  const supabase = await createClient()
-
+export async function deleteUser(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if current user is admin
-    const currentUserRole = await getCurrentUserRole()
-    if (currentUserRole !== "admin") {
-      return { error: "Yetkisiz erişim" }
-    }
+    const supabase = createClient()
 
     // Delete user profile first
-    const { error: profileError } = await supabase.from("user_profiles").delete().eq("user_id", userId)
+    const { error: profileError } = await supabase.from("user_profiles").delete().eq("id", id)
 
     if (profileError) {
-      console.error("Profile delete error:", profileError)
-      return { error: "Kullanıcı profili silinemedi" }
+      console.error("Profile deletion error:", profileError)
+      return { success: false, error: `Kullanıcı profili silinirken hata: ${profileError.message}` }
     }
 
     // Delete auth user
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId)
+    const { error: authError } = await supabase.auth.admin.deleteUser(id)
 
     if (authError) {
-      console.error("Auth delete error:", authError)
-      return { error: "Kullanıcı silinemedi" }
+      console.error("Auth deletion error:", authError)
+      return { success: false, error: `Kullanıcı silinirken hata: ${authError.message}` }
     }
 
     revalidatePath("/users")
     return { success: true }
   } catch (error) {
-    console.error("Error in deleteUser:", error)
-    return { error: "Beklenmeyen bir hata oluştu" }
+    console.error("Unexpected error deleting user:", error)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
 }
-
-export { getAllUsers as getUsers }
