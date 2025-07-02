@@ -7,7 +7,7 @@ import { UsersList } from "./_components/users-list"
 
 export const dynamic = "force-dynamic"
 
-export default async function UsersPage() {
+export default function UsersPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
@@ -26,7 +26,7 @@ export default async function UsersPage() {
           <CardDescription>Sistemde kayıtlı tüm kullanıcıları görüntüleyin, düzenleyin veya silin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>
+          <Suspense fallback={<div className="text-center py-4">Kullanıcılar yükleniyor...</div>}>
             <UsersList />
           </Suspense>
         </CardContent>

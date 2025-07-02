@@ -1,10 +1,14 @@
-import { getUsers, getCurrentUserRole } from "../_actions/users-actions"
-import { DeleteUserDialog } from "./delete-user-dialog"
-import { Button } from "@/components/ui/button"
-import { Edit } from "lucide-react"
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Edit } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DeleteUserDialog } from "./delete-user-dialog"
+import { getUsers, type UserProfile } from "../_actions/users-actions"
 
 const roleLabels = {
   admin: "Yönetici",
@@ -13,51 +17,87 @@ const roleLabels = {
 }
 
 const roleColors = {
-  admin: "bg-red-100 text-red-800",
-  tech: "bg-blue-100 text-blue-800",
-  acc: "bg-green-100 text-green-800",
-}
+  admin: "destructive",
+  tech: "default",
+  acc: "secondary",
+} as const
 
-export async function UsersList() {
-  const users = await getUsers()
-  const currentUserRole = await getCurrentUserRole()
+export function UsersList() {
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const result = await getUsers()
+        if (result.error) {
+          setError(result.error)
+        } else {
+          setUsers(result.data || [])
+        }
+      } catch (err) {
+        setError("Kullanıcılar yüklenirken hata oluştu")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUsers()
+  }, [])
+
+  if (loading) {
+    return <div className="text-center py-4">Kullanıcılar yükleniyor...</div>
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
+  }
 
   if (users.length === 0) {
-    return <div className="text-center py-4">Henüz kullanıcı bulunmamaktadır.</div>
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Henüz kullanıcı bulunmuyor.</p>
+        <Button asChild className="mt-4">
+          <Link href="/users/new">İlk kullanıcıyı ekle</Link>
+        </Button>
+      </div>
+    )
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="space-y-4">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Ad Soyad</TableHead>
             <TableHead>E-posta</TableHead>
             <TableHead>Rol</TableHead>
-            <TableHead>Oluşturulma Tarihi</TableHead>
-            <TableHead className="w-[100px]">İşlemler</TableHead>
+            <TableHead>Kayıt Tarihi</TableHead>
+            <TableHead className="text-right">İşlemler</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((user) => (
             <TableRow key={user.id}>
-              <TableCell>{user.full_name || "İsimsiz Kullanıcı"}</TableCell>
+              <TableCell className="font-medium">{user.full_name || "İsimsiz Kullanıcı"}</TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
-                <Badge className={roleColors[user.role as keyof typeof roleColors] || "bg-gray-100 text-gray-800"}>
-                  {roleLabels[user.role as keyof typeof roleLabels] || user.role}
-                </Badge>
+                <Badge variant={roleColors[user.role]}>{roleLabels[user.role]}</Badge>
               </TableCell>
               <TableCell>{new Date(user.created_at).toLocaleDateString("tr-TR")}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" asChild>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <Button asChild variant="outline" size="sm">
                     <Link href={`/users/${user.id}/edit`}>
                       <Edit className="h-4 w-4" />
-                      <span className="sr-only">Düzenle</span>
                     </Link>
                   </Button>
-                  {currentUserRole === "admin" && <DeleteUserDialog userId={user.id} userEmail={user.email} />}
+                  <DeleteUserDialog userId={user.id} userName={user.full_name || user.email} />
                 </div>
               </TableCell>
             </TableRow>
