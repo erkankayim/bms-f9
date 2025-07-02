@@ -2,264 +2,294 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { ExpenseEntrySchema, IncomeEntrySchema } from "../_lib/financial-entry-shared"
+import {
+  ExpenseEntrySchema,
+  IncomeEntrySchema,
+  expenseCategories,
+  incomeCategories,
+} from "../_lib/financial-entry-shared"
+import { z } from "zod"
 
-export async function createExpenseEntry(prevState: any, formData: FormData) {
+/* ------------------------------------------------------------------ */
+/*  Shared helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface FinancialCategory {
+  id: number
+  name: string
+  type: "income" | "expense"
+  description?: string
+}
+
+export interface CustomerForDropdown {
+  mid: string
+  contact_name: string | null
+  email: string | null
+}
+
+export interface SupplierForDropdown {
+  id: string
+  company_name: string
+  contact_name: string | null
+}
+
+/**
+ * When the database is unavailable we still return hard-coded defaults so that
+ * the UI can render during development or with a fresh DB.
+ */
+const DEFAULT_INCOME_CATEGORIES: FinancialCategory[] = incomeCategories.map((c, i) => ({
+  id: i + 1,
+  name: c,
+  type: "income",
+}))
+const DEFAULT_EXPENSE_CATEGORIES: FinancialCategory[] = expenseCategories.map((c, i) => ({
+  id: i + 100,
+  name: c,
+  type: "expense",
+}))
+
+/* ------------------------------------------------------------------ */
+/*  READ helpers (used in many pages)                                 */
+/* ------------------------------------------------------------------ */
+
+export async function getFinancialCategories(type: "income" | "expense") {
   try {
     const supabase = createClient()
-
-    // Form verilerini al
-    const rawData = {
-      description: formData.get("description") as string,
-      amount: formData.get("amount") as string,
-      category: formData.get("category") as string,
-      account_id: formData.get("account_id") as string,
-      entry_date: formData.get("entry_date") as string,
-    }
-
-    // Validation
-    const validatedData = ExpenseEntrySchema.parse(rawData)
-
-    // Kullanıcı bilgisini al
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return {
-        success: false,
-        message: "Kullanıcı doğrulaması başarısız",
-      }
-    }
-
-    // Veritabanına kaydet
-    const { error } = await supabase.from("expense_entries").insert({
-      description: validatedData.description,
-      amount: Number.parseFloat(validatedData.amount),
-      category: validatedData.category,
-      account_id: validatedData.account_id,
-      entry_date: validatedData.entry_date,
-      user_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    const { data, error } = await supabase
+      .from<FinancialCategory>("financial_categories")
+      .select("id,name,type,description")
+      .eq("type", type)
+      .order("name")
 
     if (error) {
-      console.error("Expense creation error:", error)
-      return {
-        success: false,
-        message: "Gider kaydı oluşturulamadı: " + error.message,
-      }
+      console.warn("[financial_categories] fallback to defaults –", error.message)
+      return { data: type === "income" ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES }
     }
-
-    revalidatePath("/financials/expenses")
-    return {
-      success: true,
-      message: "Gider kaydı başarıyla oluşturuldu",
-    }
-  } catch (error) {
-    console.error("Expense creation error:", error)
-    return {
-      success: false,
-      message: "Beklenmeyen bir hata oluştu",
-    }
+    return { data }
+  } catch (err) {
+    console.error("getFinancialCategories:", err)
+    return { data: type === "income" ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES }
   }
 }
 
-export async function createIncomeEntry(prevState: any, formData: FormData) {
+export async function getCustomersForDropdown() {
   try {
     const supabase = createClient()
+    const { data, error } = await supabase
+      .from<CustomerForDropdown>("customers")
+      .select("mid,contact_name,email")
+      .order("contact_name")
 
-    // Form verilerini al
-    const rawData = {
-      description: formData.get("description") as string,
-      amount: formData.get("amount") as string,
-      category: formData.get("category") as string,
-      account_id: formData.get("account_id") as string,
-      entry_date: formData.get("entry_date") as string,
-    }
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
+  } catch (err) {
+    return { data: null, error: String(err) }
+  }
+}
 
-    // Validation
-    const validatedData = IncomeEntrySchema.parse(rawData)
+export async function getSuppliersForDropdown() {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from<SupplierForDropdown>("suppliers")
+      .select("id,company_name,contact_name")
+      .order("company_name")
 
-    // Kullanıcı bilgisini al
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return {
-        success: false,
-        message: "Kullanıcı doğrulaması başarısız",
-      }
-    }
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
+  } catch (err) {
+    return { data: null, error: String(err) }
+  }
+}
 
-    // Veritabanına kaydet
-    const { error } = await supabase.from("income_entries").insert({
-      description: validatedData.description,
-      amount: Number.parseFloat(validatedData.amount),
-      category: validatedData.category,
-      account_id: validatedData.account_id,
-      entry_date: validatedData.entry_date,
-      user_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+export async function getIncomeEntries() {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("income_entries")
+      .select(
+        `id,description,amount:incoming_amount,category,entry_date,invoice_number,payment_method,notes,
+         customers:customer_id(mid,contact_name)`,
+      )
+      .order("entry_date", { ascending: false })
 
-    if (error) {
-      console.error("Income creation error:", error)
-      return {
-        success: false,
-        message: "Gelir kaydı oluşturulamadı: " + error.message,
-      }
-    }
+    if (error) return { error: error.message }
+    return { data }
+  } catch (err) {
+    return { error: String(err) }
+  }
+}
+
+export async function getIncomeEntryById(id: string | number) {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("income_entries")
+      .select(
+        `id,description,amount:incoming_amount,category,entry_date,invoice_number,payment_method,notes,
+         account_id,customers:customer_id(mid,contact_name)`,
+      )
+      .eq("id", id)
+      .single()
+
+    if (error) return { error: error.message }
+    return { data }
+  } catch (err) {
+    return { error: String(err) }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  DELETE helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function deleteIncomeEntry(id: number) {
+  try {
+    const supabase = createClient()
+    const { error } = await supabase.from("income_entries").delete().eq("id", id)
+    if (error) return { success: false, message: error.message }
 
     revalidatePath("/financials/income")
-    return {
-      success: true,
-      message: "Gelir kaydı başarıyla oluşturuldu",
-    }
-  } catch (error) {
-    console.error("Income creation error:", error)
-    return {
-      success: false,
-      message: "Beklenmeyen bir hata oluştu",
-    }
+    return { success: true, message: "Silindi" }
+  } catch (err) {
+    return { success: false, message: String(err) }
   }
 }
 
-export async function updateExpenseEntry(id: string, prevState: any, formData: FormData) {
+/* ------------------------------------------------------------------ */
+/*  CREATE / UPDATE (already added)                                   */
+/* ------------------------------------------------------------------ */
+
+export async function createExpenseEntry(prev: any, formData: FormData) {
   try {
     const supabase = createClient()
+    const raw = Object.fromEntries(formData)
+    const parsed = ExpenseEntrySchema.parse(raw)
 
-    // Form verilerini al
-    const rawData = {
-      description: formData.get("description") as string,
-      amount: formData.get("amount") as string,
-      category: formData.get("category") as string,
-      account_id: formData.get("account_id") as string,
-      entry_date: formData.get("entry_date") as string,
-    }
-
-    // Validation
-    const validatedData = ExpenseEntrySchema.parse(rawData)
-
-    // Kullanıcı bilgisini al
     const {
       data: { user },
-      error: userError,
+      error: uErr,
     } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return {
-        success: false,
-        message: "Kullanıcı doğrulaması başarısız",
-      }
-    }
+    if (uErr || !user) return { success: false, message: "Auth error" }
 
-    // Veritabanını güncelle
+    const { error } = await supabase.from("expense_entries").insert({
+      ...parsed,
+      amount: Number(parsed.amount),
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
+    if (error) return { success: false, message: error.message }
+
+    revalidatePath("/financials/expenses")
+    return { success: true, message: "Kaydedildi" }
+  } catch (err) {
+    if (err instanceof z.ZodError) return { success: false, message: "Doğrulama hatası", errors: err.issues }
+    return { success: false, message: String(err) }
+  }
+}
+
+export async function updateExpenseEntry(id: string, prev: any, formData: FormData) {
+  try {
+    const supabase = createClient()
+    const raw = Object.fromEntries(formData)
+    const parsed = ExpenseEntrySchema.parse(raw)
+
+    const {
+      data: { user },
+      error: uErr,
+    } = await supabase.auth.getUser()
+    if (uErr || !user) return { success: false, message: "Auth error" }
+
     const { error } = await supabase
       .from("expense_entries")
-      .update({
-        description: validatedData.description,
-        amount: Number.parseFloat(validatedData.amount),
-        category: validatedData.category,
-        account_id: validatedData.account_id,
-        entry_date: validatedData.entry_date,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...parsed, amount: Number(parsed.amount), updated_at: new Date().toISOString() })
       .eq("id", id)
       .eq("user_id", user.id)
 
-    if (error) {
-      console.error("Expense update error:", error)
-      return {
-        success: false,
-        message: "Gider kaydı güncellenemedi: " + error.message,
-      }
-    }
+    if (error) return { success: false, message: error.message }
 
-    revalidatePath("/financials/expenses")
     revalidatePath(`/financials/expenses/${id}`)
-    return {
-      success: true,
-      message: "Gider kaydı başarıyla güncellendi",
-    }
-  } catch (error) {
-    console.error("Expense update error:", error)
-    return {
-      success: false,
-      message: "Beklenmeyen bir hata oluştu",
-    }
+    revalidatePath("/financials/expenses")
+    return { success: true, message: "Güncellendi" }
+  } catch (err) {
+    if (err instanceof z.ZodError) return { success: false, message: "Doğrulama hatası", errors: err.issues }
+    return { success: false, message: String(err) }
   }
 }
 
-export async function updateIncomeEntry(id: string, prevState: any, formData: FormData) {
+export async function createIncomeEntry(prev: any, formData: FormData) {
   try {
     const supabase = createClient()
+    const raw = Object.fromEntries(formData)
+    const parsed = IncomeEntrySchema.parse(raw)
 
-    // Form verilerini al
-    const rawData = {
-      description: formData.get("description") as string,
-      amount: formData.get("amount") as string,
-      category: formData.get("category") as string,
-      account_id: formData.get("account_id") as string,
-      entry_date: formData.get("entry_date") as string,
-    }
-
-    // Validation
-    const validatedData = IncomeEntrySchema.parse(rawData)
-
-    // Kullanıcı bilgisini al
     const {
       data: { user },
-      error: userError,
+      error: uErr,
     } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return {
-        success: false,
-        message: "Kullanıcı doğrulaması başarısız",
-      }
-    }
+    if (uErr || !user) return { success: false, message: "Auth error" }
 
-    // Veritabanını güncelle
-    const { error } = await supabase
-      .from("income_entries")
-      .update({
-        description: validatedData.description,
-        amount: Number.parseFloat(validatedData.amount),
-        category: validatedData.category,
-        account_id: validatedData.account_id,
-        entry_date: validatedData.entry_date,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("user_id", user.id)
+    const { error } = await supabase.from("income_entries").insert({
+      ...parsed,
+      amount: Number(parsed.amount),
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
 
-    if (error) {
-      console.error("Income update error:", error)
-      return {
-        success: false,
-        message: "Gelir kaydı güncellenemedi: " + error.message,
-      }
-    }
+    if (error) return { success: false, message: error.message }
 
     revalidatePath("/financials/income")
-    revalidatePath(`/financials/income/${id}`)
-    return {
-      success: true,
-      message: "Gelir kaydı başarıyla güncellendi",
-    }
-  } catch (error) {
-    console.error("Income update error:", error)
-    return {
-      success: false,
-      message: "Beklenmeyen bir hata oluştu",
-    }
+    return { success: true, message: "Kaydedildi" }
+  } catch (err) {
+    if (err instanceof z.ZodError) return { success: false, message: "Doğrulama hatası", errors: err.issues }
+    return { success: false, message: String(err) }
   }
 }
 
-// --- Legacy aliases to keep older pages working ---
-export const createIncomeEntryAction = createIncomeEntry
+export async function updateIncomeEntry(id: string, prev: any, formData: FormData) {
+  try {
+    const supabase = createClient()
+    const raw = Object.fromEntries(formData)
+    const parsed = IncomeEntrySchema.parse(raw)
+
+    const {
+      data: { user },
+      error: uErr,
+    } = await supabase.auth.getUser()
+    if (uErr || !user) return { success: false, message: "Auth error" }
+
+    const { error } = await supabase
+      .from("income_entries")
+      .update({ ...parsed, amount: Number(parsed.amount), updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", user.id)
+
+    if (error) return { success: false, message: error.message }
+
+    revalidatePath(`/financials/income/${id}`)
+    revalidatePath("/financials/income")
+    return { success: true, message: "Güncellendi" }
+  } catch (err) {
+    if (err instanceof z.ZodError) return { success: false, message: "Doğrulama hatası", errors: err.issues }
+    return { success: false, message: String(err) }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Legacy aliases so older imports keep working                      */
+/* ------------------------------------------------------------------ */
+
 export const createExpenseEntryAction = createExpenseEntry
-export const updateIncomeEntryAction = updateIncomeEntry
 export const updateExpenseEntryAction = updateExpenseEntry
+export const createIncomeEntryAction = createIncomeEntry
+export const updateIncomeEntryAction = updateIncomeEntry
+
+/* READ aliases */
+export const getIncomeEntriesAction = getIncomeEntries
+export const getIncomeEntryByIdAction = getIncomeEntryById
+
+/* DELETE aliases */
+export const deleteIncomeEntryAction = deleteIncomeEntry
