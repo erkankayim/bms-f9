@@ -135,3 +135,6 @@ export function ExpenseForm({ accounts }: ExpenseFormProps) {
     </Card>
   )
 }
+
+// Provide a default export for pages that import it as default
+export default ExpenseForm

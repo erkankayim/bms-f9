@@ -257,3 +257,9 @@ export async function updateIncomeEntry(id: string, prevState: any, formData: Fo
     }
   }
 }
+
+// --- Legacy aliases to keep older pages working ---
+export const createIncomeEntryAction = createIncomeEntry
+export const createExpenseEntryAction = createExpenseEntry
+export const updateIncomeEntryAction = updateIncomeEntry
+export const updateExpenseEntryAction = updateExpenseEntry

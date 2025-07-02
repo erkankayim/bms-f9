@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+// Common payment methods used across the app
+export const PAYMENT_METHODS = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"] as const
+
 export const ExpenseEntrySchema = z.object({
   description: z.string().min(1, "Açıklama gereklidir"),
   amount: z
