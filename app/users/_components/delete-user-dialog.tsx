@@ -1,20 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Trash2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface DeleteUserDialogProps {
   userId: string
@@ -22,50 +24,46 @@ interface DeleteUserDialogProps {
 }
 
 export function DeleteUserDialog({ userId, userEmail }: DeleteUserDialogProps) {
-  const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [open, setOpen] = useState(false)
   const router = useRouter()
 
-  async function handleDelete() {
-    setIsDeleting(true)
+  const handleDelete = async () => {
     try {
+      setIsDeleting(true)
       await deleteUser(userId)
       toast.success("Kullanıcı başarıyla silindi")
       setOpen(false)
       router.refresh()
-    } catch (error) {
-      toast.error("Kullanıcı silinirken bir hata oluştu")
-      console.error(error)
+    } catch (error: any) {
+      toast.error(error.message || "Kullanıcı silinirken bir hata oluştu")
     } finally {
       setIsDeleting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
         <Button variant="ghost" size="icon">
-          <Trash2 className="h-4 w-4 text-destructive" />
+          <Trash2 className="h-4 w-4" />
           <span className="sr-only">Sil</span>
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Kullanıcıyı Sil</DialogTitle>
-          <DialogDescription>
-            <span className="font-medium">{userEmail}</span> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem
-            geri alınamaz.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
-            İptal
-          </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
+          <AlertDialogDescription>
+            <strong>{userEmail}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
             {isDeleting ? "Siliniyor..." : "Sil"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

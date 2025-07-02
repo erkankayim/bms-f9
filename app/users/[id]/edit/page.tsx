@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UserForm } from "../../_components/user-form"
-import { getUserById } from "../../_actions/users-actions"
-import { notFound } from "next/navigation"
+import { getUserById, getCurrentUserRole } from "../../_actions/users-actions"
+import { notFound, redirect } from "next/navigation"
 
 interface EditUserPageProps {
   params: {
@@ -10,6 +10,13 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
+  const currentUserRole = await getCurrentUserRole()
+
+  // Sadece admin kullanıcılar diğer kullanıcıları düzenleyebilir
+  if (currentUserRole !== "admin") {
+    redirect("/")
+  }
+
   const user = await getUserById(params.id)
 
   if (!user) {
@@ -25,7 +32,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
           <CardDescription>Kullanıcı bilgilerini güncelleyin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <UserForm user={user} />
+          <UserForm user={user} currentUserRole={currentUserRole} />
         </CardContent>
       </Card>
     </div>

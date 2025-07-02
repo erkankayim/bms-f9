@@ -8,6 +8,7 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { createUser, updateUser } from "../_actions/users-actions"
 import Link from "next/link"
@@ -16,6 +17,7 @@ const userFormSchema = z.object({
   email: z.string().email({ message: "Geçerli bir e-posta adresi giriniz" }),
   fullName: z.string().min(2, { message: "Ad soyad en az 2 karakter olmalıdır" }),
   password: z.string().min(6, { message: "Şifre en az 6 karakter olmalıdır" }).optional().or(z.literal("")),
+  role: z.enum(["admin", "tech", "acc"], { message: "Geçerli bir rol seçiniz" }),
 })
 
 type UserFormValues = z.infer<typeof userFormSchema>
@@ -27,19 +29,32 @@ interface UserFormProps {
     user_metadata?: {
       full_name?: string
     }
+    role?: string
+    full_name?: string
   }
+  currentUserRole?: string
 }
 
-export function UserForm({ user }: UserFormProps) {
+const roleLabels = {
+  admin: "Yönetici",
+  tech: "Teknisyen",
+  acc: "Muhasebe",
+}
+
+export function UserForm({ user, currentUserRole }: UserFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Sadece admin kullanıcılar rol değiştirebilir
+  const canEditRole = currentUserRole === "admin"
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
       email: user?.email || "",
-      fullName: user?.user_metadata?.full_name || "",
+      fullName: user?.full_name || user?.user_metadata?.full_name || "",
       password: "",
+      role: (user?.role as "admin" | "tech" | "acc") || "admin",
     },
   })
 
@@ -53,6 +68,7 @@ export function UserForm({ user }: UserFormProps) {
           email: values.email,
           fullName: values.fullName,
           password: values.password || undefined,
+          role: values.role,
         })
         toast.success("Kullanıcı başarıyla güncellendi")
       } else {
@@ -66,6 +82,7 @@ export function UserForm({ user }: UserFormProps) {
           email: values.email,
           password: values.password,
           fullName: values.fullName,
+          role: values.role,
         })
         toast.success("Kullanıcı başarıyla oluşturuldu")
       }
@@ -95,6 +112,7 @@ export function UserForm({ user }: UserFormProps) {
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="fullName"
@@ -108,6 +126,33 @@ export function UserForm({ user }: UserFormProps) {
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="role"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Rol</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!canEditRole}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Rol seçiniz" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="admin">Yönetici</SelectItem>
+                  <SelectItem value="tech">Teknisyen</SelectItem>
+                  <SelectItem value="acc">Muhasebe</SelectItem>
+                </SelectContent>
+              </Select>
+              {!canEditRole && (
+                <FormDescription>Sadece yöneticiler kullanıcı rollerini değiştirebilir.</FormDescription>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="password"
@@ -122,6 +167,7 @@ export function UserForm({ user }: UserFormProps) {
             </FormItem>
           )}
         />
+
         <div className="flex justify-end gap-4">
           <Button variant="outline" asChild>
             <Link href="/users">İptal</Link>

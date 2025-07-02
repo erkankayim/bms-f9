@@ -1,58 +1,63 @@
 import { z } from "zod"
 
-/* ------------------------------------------------------------------ */
-/* Sabitler                                                            */
-/* ------------------------------------------------------------------ */
-export const PAYMENT_METHODS = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"] as const
+// Ödeme yöntemleri
+export const PAYMENT_METHODS = [
+  { value: "cash", label: "Nakit" },
+  { value: "credit_card", label: "Kredi Kartı" },
+  { value: "debit_card", label: "Banka Kartı" },
+  { value: "bank_transfer", label: "Banka Havalesi" },
+  { value: "check", label: "Çek" },
+  { value: "other", label: "Diğer" },
+] as const
 
-/* Finans ve envanter menülerinde kullanılıyor */
+// Gider kategorileri
 export const expenseCategories = [
-  "Ofis Giderleri",
-  "Kira",
-  "Elektrik",
-  "Su",
-  "İnternet",
-  "Telefon",
-  "Yakıt",
-  "Yemek",
-  "Malzeme",
-  "Pazarlama",
-  "Diğer",
+  { value: "office_supplies", label: "Ofis Malzemeleri" },
+  { value: "rent", label: "Kira" },
+  { value: "utilities", label: "Faturalar (Elektrik, Su, Gaz)" },
+  { value: "marketing", label: "Pazarlama" },
+  { value: "travel", label: "Seyahat" },
+  { value: "meals", label: "Yemek" },
+  { value: "equipment", label: "Ekipman" },
+  { value: "software", label: "Yazılım" },
+  { value: "insurance", label: "Sigorta" },
+  { value: "legal", label: "Hukuki" },
+  { value: "accounting", label: "Muhasebe" },
+  { value: "maintenance", label: "Bakım" },
+  { value: "fuel", label: "Yakıt" },
+  { value: "other", label: "Diğer" },
 ] as const
 
+// Gelir kategorileri
 export const incomeCategories = [
-  "Satış Geliri",
-  "Hizmet Geliri",
-  "Faiz Geliri",
-  "Kira Geliri",
-  "Diğer Gelirler",
+  { value: "sales", label: "Satış Geliri" },
+  { value: "service", label: "Hizmet Geliri" },
+  { value: "interest", label: "Faiz Geliri" },
+  { value: "rental", label: "Kira Geliri" },
+  { value: "commission", label: "Komisyon" },
+  { value: "consulting", label: "Danışmanlık" },
+  { value: "other", label: "Diğer" },
 ] as const
 
-/* ------------------------------------------------------------------ */
-/* Schemas                                                             */
-/* ------------------------------------------------------------------ */
-export const IncomeEntrySchema = z.object({
-  description: z.string().min(1, "Açıklama gereklidir"),
-  amount: z.number().positive("Tutar pozitif olmalıdır"),
-  entry_date: z.string().min(1, "Tarih gereklidir"),
-  payment_method: z.enum(PAYMENT_METHODS),
-  customer_id: z.string().optional().nullable(),
-  category_id: z.string().min(1, "Kategori gereklidir"),
-  notes: z.string().optional().nullable(),
-})
-
+// Gider girişi şeması
 export const ExpenseEntrySchema = z.object({
-  description: z.string().min(1, "Açıklama gereklidir"),
   amount: z.number().positive("Tutar pozitif olmalıdır"),
-  entry_date: z.string().min(1, "Tarih gereklidir"),
-  payment_method: z.enum(PAYMENT_METHODS),
-  supplier_id: z.string().optional().nullable(),
-  category_id: z.string().min(1, "Kategori gereklidir"),
-  notes: z.string().optional().nullable(),
+  description: z.string().min(1, "Açıklama gereklidir"),
+  category: z.string().min(1, "Kategori seçilmelidir"),
+  payment_method: z.string().min(1, "Ödeme yöntemi seçilmelidir"),
+  supplier_id: z.string().optional(),
+  date: z.string().min(1, "Tarih gereklidir"),
 })
 
-/* ------------------------------------------------------------------ */
-/* Types                                                               */
-/* ------------------------------------------------------------------ */
-export type IncomeEntry = z.infer<typeof IncomeEntrySchema>
+// Gelir girişi şeması
+export const IncomeEntrySchema = z.object({
+  amount: z.number().positive("Tutar pozitif olmalıdır"),
+  description: z.string().min(1, "Açıklama gereklidir"),
+  category: z.string().min(1, "Kategori seçilmelidir"),
+  payment_method: z.string().min(1, "Ödeme yöntemi seçilmelidir"),
+  customer_id: z.string().optional(),
+  date: z.string().min(1, "Tarih gereklidir"),
+})
+
 export type ExpenseEntry = z.infer<typeof ExpenseEntrySchema>
+export type IncomeEntry = z.infer<typeof IncomeEntrySchema>
