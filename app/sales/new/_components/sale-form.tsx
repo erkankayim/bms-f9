@@ -1,427 +1,296 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useForm, useFieldArray, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Trash2, ShoppingCart } from "lucide-react"
-import { createSaleAction, getProductsForSale, getCustomersForSale } from "../_actions/sales-actions"
-import { toast } from "@/hooks/use-toast"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Check, ChevronsUpDown, PlusCircle, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useToast } from "@/components/ui/use-toast"
+import { getProductsForSale, getCustomersForSale, createSaleAction } from "../_actions/sales-actions"
 
-type Product = {
-  stock_code: string
-  product_name: string
-  sale_price: number
-  current_stock: number
-  tax_rate: number
-}
-
-type Customer = {
-  mid: string
-  contact_name: string
-  email: string | null
-  phone: string | null
-}
-
-type SaleItem = {
-  id: string
-  stock_code: string
-  product_name: string
-  quantity: number
-  unit_price: number
-  tax_rate: number
-  total: number
-}
-
-export function SaleForm() {
-  const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+type Product = Awaited<ReturnType<typeof getProductsForSale>>[0]
+type Customer = Awaited<ReturnType<typeof getCustomersForSale>>[0]
+\
+const saleItemSchema = z.object(\{
+  product_stock_code: z.string().min(1, "Ürün seçimi zorunludur."),
+  quantity: z.coerce.number().positive("Miktar pozitif olmalıdır."),
+  unit_price: z.coerce.number().nonnegative("Birim fiyat negatif olamaz."),
+  vat_rate: z.coerce.number().min(0).max(100),
+  discount_rate: z.coerce.number().min(0).max(100),
+\})
+\
+const formSchema = z.object(\{\
+  customer_mid: z.string().optional().nullable(),
+  items: z.array(saleItemSchema).min(1, "En az bir ürün eklenmelidir."),
+  payment_method: z.string().min(1, "Ödeme yöntemi zorunludur."),
+  is_installment: z.boolean(),
+  installment_count: z.coerce.number().optional().nullable(),
+  notes: z.string().optional(),
+\})
+\
+export function SaleForm()
+\
+{
+  const router = useRouter()\
+  const \{ toast \} = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [items, setItems] = useState<SaleItem[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<string>("")
-  const [paymentMethod, setPaymentMethod] = useState<string>("cash")
-  const [isInstallment, setIsInstallment] = useState(false)
-  const [installmentCount, setInstallmentCount] = useState(1)
-  const [discountAmount, setDiscountAmount] = useState(0)
-  const [notes, setNotes] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [productsData, customersData] = await Promise.all([getProductsForSale(), getCustomersForSale()])
-        setProducts(productsData)
-        setCustomers(customersData)
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        toast({
-          title: "Hata",
-          description: "Veriler yüklenirken bir hata oluştu.",
-          variant: "destructive",
-        })
-      }
-    }
+  const form = useForm<z.infer<typeof formSchema>>(\{\
+    resolver: zodResolver(formSchema),
+    defaultValues: \{\
+      customer_mid: null,
+      items: [],
+      payment_method: "cash",
+      is_installment: false,
+      installment_count: 2,
+      notes: "",
+    \},\
+  \})\
+\
+  const \{ fields, append, remove \} = useFieldArray(\{\
+    control: form.control,
+    name: "items",
+  \})
+\
+  const watchedItems = form.watch("items")
+  const isInstallment = form.watch("is_installment")
+
+  useEffect(() => \{\
+    async function fetchData() \{\
+      setIsLoading(true)\
+      const [productsData, customersData] = await Promise.all([getProductsForSale(), getCustomersForSale()])\
+      setProducts(productsData)\
+      setCustomers(customersData)\
+      setIsLoading(false)\
+    \}\
     fetchData()
-  }, [])
-
-  const totalAmount = useMemo(() => {
-    return items.reduce((sum, item) => sum + item.total, 0)
-  }, [items])
-
-  const taxAmount = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const itemTax = (item.total * item.tax_rate) / 100
-      return sum + itemTax
-    }, 0)
-  }, [items])
-
-  const finalAmount = useMemo(() => {
-    return totalAmount + taxAmount - discountAmount
-  }, [totalAmount, taxAmount, discountAmount])
-
-  const addItem = () => {
-    const newItem: SaleItem = {
-      id: Date.now().toString(),
-      stock_code: "",
-      product_name: "",
-      quantity: 1,
+  \}, [])
+\
+  const addNewProduct = () => \\
+    append(\
+      product_stock_code: "",
+      quantity: 1,\
       unit_price: 0,
-      tax_rate: 18,
-      total: 0,
-    }
-    setItems([...items, newItem])
-  }
+      vat_rate: 0,
+      discount_rate: 0,
+    \)
+  \
+\
+  const onProductSelect = (index: number, stock_code: string) => \{\
+    const product = products.find((p) => p.stock_code === stock_code)
+    if (product) \
+      form.setValue(`items.$\{index\}.product_stock_code`, product.stock_code)
+      form.setValue(`items.$\{index\}.unit_price`, product.sale_price)
+      form.setValue(`items.$\{index\}.vat_rate`, product.vat_rate)
+    \
+  \}
 
-  const removeItem = (id: string) => {
-    setItems(items.filter((item) => item.id !== id))
-  }
-
-  const updateItem = (id: string, field: keyof SaleItem, value: any) => {
-    setItems(
-      items.map((item) => {
-        if (item.id === id) {
-          const updatedItem = { ...item, [field]: value }
-
-          if (field === "stock_code") {
-            const product = products.find((p) => p.stock_code === value)
-            if (product) {
-              updatedItem.product_name = product.product_name
-              updatedItem.unit_price = product.sale_price
-              updatedItem.tax_rate = product.tax_rate
-            }
-          }
-
-          if (field === "quantity" || field === "unit_price") {
-            updatedItem.total = updatedItem.quantity * updatedItem.unit_price
-          }
-
-          return updatedItem
-        }
-        return item
-      }),
+  const totals = useMemo(() => \{\
+    return watchedItems.reduce(
+      (acc, item) => \{\
+        const item_gross_total = (item.unit_price || 0) * (item.quantity || 0)\
+        const item_discount = item_gross_total * ((item.discount_rate || 0) / 100)\
+        const item_after_discount = item_gross_total - item_discount\
+        const item_tax = item_after_discount * ((item.vat_rate || 0) / 100)
+        
+        acc.subTotal += item_gross_total
+        acc.discountTotal += item_discount
+        acc.taxTotal += item_tax
+        acc.finalTotal += item_after_discount + item_tax
+        return acc
+      \},
+      \{ subTotal: 0, discountTotal: 0, taxTotal: 0, finalTotal: 0 \},
     )
-  }
+  \}, [watchedItems])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  async function onSubmit(values: z.infer<typeof formSchema>) \{
+    setIsLoading(true)
+    const result = await createSaleAction(values)
+    setIsLoading(false)
 
-    if (items.length === 0) {
-      toast({
-        title: "Hata",
-        description: "En az bir ürün eklemelisiniz.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (items.some((item) => !item.stock_code || item.quantity <= 0)) {
-      toast({
-        title: "Hata",
-        description: "Tüm ürünler için geçerli bilgiler giriniz.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      const saleData = {
-        customer_mid: selectedCustomer || null,
-        total_amount: totalAmount,
-        tax_amount: taxAmount,
-        discount_amount: discountAmount,
-        final_amount: finalAmount,
-        payment_method: paymentMethod,
-        is_installment: isInstallment,
-        installment_count: isInstallment ? installmentCount : 1,
-        notes,
-        items: items.map((item) => ({
-          stock_code: item.stock_code,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_rate: item.tax_rate,
-          total_amount: item.total,
-        })),
-      }
-
-      const result = await createSaleAction(saleData)
-
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: "Satış başarıyla oluşturuldu.",
-        })
-        router.push("/sales")
-      } else {
-        toast({
-          title: "Hata",
-          description: result.error || "Satış oluşturulurken bir hata oluştu.",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error creating sale:", error)
-      toast({
-        title: "Hata",
-        description: "Satış oluşturulurken bir hata oluştu.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+    if (result.success) \
+      toast(\{ title: "Başarılı", description: "Satış başarıyla oluşturuldu." \})
+      router.push("/sales")
+    \else \
+      toast(\{ title: "Hata", description: result.error, variant: "destructive" \})
+    \
+  \}
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            New Sale
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Müşteri Seçimi */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="customer">Müşteri (Opsiyonel)</Label>
-                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Müşteri seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="no_customer">Müşteri Yok</SelectItem>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.mid} value={customer.mid}>
-                        {customer.contact_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">Ödeme Yöntemi</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Nakit</SelectItem>
-                    <SelectItem value="credit_card">Kredi Kartı</SelectItem>
-                    <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Taksit Seçenekleri */}
-            <div className="flex items-center space-x-2">
-              <Switch id="installment" checked={isInstallment} onCheckedChange={setIsInstallment} />
-              <Label htmlFor="installment">Taksitli Ödeme</Label>
-            </div>
-
-            {isInstallment && (
-              <div className="space-y-2">
-                <Label htmlFor="installment_count">Taksit Sayısı</Label>
-                <Input
-                  id="installment_count"
-                  type="number"
-                  min="2"
-                  max="12"
-                  value={installmentCount}
-                  onChange={(e) => setInstallmentCount(Number.parseInt(e.target.value) || 2)}
-                  className="w-32"
-                />
-              </div>
-            )}
-
-            {/* Ürün Listesi */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-lg font-semibold">Ürünler</Label>
-                <Button type="button" onClick={addItem} variant="outline" size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ürün Ekle
-                </Button>
-              </div>
-
-              {items.length > 0 && (
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ürün</TableHead>
-                        <TableHead>Miktar</TableHead>
-                        <TableHead>Birim Fiyat</TableHead>
-                        <TableHead>KDV %</TableHead>
-                        <TableHead>Toplam</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <Select
-                              value={item.stock_code}
-                              onValueChange={(value) => updateItem(item.id, "stock_code", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Ürün seçin" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {products.map((product) => (
-                                  <SelectItem key={product.stock_code} value={product.stock_code}>
-                                    {product.product_name} (Stok: {product.current_stock})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateItem(item.id, "quantity", Number.parseInt(e.target.value) || 1)}
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={item.unit_price}
-                              onChange={(e) =>
-                                updateItem(item.id, "unit_price", Number.parseFloat(e.target.value) || 0)
-                              }
-                              className="w-24"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={item.tax_rate}
-                              onChange={(e) => updateItem(item.id, "tax_rate", Number.parseFloat(e.target.value) || 0)}
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">₺{item.total.toFixed(2)}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(item.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+    <Card>
+      <CardHeader>
+        <CardTitle>Yeni Satış Oluştur</CardTitle>
+        <CardDescription>Müşteri, ürün ve ödeme bilgilerini girerek yeni bir satış kaydı oluşturun.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit=\{form.handleSubmit(onSubmit)\} className="space-y-8">
+          \{/* Müşteri ve Ödeme */\}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Controller
+              control=\{form.control\}
+              name="customer_mid"
+              render=\{(\{ field \}) => (
+                <div className="space-y-2">
+                  <Label>Müşteri (Opsiyonel)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between bg-transparent">
+                        \{field.value ? customers.find((c) => c.mid === field.value)?.contact_name : "Müşteri Seçin"\}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Müşteri ara..." />
+                        <CommandList>
+                          <CommandEmpty>Müşteri bulunamadı.</CommandEmpty>
+                          <CommandGroup>
+                            \{customers.map((customer) => (
+                              <CommandItem
+                                key=\{customer.mid\}
+                                value=\{customer.contact_name\}
+                                onSelect=\{() => field.onChange(customer.mid)\}
+                              >
+                                <Check className=\{cn("mr-2 h-4 w-4", field.value === customer.mid ? "opacity-100" : "opacity-0")\} />
+                                \{customer.contact_name\}
+                              </CommandItem>
+                            ))\}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
-              )}
-            </div>
+              )\}
+            />
+            <Controller
+              control=\{form.control\}
+              name="payment_method"
+              render=\{(\{ field \}) => (
+                <div className="space-y-2">
+                  <Label>Ödeme Yöntemi</Label>
+                  <Select onValueChange=\{field.onChange\} defaultValue=\{field.value\}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Nakit</SelectItem>
+                      <SelectItem value="credit_card">Kredi Kartı</SelectItem>
+                      <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
+                      <SelectItem value="check">Çek</SelectItem>
+                      <SelectItem value="promissory_note">Senet</SelectItem>
+                      <SelectItem value="other">Diğer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )\}
+            />
+          </div>
 
-            {/* İndirim */}
-            <div className="space-y-2">
-              <Label htmlFor="discount">İndirim Tutarı</Label>
-              <Input
-                id="discount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(Number.parseFloat(e.target.value) || 0)}
-                className="w-32"
-              />
+          \{/* Ürünler */\}
+          <div className="space-y-4">
+            <Label className="text-lg font-medium">Satış Kalemleri</Label>
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[30%]">Ürün</TableHead>
+                    <TableHead>Miktar</TableHead>
+                    <TableHead>Birim Fiyat</TableHead>
+                    <TableHead>KDV (%)</TableHead>
+                    <TableHead>İskonto (%)</TableHead>
+                    <TableHead>Toplam</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  \{fields.map((field, index) => (
+                    <TableRow key=\{field.id\}>
+                      <TableCell>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" role="combobox" className="w-full justify-between text-xs h-8 bg-transparent">
+                              \{watchedItems[index]?.product_stock_code ? products.find(p => p.stock_code === watchedItems[index].product_stock_code)?.name : "Ürün Seç"\}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                              <CommandInput placeholder="Ürün ara..." />
+                              <CommandList>
+                                <CommandEmpty>Ürün bulunamadı.</CommandEmpty>
+                                <CommandGroup>
+                                  \{products.map((product) => (
+                                    <CommandItem key=\{product.stock_code\} value=\{product.name\} onSelect=\{() => onProductSelect(index, product.stock_code)\}>
+                                      \{product.name\}
+                                    </CommandItem>
+                                  ))\}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </TableCell>
+                      <TableCell><Input type="number" \{...form.register(`items.$\{index\}.quantity`)\} className="h-8" /></TableCell>
+                      <TableCell><Input type="number" step="0.01" \{...form.register(`items.$\{index\}.unit_price`)\} className="h-8" /></TableCell>
+                      <TableCell><Input type="number" \{...form.register(`items.$\{index\}.vat_rate`)\} className="h-8" /></TableCell>
+                      <TableCell><Input type="number" \{...form.register(`items.$\{index\}.discount_rate`)\} className="h-8" /></TableCell>
+                      <TableCell>
+                        \{((watchedItems[index]?.unit_price || 0) * (watchedItems[index]?.quantity || 0) * (1 - (watchedItems[index]?.discount_rate || 0)/100) * (1 + (watchedItems[index]?.vat_rate || 0)/100)).toFixed(2)\}
+                      </TableCell>
+                      <TableCell><Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick=\{() => remove(index)\}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                    </TableRow>
+                  ))\}
+                </TableBody>
+              </Table>
             </div>
+            <Button type="button" variant="outline" size="sm" onClick=\{addNewProduct\}><PlusCircle className="mr-2 h-4 w-4" />Ürün Ekle</Button>
+          </div>
 
-            {/* Notlar */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Satış ile ilgili notlar..."
-              />
+          \{/* Taksit ve Notlar */\}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                    <Controller control=\{form.control\} name="is_installment" render=\{(\{ field \}) => <Switch checked=\{field.value\} onCheckedChange=\{field.onChange\} />\} />
+                    <Label>Taksitli Ödeme</Label>
+                </div>
+                \{isInstallment && (
+                    <Controller control=\{form.control\} name="installment_count" render=\{(\{ field \}) => <Input type="number" placeholder="Taksit Sayısı" \{...field\} value=\{field.value ?? 2\} />\} />
+                )\}
             </div>
+            <Controller control=\{form.control\} name="notes" render=\{(\{ field \}) => <Textarea placeholder="Satış ile ilgili notlar..." \{...field\} />\} />
+          </div>
 
-            {/* Özet */}
-            {items.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Satış Özeti</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Ara Toplam:</span>
-                    <span>₺{totalAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>KDV:</span>
-                    <span>₺{taxAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>İndirim:</span>
-                    <span>-₺{discountAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
-                    <span>Toplam:</span>
-                    <span>₺{finalAmount.toFixed(2)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Form Butonları */}
-            <div className="flex gap-4">
-              <Button type="submit" disabled={isSubmitting || items.length === 0}>
-                {isSubmitting ? "Kaydediliyor..." : "Satışı Kaydet"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.push("/sales")}>
-                İptal
-              </Button>
+          \{/* Toplamlar */\}
+          <div className="flex justify-end">
+            <div className="w-full max-w-sm space-y-2">
+                <div className="flex justify-between"><span>Ara Toplam</span><span>\{totals.subTotal.toFixed(2)\} ₺</span></div>
+                <div className="flex justify-between"><span>İndirim</span><span className="text-destructive">-\{totals.discountTotal.toFixed(2)\} ₺</span></div>
+                <div className="flex justify-between"><span>KDV</span><span>\{totals.taxTotal.toFixed(2)\} ₺</span></div>
+                <div className="flex justify-between font-bold text-lg border-t pt-2"><span>Genel Toplam</span><span>\{totals.finalTotal.toFixed(2)\} ₺</span></div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+
+          <div className="flex justify-end gap-4">
+            <Button type="button" variant="outline" onClick=\{() => router.push('/sales')\}>İptal</Button>
+            <Button type="submit" disabled=\{isLoading\}>
+              \{isLoading ? "Kaydediliyor..." : "Satışı Oluştur"\}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
-}
+\}

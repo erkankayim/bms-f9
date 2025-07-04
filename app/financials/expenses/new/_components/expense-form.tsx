@@ -1,306 +1,164 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Calendar } from "@/components/ui/calendar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, TrendingDown } from "lucide-react"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
-import { tr } from "date-fns/locale"
-import { createExpense } from "../_actions/expense-actions"
-import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/components/ui/use-toast"
+import { getExpenseCategories, getSuppliersForSelect } from "../../_actions/financial-entries-actions"
+import { createExpense } from "../_actions/expense-actions"
 
-export default function ExpenseForm() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [date, setDate] = useState<Date>(new Date())
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
+type Supplier = Awaited<ReturnType<typeof getSuppliersForSelect>>[0]
+type Category = Awaited<ReturnType<typeof getExpenseCategories>>[0]
+\
+const formSchema = z.object(\{
+  expense_title: z.string().min(1, "Gider başlığı zorunludur."),
+  expense_amount: z.coerce.number().positive("Gider tutarı pozitif olmalıdır."),
+  payment_amount: z.coerce.number().nonnegative("Ödenen tutar negatif olamaz."),\
+  entry_date: z.date(\{ required_error: "Tarih zorunludur." \}),
+  category: z.string().min(1, "Kategori seçimi zorunludur."),
+  supplier_id: z.string().optional().nullable(),
+  expense_source: z.string().min(1, "Gider kaynağı açıklaması zorunludur."),
+  description: z.string().optional(),
+  invoice_number: z.string().optional(),
+  payment_method: z.string().min(1, "Ödeme şekli zorunludur."),
+  notes: z.string().optional(),
+\})
+\
+export default function ExpenseForm()
+\
+{
+  const router = useRouter()\
+  const \{ toast \} = useToast()
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const [formData, setFormData] = useState({
-    expense_title: "",
-    description: "",
-    expense_amount: "",
-    payment_amount: "",
-    expense_source: "",
-    category_id: "0", // Updated default value to be a non-empty string
-    supplier_id: "0", // Updated default value to be a non-empty string
-    payment_method: "cash",
-    invoice_number: "",
-    receipt_url: "",
-    notes: "",
-  })
-
-  useEffect(() => {
-    // Tedarikçileri ve kategorileri yükle
-    async function fetchData() {
-      // Bu fonksiyonlar gerçek implementasyonda Supabase'den veri çekecek
-      setSuppliers([])
-      setCategories([])
-    }
-    fetchData()
-  }, [])
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.expense_title || !formData.expense_amount) {
-      toast({
-        title: "Hata",
-        description: "Başlık ve gider tutarı alanları zorunludur.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      const expenseData = {
-        ...formData,
-        expense_amount: Number.parseFloat(formData.expense_amount),
-        payment_amount: Number.parseFloat(formData.payment_amount) || 0,
-        entry_date: date.toISOString(),
-      }
-
-      const result = await createExpense(expenseData)
-
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: "Gider kaydı başarıyla oluşturuldu.",
-        })
-        router.push("/financials/expenses")
-      } else {
-        toast({
-          title: "Hata",
-          description: result.error || "Gider kaydı oluşturulurken bir hata oluştu.",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error creating expense:", error)
-      toast({
-        title: "Hata",
-        description: "Gider kaydı oluşturulurken bir hata oluştu.",
-        variant: "destructive",
-      })
-    } finally {
+  const form = useForm<z.infer<typeof formSchema>>(\{\
+    resolver: zodResolver(formSchema),
+    defaultValues: \{\
+      payment_method: "cash",
+      entry_date: new Date(),
+      payment_amount: 0,
+    \},
+  \})
+\
+  useEffect(() => \{
+    async function fetchData() \{
+      setIsLoading(true)
+      const [suppliersData, categoriesData] = await Promise.all([getSuppliersForSelect(), getExpenseCategories()])
+      setSuppliers(suppliersData)
+      setCategories(categoriesData)
       setIsLoading(false)
-    }
-  }
+    \}
+    fetchData()
+  \}, [])
+\
+  async function onSubmit(values: z.infer<typeof formSchema>) \{
+    setIsLoading(true)
+    const result = await createExpense(values)
+    setIsLoading(false)
 
+    if (result.success) \
+      toast(\{ title: \"Başarılı\", description: \"Gider kaydı oluşturuldu." \})
+      router.push("/financials/expenses")
+    \else \\
+      toast(\title: "Hata\", description: result.error, variant: "destructive" \})\
+    \}
+  \
+\
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingDown className="h-5 w-5" />
-            Yeni Gider Kaydı
-          </CardTitle>
-          <CardDescription>Yeni bir gider kaydı oluşturun</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="expense_title">Başlık *</Label>
-                <Input
-                  id="expense_title"
-                  value={formData.expense_title}
-                  onChange={(e) => handleInputChange("expense_title", e.target.value)}
-                  placeholder="Gider başlığı"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="expense_amount">Gider Tutarı *</Label>
-                <Input
-                  id="expense_amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.expense_amount}
-                  onChange={(e) => handleInputChange("expense_amount", e.target.value)}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="payment_amount">Ödenen Tutar</Label>
-                <Input
-                  id="payment_amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.payment_amount}
-                  onChange={(e) => handleInputChange("payment_amount", e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="expense_source">Gider Kaynağı</Label>
-                <Input
-                  id="expense_source"
-                  value={formData.expense_source}
-                  onChange={(e) => handleInputChange("expense_source", e.target.value)}
-                  placeholder="Gider kaynağı"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Açıklama</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Gider açıklaması"
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tarih</Label>
+    <Card>
+      <CardHeader>
+        <CardTitle>Yeni Gider Ekle</CardTitle>
+      </CardHeader>
+      <CardContent>\
+        <form onSubmit=\{form.handleSubmit(onSubmit)\} className="space-y-6">
+          <Input \{...form.register("expense_title")\} placeholder="Gider Başlığı (örn: Aylık Ofis Kirası)" />
+          <div className="grid md:grid-cols-2 gap-6">
+            <Input \{...form.register("expense_amount")\} placeholder="Gider Tutarı" type="number" />
+            <Input \{...form.register("payment_amount")\} placeholder="Ödenen Tutar" type="number" />
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Controller name="entry_date\" control=\{form.control\} render=\{(\{ field \}) => (\
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
-                    >
+                    <Button variant="outline" className=\{cn(!field.value && \"text-muted-foreground")\}>\
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP", { locale: tr }) : "Tarih seçin"}
+                      \{field.value ? format(field.value, "PPP") : <span>Tarih Seçin</span>\}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={date} onSelect={(date) => date && setDate(date)} initialFocus />
+                  <PopoverContent className="w-auto p-0"><Calendar mode="single\" selected=\{field.value\} onSelect=\{field.onChange\} /></PopoverContent>
+                </Popover>
+            )\} />
+            <Controller name="category\" control=\{form.control\} render=\{(\{ field \}) => (\
+                <Select onValueChange=\{field.onChange\} defaultValue=\{field.value\}>
+                    <SelectTrigger><SelectValue placeholder="Gider Kategorisi" /></SelectTrigger>\
+                    <SelectContent>\{categories.map(c => <SelectItem key=\{c.id\} value=\{c.id\}>\{c.name\}</SelectItem>)\}</SelectContent>
+                </Select>
+            )\} />
+          </div>
+          <Input \{...form.register("expense_source")\} placeholder="Gider Kaynağı (örn: ABC Emlak)" />
+          <Textarea \{...form.register("description")\} placeholder="Detaylı Açıklama (Opsiyonel)" />
+          <div className="grid md:grid-cols-2 gap-6">
+            <Input \{...form.register("invoice_number")\} placeholder="Fatura No (Opsiyonel)" />
+            <Controller name="payment_method\" control=\{form.control\} render=\{(\{ field \}) => (\
+                <Select onValueChange=\{field.onChange\} defaultValue=\{field.value\}>
+                    <SelectTrigger><SelectValue placeholder="Ödeme Şekli" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="cash">Nakit</SelectItem>
+                        <SelectItem value="credit_card">Kredi Kartı</SelectItem>
+                        <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
+                    </SelectContent>
+                </Select>
+            )\} />
+          </div>
+          <Controller
+              control=\{form.control\}
+              name=\"supplier_id"
+              render=\{(\{ field \}) => (\
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between bg-transparent">
+                      \{field.value ? suppliers.find((s) => s.id.toString() === field.value)?.name : "Tedarikçi Seçin (Opsiyonel)"\}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Tedarikçi ara..." />
+                      <CommandList><CommandEmpty>Tedarikçi bulunamadı.</CommandEmpty><CommandGroup>
+                        \{suppliers.map((s) => (\
+                          <CommandItem key=\{s.id\} value=\{s.name\} onSelect=\{() => field.onChange(s.id.toString())\}>\
+                            <Check className=\{cn("mr-2 h-4 w-4", field.value === s.id.toString() ? "opacity-100" : "opacity-0")\} />
+                            \{s.name\}
+                          </CommandItem>
+                        ))\}
+                      </CommandGroup></CommandList>
+                    </Command>
                   </PopoverContent>
                 </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">Ödeme Yöntemi</Label>
-                <Select
-                  value={formData.payment_method}
-                  onValueChange={(value) => handleInputChange("payment_method", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Nakit</SelectItem>
-                    <SelectItem value="credit_card">Kredi Kartı</SelectItem>
-                    <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
-                    <SelectItem value="check">Çek</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="supplier_id">Tedarikçi</Label>
-                <Select value={formData.supplier_id} onValueChange={(value) => handleInputChange("supplier_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tedarikçi seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Tedarikçi Yok</SelectItem> {/* Updated value prop to be a non-empty string */}
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                        {supplier.company_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="category_id">Kategori</Label>
-                <Select value={formData.category_id} onValueChange={(value) => handleInputChange("category_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Kategori seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Kategori Yok</SelectItem> {/* Updated value prop to be a non-empty string */}
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="invoice_number">Fatura Numarası</Label>
-                <Input
-                  id="invoice_number"
-                  value={formData.invoice_number}
-                  onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                  placeholder="Fatura numarası"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="receipt_url">Fiş/Makbuz URL</Label>
-                <Input
-                  id="receipt_url"
-                  type="url"
-                  value={formData.receipt_url}
-                  onChange={(e) => handleInputChange("receipt_url", e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Ek notlar..."
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Kaydediliyor..." : "Gider Kaydını Oluştur"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.push("/financials/expenses")}>
-                İptal
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              )\}
+            />
+          <Textarea \{...form.register("notes")\} placeholder="Notlar (Opsiyonel)" />
+          <div className="flex justify-end gap-4">
+            <Button type="button" variant="outline" onClick=\{() => router.back()\}>İptal</Button>
+            <Button type="submit" disabled=\{isLoading\}>\{isLoading ? "Kaydediliyor..." : "Gideri Ekle"\}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
-}
+\}

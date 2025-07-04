@@ -640,3 +640,39 @@ export const createIncomeEntry = createIncomeEntryAction
 export const createExpenseEntry = createExpenseEntryAction
 export const updateIncomeEntry = updateIncomeEntryAction
 export const updateExpenseEntry = updateExpenseEntryAction
+
+// Bu fonksiyonlar veritabanından çekilebilir, şimdilik sabit.
+export async function getIncomeCategories() {
+  return [
+    { id: "sales", name: "Satış Geliri" },
+    { id: "service", name: "Hizmet Bedeli" },
+    { id: "consulting", name: "Danışmanlık" },
+    { id: "other", name: "Diğer" },
+  ]
+}
+
+export async function getExpenseCategories() {
+  return [
+    { id: "rent", name: "Kira" },
+    { id: "salary", name: "Maaş Ödemeleri" },
+    { id: "utilities", name: "Faturalar (Elektrik, Su, İnternet)" },
+    { id: "marketing", name: "Pazarlama ve Reklam" },
+    { id: "supplies", name: "Ofis Malzemeleri" },
+    { id: "raw_material", name: "Hammadde Alımı" },
+    { id: "other", name: "Diğer" },
+  ]
+}
+
+export async function getSuppliersForSelect() {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("suppliers").select("id, name").is("deleted_at", null)
+  if (error) return []
+  return data
+}
+
+export async function getCustomersForSelect() {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("customers").select("mid, contact_name").is("deleted_at", null)
+  if (error) return []
+  return data
+}
