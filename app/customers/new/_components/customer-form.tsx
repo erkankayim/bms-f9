@@ -1,204 +1,303 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import React from "react"
+
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { addCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
 import { useToast } from "@/components/ui/use-toast"
+import { addCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
+import { useRouter } from "next/navigation"
+
+const customerFormSchema = z.object({
+  mid: z.string().min(1, "Müşteri ID gereklidir"),
+  service_name: z.string().optional(),
+  contact_name: z.string().min(1, "İletişim adı gereklidir"),
+  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  postal_code: z.string().optional(),
+  tax_office: z.string().optional(),
+  tax_number: z.string().optional(),
+  customer_group: z.string().optional(),
+  balance: z.coerce.number().optional().default(0),
+  notes: z.string().optional(),
+})
+
+type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 interface CustomerFormProps {
-  customer?: any
-  isEditing?: boolean
+  initialData?: Partial<CustomerFormValues>
+  isEditMode?: boolean
+  customerId?: string
 }
 
-export function CustomerForm({ customer, isEditing = false }: CustomerFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+export function CustomerForm({ initialData, isEditMode = false, customerId }: CustomerFormProps) {
   const { toast } = useToast()
+  const router = useRouter()
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerFormSchema),
+    defaultValues: initialData || {
+      mid: "",
+      service_name: "",
+      contact_name: "",
+      email: "",
+      phone: "",
+      address: "",
+      city: "",
+      province: "",
+      postal_code: "",
+      tax_office: "",
+      tax_number: "",
+      customer_group: "",
+      balance: 0,
+      notes: "",
+    },
+  })
 
-  async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
+  React.useEffect(() => {
+    if (initialData) {
+      form.reset(initialData)
+    }
+  }, [initialData, form])
 
-    try {
-      const customerData = {
-        mid: formData.get("mid") as string,
-        service_name: formData.get("service_name") as string,
-        contact_name: formData.get("contact_name") as string,
-        email: formData.get("email") as string,
-        phone: formData.get("phone") as string,
-        address: formData.get("address") as string,
-        city: formData.get("city") as string,
-        province: formData.get("province") as string,
-        postal_code: formData.get("postal_code") as string,
-        tax_office: formData.get("tax_office") as string,
-        tax_number: formData.get("tax_number") as string,
-        customer_group: formData.get("customer_group") as string,
-        balance: Number(formData.get("balance") as string) || 0,
-        notes: formData.get("notes") as string,
+  async function onSubmit(data: CustomerFormValues) {
+    let result
+    if (isEditMode && customerId) {
+      result = await updateCustomerAction(customerId, data)
+    } else {
+      result = await addCustomerAction(data)
+    }
+
+    if (result.success) {
+      toast({
+        title: isEditMode ? "Müşteri Güncellendi" : "Müşteri Eklendi",
+        description: `Müşteri ${data.contact_name} başarıyla ${isEditMode ? "güncellendi" : "eklendi"}.`,
+      })
+      if (!isEditMode) {
+        form.reset()
       }
-
-      let result
-      if (isEditing && customer) {
-        result = await updateCustomerAction(customer.mid, customerData)
-      } else {
-        result = await addCustomerAction(customerData)
-      }
-
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: isEditing
-            ? `${customerData.contact_name} adlı müşteri başarıyla güncellendi`
-            : `${customerData.contact_name} adlı müşteri başarıyla eklendi`,
-          variant: "default",
-        })
-        router.push("/customers")
-      } else if (result.error) {
-        toast({
-          title: "Hata",
-          description: result.error,
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
+      router.push("/customers")
+      router.refresh()
+    } else {
       toast({
         title: "Hata",
-        description: "Beklenmeyen bir hata oluştu",
+        description: result.error || `Müşteri ${isEditMode ? "güncellenemedi" : "eklenemedi"}. Lütfen tekrar deneyin.`,
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle>{isEditing ? "Müşteri Düzenle" : "Yeni Müşteri"}</CardTitle>
-        <CardDescription>{isEditing ? "Müşteri bilgilerini güncelleyin" : "Yeni bir müşteri ekleyin"}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form action={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="mid">Müşteri ID *</Label>
-              <Input
-                id="mid"
-                name="mid"
-                defaultValue={customer?.mid || ""}
-                required
-                disabled={isLoading || isEditing}
-              />
-            </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="mid"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Müşteri ID *</FormLabel>
+                <FormControl>
+                  <Input placeholder="örn: MSTR-0001" {...field} readOnly={isEditMode} />
+                </FormControl>
+                {isEditMode && <FormDescription>Müşteri ID değiştirilemez.</FormDescription>}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="contact_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>İletişim Adı *</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ahmet Yılmaz" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>E-posta</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="ahmet.yilmaz@ornek.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Telefon</FormLabel>
+                <FormControl>
+                  <Input placeholder="+90 555 123 45 67" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="service_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hizmet/Abonelik Adı</FormLabel>
+                <FormControl>
+                  <Input placeholder="Premium Destek" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="customer_group"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Müşteri Grubu</FormLabel>
+                <FormControl>
+                  <Input placeholder="Perakende / Toptan" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="balance"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bakiye</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                </FormControl>
+                <FormDescription>Mevcut ödenmemiş bakiye.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="service_name">Firma Adı</Label>
-              <Input
-                id="service_name"
-                name="service_name"
-                defaultValue={customer?.service_name || ""}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contact_name">İletişim Adı *</Label>
-              <Input
-                id="contact_name"
-                name="contact_name"
-                defaultValue={customer?.contact_name || ""}
-                required
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-posta</Label>
-              <Input id="email" name="email" type="email" defaultValue={customer?.email || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefon</Label>
-              <Input id="phone" name="phone" defaultValue={customer?.phone || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customer_group">Müşteri Grubu</Label>
-              <Input
-                id="customer_group"
-                name="customer_group"
-                defaultValue={customer?.customer_group || ""}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="city">Şehir</Label>
-              <Input id="city" name="city" defaultValue={customer?.city || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="province">İl</Label>
-              <Input id="province" name="province" defaultValue={customer?.province || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="postal_code">Posta Kodu</Label>
-              <Input
-                id="postal_code"
-                name="postal_code"
-                defaultValue={customer?.postal_code || ""}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tax_office">Vergi Dairesi</Label>
-              <Input id="tax_office" name="tax_office" defaultValue={customer?.tax_office || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tax_number">Vergi Numarası</Label>
-              <Input id="tax_number" name="tax_number" defaultValue={customer?.tax_number || ""} disabled={isLoading} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="balance">Bakiye</Label>
-              <Input
-                id="balance"
-                name="balance"
-                type="number"
-                step="0.01"
-                defaultValue={customer?.balance || 0}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="address">Adres</Label>
-            <Textarea id="address" name="address" defaultValue={customer?.address || ""} disabled={isLoading} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notlar</Label>
-            <Textarea id="notes" name="notes" defaultValue={customer?.notes || ""} disabled={isLoading} />
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Kaydediliyor..." : isEditing ? "Güncelle" : "Ekle"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push("/customers")} disabled={isLoading}>
-              İptal
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Sokak Adresi</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Atatürk Cad. No:123, Merkez" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <FormField
+            control={form.control}
+            name="city"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Şehir</FormLabel>
+                <FormControl>
+                  <Input placeholder="İstanbul" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="province"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>İlçe/Eyalet</FormLabel>
+                <FormControl>
+                  <Input placeholder="Kadıköy" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="postal_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Posta Kodu</FormLabel>
+                <FormControl>
+                  <Input placeholder="34710" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+            control={form.control}
+            name="tax_office"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vergi Dairesi</FormLabel>
+                <FormControl>
+                  <Input placeholder="Kadıköy Vergi Dairesi" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="tax_number"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vergi Numarası</FormLabel>
+                <FormControl>
+                  <Input placeholder="1234567890" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notlar</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Müşteri hakkında ek notlar..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting
+            ? isEditMode
+              ? "Müşteri Güncelleniyor..."
+              : "Müşteri Ekleniyor..."
+            : isEditMode
+              ? "Değişiklikleri Kaydet"
+              : "Müşteri Ekle"}
+        </Button>
+      </form>
+    </Form>
   )
 }

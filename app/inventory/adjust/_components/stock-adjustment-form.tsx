@@ -21,7 +21,7 @@ import {
 
 const stockAdjustmentFormSchema = z.object({
   productId: z.string().min(1, { message: "Ürün seçimi zorunludur." }),
-  productName: z.string().optional(),
+  productName: z.string().optional(), // Sadece UI'da göstermek için
   quantity: z.coerce
     .number({ invalid_type_error: "Miktar sayı olmalıdır." })
     .refine((val) => val !== 0, { message: "Miktar 0 olamaz." }),
@@ -51,7 +51,7 @@ export function StockAdjustmentForm() {
     defaultValues: {
       productId: "",
       productName: "",
-      quantity: 0,
+      quantity: 0, // Burası düzeltildi: "" as unknown as number yerine 0
       notes: "",
     },
   })
@@ -61,12 +61,12 @@ export function StockAdjustmentForm() {
       toast({
         title: "Başarılı!",
         description: state.message || "Stok ayarlaması başarıyla kaydedildi.",
-        duration: 1500,
       })
       form.reset({
+        // Reset with proper default values
         productId: "",
         productName: "",
-        quantity: 0,
+        quantity: 0, // Burası da düzeltildi
         notes: "",
       })
       setSelectedProduct(null)
@@ -77,7 +77,6 @@ export function StockAdjustmentForm() {
         title: "Hata!",
         description: state.message,
         variant: "destructive",
-        duration: 1500,
       })
     }
     if (state?.errors) {
@@ -90,26 +89,27 @@ export function StockAdjustmentForm() {
   }, [state, toast, form])
 
   useEffect(() => {
+    console.log("[FORM] useEffect for searchTerm triggered. Current searchTerm:", searchTerm)
     if (searchTerm.length > 1) {
       startSearchTransition(async () => {
+        console.log("[FORM] Calling searchProductsForAdjustment with term:", searchTerm)
         const result = await searchProductsForAdjustment(searchTerm)
+        console.log("[FORM] Received result from searchProductsForAdjustment:", result)
         if (result.success && result.data) {
           setSearchResults(result.data)
+          console.log("[FORM] Set searchResults in state:", result.data)
         } else {
           setSearchResults([])
+          console.log("[FORM] Cleared searchResults due to no data or error from action.")
           if (result.error) {
-            toast({
-              title: "Arama Hatası",
-              description: result.error,
-              variant: "destructive",
-              duration: 1500,
-            })
+            toast({ title: "Arama Hatası", description: result.error, variant: "destructive" })
           }
         }
       })
     } else {
       if (searchTerm.length <= 1 && searchResults.length > 0) {
         setSearchResults([])
+        console.log("[FORM] Cleared searchResults because searchTerm is too short.")
       }
     }
   }, [searchTerm, toast])
@@ -125,6 +125,7 @@ export function StockAdjustmentForm() {
   }
 
   const handleFormSubmit = (data: StockAdjustmentFormValues) => {
+    console.log("[FORM] Submitting form with data:", data)
     const formData = new FormData()
     formData.append("productId", data.productId)
     formData.append("quantity", String(data.quantity))
@@ -214,6 +215,7 @@ export function StockAdjustmentForm() {
             <FormItem>
               <FormLabel>Değişim Miktarı</FormLabel>
               <FormControl>
+                {/* Ensure field.value is never undefined for controlled input */}
                 <Input type="number" placeholder="Örn: 10 veya -5" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormDescription>
@@ -235,7 +237,7 @@ export function StockAdjustmentForm() {
                   placeholder="Ayarlama nedeni (örn: Yıl sonu sayım farkı)"
                   className="resize-none"
                   {...field}
-                  value={field.value ?? ""}
+                  value={field.value ?? ""} // Ensure controlled
                 />
               </FormControl>
               <FormMessage />

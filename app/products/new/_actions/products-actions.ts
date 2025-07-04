@@ -2,342 +2,265 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import * as z from "zod"
 
-// Sabit kategoriler
-const CATEGORIES = [
-  "Elektronik",
-  "Bilgisayar & Teknoloji",
-  "Telefon & Aksesuar",
-  "Ev & Yaşam",
-  "Mutfak Gereçleri",
-  "Mobilya",
-  "Giyim & Aksesuar",
-  "Ayakkabı & Çanta",
-  "Kozmetik & Kişisel Bakım",
-  "Spor & Outdoor",
-  "Otomotiv",
-  "Bahçe & Yapı Market",
-  "Kitap & Kırtasiye",
-  "Oyuncak & Hobi",
-  "Sağlık & Medikal",
-  "Gıda & İçecek",
-  "Pet Shop",
-  "Bebek & Çocuk",
-  "Takı & Saat",
-  "Diğer",
-]
+const currencySchema = z.enum(["TRY", "USD", "EUR", "GBP"])
 
-interface CreateProductData {
-  stock_code: string
-  name: string
-  description: string
-  category_name: string
-  purchase_price: number
-  purchase_price_currency: string
-  sale_price: number
-  sale_price_currency: string
-  stock_quantity: number
-  min_stock_level: number
-  supplier_id: string | null
-  variants: Array<{
-    id: string
-    name: string
-    values: string[]
-  }>
-  image_urls: string[]
-}
+const variantValueSchema = z.object({
+  value: z.string().min(1, "Varyant değeri boş olamaz"),
+})
 
-export async function createProduct(data: CreateProductData) {
-  try {
-    const supabase = await createClient()
+const variantSchema = z.object({
+  type: z.string().min(1, "Varyant tipi boş olamaz"),
+  values: z.array(variantValueSchema).min(1, "En az bir varyant değeri gereklidir"),
+})
 
-    // Check if stock code already exists
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("stock_code")
-      .eq("stock_code", data.stock_code)
-      .single()
+const productActionSchema = z.object({
+  stock_code: z.string().min(1),
+  name: z.string().min(1, "Ürün adı gereklidir"),
+  description: z.string().optional().nullable(),
+  quantity_on_hand: z.coerce.number().int().min(0).optional().default(0),
+  min_stock_level: z.coerce.number().int().min(0, "Minimum stok seviyesi negatif olamaz").optional().default(0), // YENİ ALAN
+  purchase_price: z.coerce.number().min(0).optional().nullable(),
+  purchase_price_currency: currencySchema.default("TRY"),
+  sale_price: z.coerce.number().min(0).optional().nullable(),
+  sale_price_currency: currencySchema.default("TRY"),
+  vat_rate: z.coerce.number().min(0).max(1).optional().default(0.18),
+  barcode: z.string().optional().nullable(),
+  tags: z.string().optional().nullable(),
+  image_urls: z
+    .array(z.object({ url: z.string().url("Geçerli bir resim URL'si olmalıdır") }))
+    .optional()
+    .nullable(),
+  variants: z.array(variantSchema).optional().nullable(),
+  imagesToDelete: z.array(z.string().url()).optional().nullable(),
+  category_id: z.coerce.number().int().positive("Kategori ID'si pozitif bir sayı olmalıdır.").optional().nullable(),
+})
 
-    if (existingProduct) {
-      return {
-        success: false,
-        error: "Bu stok kodu zaten kullanılıyor",
-      }
+type ProductActionPayload = z.infer<typeof productActionSchema>
+
+export async function addProductAction(
+  payload: ProductActionPayload,
+): Promise<{ success: boolean; error?: string | null; data?: any }> {
+  const supabase = createClient()
+
+  const validationResult = productActionSchema.safeParse(payload)
+  if (!validationResult.success) {
+    console.error("Eylemdeki doğrulama hataları (addProductAction):", validationResult.error.flatten().fieldErrors)
+    const errors = validationResult.error.flatten().fieldErrors
+    let errorMessage = "Geçersiz veri: "
+    for (const key in errors) {
+      // @ts-ignore
+      errorMessage += `${key}: ${errors[key].join(", ")}. `
     }
-
-    // Insert the product
-    const { data: product, error } = await supabase
-      .from("products")
-      .insert({
-        stock_code: data.stock_code,
-        name: data.name,
-        description: data.description,
-        category_name: data.category_name,
-        purchase_price: data.purchase_price,
-        purchase_price_currency: data.purchase_price_currency,
-        sale_price: data.sale_price,
-        sale_price_currency: data.sale_price_currency,
-        stock_quantity: data.stock_quantity,
-        min_stock_level: data.min_stock_level,
-        supplier_id: data.supplier_id ? Number.parseInt(data.supplier_id) : null,
-        variants: data.variants,
-        image_urls: data.image_urls,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Product creation error:", error)
-      return {
-        success: false,
-        error: "Ürün eklenirken hata oluştu",
-      }
-    }
-
-    revalidatePath("/products")
-    return {
-      success: true,
-      data: product,
-    }
-  } catch (error) {
-    console.error("Unexpected error:", error)
     return {
       success: false,
-      error: "Beklenmeyen bir hata oluştu",
+      error: errorMessage.trim(),
     }
   }
+
+  const { data: validatedData } = validationResult
+
+  const { data: existingStockCode, error: stockCodeError } = await supabase
+    .from("products")
+    .select("stock_code")
+    .eq("stock_code", validatedData.stock_code)
+    .maybeSingle()
+
+  if (stockCodeError) {
+    console.error("Stok kodu kontrol hatası:", stockCodeError)
+    return { success: false, error: "Stok kodu kontrol edilirken bir hata oluştu." }
+  }
+  if (existingStockCode) {
+    return { success: false, error: `Stok kodu "${validatedData.stock_code}" zaten kullanılıyor.` }
+  }
+
+  if (validatedData.barcode && validatedData.barcode.trim() !== "") {
+    const { data: existingBarcode, error: barcodeError } = await supabase
+      .from("products")
+      .select("barcode")
+      .eq("barcode", validatedData.barcode)
+      .maybeSingle()
+
+    if (barcodeError) {
+      console.error("Barkod kontrol hatası:", barcodeError)
+      return { success: false, error: "Barkod kontrol edilirken bir hata oluştu." }
+    }
+    if (existingBarcode) {
+      return {
+        success: false,
+        error: `Barkod "${validatedData.barcode}" zaten başka bir ürün tarafından kullanılıyor.`,
+      }
+    }
+  }
+
+  const { data: newProduct, error } = await supabase
+    .from("products")
+    .insert([
+      {
+        stock_code: validatedData.stock_code,
+        name: validatedData.name,
+        description: validatedData.description,
+        quantity_on_hand: validatedData.quantity_on_hand,
+        min_stock_level: validatedData.min_stock_level, // YENİ ALAN
+        purchase_price: validatedData.purchase_price,
+        purchase_price_currency: validatedData.purchase_price_currency,
+        sale_price: validatedData.sale_price,
+        sale_price_currency: validatedData.sale_price_currency,
+        vat_rate: validatedData.vat_rate,
+        barcode: validatedData.barcode,
+        tags: validatedData.tags,
+        image_urls: validatedData.image_urls,
+        variants: validatedData.variants,
+        category_id: validatedData.category_id,
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Ürün eklenirken hata:", error)
+    if (error.code === "23505") {
+      return { success: false, error: `"${validatedData.stock_code}" stok kodlu ürün zaten mevcut.` }
+    }
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/products")
+  revalidatePath(`/products/${validatedData.stock_code}`)
+
+  return { success: true, data: newProduct }
 }
 
-export async function addProductAction(formData: FormData) {
+export async function updateProductAction(
+  productId: string, // This is actually stock_code
+  payload: ProductActionPayload,
+): Promise<{ success: boolean; error?: string | null; data?: any }> {
   const supabase = createClient()
 
-  try {
-    // Extract form data
-    const productData = {
-      stock_code: formData.get("stock_code") as string,
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-      category_name: formData.get("category_name") as string,
-      purchase_price: Number.parseFloat(formData.get("purchase_price") as string) || 0,
-      purchase_price_currency: (formData.get("purchase_price_currency") as string) || "TRY",
-      sale_price: Number.parseFloat(formData.get("sale_price") as string) || 0,
-      sale_price_currency: (formData.get("sale_price_currency") as string) || "TRY",
-      stock_quantity: Number.parseInt(formData.get("stock_quantity") as string) || 0,
-      min_stock_level: Number.parseInt(formData.get("min_stock_level") as string) || 5,
-      vat_rate: Number.parseFloat(formData.get("vat_rate") as string) || 0.18,
-      barcode: (formData.get("barcode") as string) || null,
-      tags: (formData.get("tags") as string) || null,
-      supplier_id: (formData.get("supplier_id") as string) || null,
+  const validationResult = productActionSchema.safeParse(payload)
+  if (!validationResult.success) {
+    console.error("Eylemdeki doğrulama hataları (updateProductAction):", validationResult.error.flatten().fieldErrors)
+    const errors = validationResult.error.flatten().fieldErrors
+    let errorMessage = "Geçersiz veri: "
+    for (const key in errors) {
+      // @ts-ignore
+      errorMessage += `${key}: ${errors[key].join(", ")}. `
     }
+    return {
+      success: false,
+      error: errorMessage.trim(),
+    }
+  }
 
-    // Handle variants
-    const variantsString = formData.get("variants") as string
-    let variants = null
-    if (variantsString) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { stock_code, imagesToDelete, ...updateDataFromPayload } = validationResult.data
+
+  // Ensure min_stock_level is included in the update data
+  const updateData = {
+    ...updateDataFromPayload,
+    min_stock_level: validationResult.data.min_stock_level, // YENİ ALAN
+  }
+
+  if (payload.barcode && payload.barcode.trim() !== "") {
+    const { data: productWithSameBarcode, error: barcodeError } = await supabase
+      .from("products")
+      .select("stock_code, barcode")
+      .eq("barcode", payload.barcode)
+      .not("stock_code", "eq", productId) // productId is stock_code
+      .maybeSingle()
+
+    if (barcodeError) {
+      console.error("Güncelleme sırasında barkod kontrol hatası:", barcodeError)
+      return { success: false, error: "Barkod kontrol edilirken bir hata oluştu." }
+    }
+    if (productWithSameBarcode) {
+      return {
+        success: false,
+        error: `Barkod "${payload.barcode}" zaten başka bir ürün (${productWithSameBarcode.stock_code}) tarafından kullanılıyor.`,
+      }
+    }
+  }
+
+  if (imagesToDelete && imagesToDelete.length > 0) {
+    const filePathsToDelete: string[] = []
+    for (const imageUrl of imagesToDelete) {
       try {
-        variants = JSON.parse(variantsString)
-      } catch (error) {
-        console.error("Error parsing variants:", error)
+        const urlParts = imageUrl.split("/")
+        const fileName = urlParts.pop()
+        const bucketNameGuess = urlParts.pop()
+
+        if (fileName && bucketNameGuess === "product_images") {
+          filePathsToDelete.push(fileName)
+        } else {
+          console.warn(`Geçersiz resim URL formatı, silinemedi: ${imageUrl}`)
+        }
+      } catch (e) {
+        console.error(`Resim URL'si ayrıştırılırken hata: ${imageUrl}`, e)
       }
     }
 
-    // Handle image uploads
-    const imageUrls: { url: string }[] = []
-    const imageFiles: File[] = []
-
-    // Collect image files
-    for (let i = 0; i < 5; i++) {
-      const imageFile = formData.get(`image_${i}`) as File
-      if (imageFile && imageFile.size > 0) {
-        imageFiles.push(imageFile)
+    if (filePathsToDelete.length > 0) {
+      const { error: storageError } = await supabase.storage.from("product_images").remove(filePathsToDelete)
+      if (storageError) {
+        console.error("Supabase Storage'dan resimler silinirken hata:", storageError)
+      } else {
+        console.log("Şu resimler Supabase Storage'dan silindi:", filePathsToDelete)
       }
     }
-
-    // Upload images to Supabase Storage
-    for (const imageFile of imageFiles) {
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${imageFile.name}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(fileName, imageFile)
-
-      if (uploadError) {
-        console.error("Image upload error:", uploadError)
-        continue
-      }
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("product-images").getPublicUrl(fileName)
-
-      imageUrls.push({ url: publicUrl })
-    }
-
-    // Insert product
-    const { data: product, error } = await supabase
-      .from("products")
-      .insert([
-        {
-          ...productData,
-          image_urls: imageUrls.length > 0 ? imageUrls : null,
-          variants: variants,
-        },
-      ])
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Database error:", error)
-      return { success: false, error: `Ürün oluşturulurken hata: ${error.message}` }
-    }
-
-    revalidatePath("/products")
-    return { success: true, data: product }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
+
+  const { data: updatedProduct, error } = await supabase
+    .from("products")
+    .update(updateData)
+    .eq("stock_code", productId) // productId is stock_code
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Ürün güncellenirken hata:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/products")
+  revalidatePath(`/products/${productId}`) // productId is stock_code
+  revalidatePath(`/products/${productId}/edit`) // productId is stock_code
+
+  return { success: true, data: updatedProduct }
 }
 
-export async function updateProductAction(productId: string, formData: FormData) {
-  const supabase = createClient()
-
-  try {
-    // Extract form data
-    const productData = {
-      stock_code: formData.get("stock_code") as string,
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-      category_name: formData.get("category_name") as string,
-      purchase_price: Number.parseFloat(formData.get("purchase_price") as string) || 0,
-      purchase_price_currency: (formData.get("purchase_price_currency") as string) || "TRY",
-      sale_price: Number.parseFloat(formData.get("sale_price") as string) || 0,
-      sale_price_currency: (formData.get("sale_price_currency") as string) || "TRY",
-      stock_quantity: Number.parseInt(formData.get("stock_quantity") as string) || 0,
-      min_stock_level: Number.parseInt(formData.get("min_stock_level") as string) || 5,
-      vat_rate: Number.parseFloat(formData.get("vat_rate") as string) || 0.18,
-      barcode: (formData.get("barcode") as string) || null,
-      tags: (formData.get("tags") as string) || null,
-      supplier_id: (formData.get("supplier_id") as string) || null,
-    }
-
-    // Handle variants
-    const variantsString = formData.get("variants") as string
-    let variants = null
-    if (variantsString) {
-      try {
-        variants = JSON.parse(variantsString)
-      } catch (error) {
-        console.error("Error parsing variants:", error)
-      }
-    }
-
-    // Get existing product to preserve existing images
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("image_urls")
-      .eq("stock_code", productId)
-      .single()
-
-    const imageUrls = existingProduct?.image_urls || []
-
-    // Handle new image uploads
-    const imageFiles: File[] = []
-
-    // Collect new image files
-    for (let i = 0; i < 5; i++) {
-      const imageFile = formData.get(`image_${i}`) as File
-      if (imageFile && imageFile.size > 0) {
-        imageFiles.push(imageFile)
-      }
-    }
-
-    // Upload new images to Supabase Storage
-    for (const imageFile of imageFiles) {
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${imageFile.name}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(fileName, imageFile)
-
-      if (uploadError) {
-        console.error("Image upload error:", uploadError)
-        continue
-      }
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("product-images").getPublicUrl(fileName)
-
-      imageUrls.push({ url: publicUrl })
-    }
-
-    // Update product
-    const { data: product, error } = await supabase
-      .from("products")
-      .update({
-        ...productData,
-        image_urls: imageUrls.length > 0 ? imageUrls : null,
-        variants: variants,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("stock_code", productId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Database error:", error)
-      return { success: false, error: `Ürün güncellenirken hata: ${error.message}` }
-    }
-
-    revalidatePath("/products")
-    revalidatePath(`/products/${productId}`)
-    return { success: true, data: product }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+export async function deleteProductAction(productId: string): Promise<{ success: boolean; error?: string | null }> {
+  if (!productId) {
+    return { success: false, error: "Ürün ID'si (stok kodu) gereklidir." }
   }
+  const supabase = createClient()
+  const { error: softDeleteError } = await supabase
+    .from("products")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("stock_code", productId)
+    .is("deleted_at", null)
+
+  if (softDeleteError) {
+    console.error("Ürün geçici silinirken hata:", softDeleteError)
+    return { success: false, error: `Ürün geçici olarak silinemedi: ${softDeleteError.message}` }
+  }
+  revalidatePath("/products")
+  revalidatePath(`/products/${productId}`)
+  return { success: true }
 }
 
-export async function deleteProductAction(productId: string) {
-  const supabase = createClient()
-
-  try {
-    const { error } = await supabase
-      .from("products")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("stock_code", productId)
-
-    if (error) {
-      console.error("Delete error:", error)
-      return { success: false, error: `Ürün silinirken hata: ${error.message}` }
-    }
-
-    revalidatePath("/products")
-    return { success: true }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+export async function restoreProductAction(productId: string): Promise<{ success: boolean; error?: string | null }> {
+  if (!productId) {
+    return { success: false, error: "Ürün ID'si (stok kodu) gereklidir." }
   }
-}
-
-export async function restoreProductAction(productId: string) {
   const supabase = createClient()
+  const { error } = await supabase.from("products").update({ deleted_at: null }).eq("stock_code", productId)
 
-  try {
-    const { error } = await supabase.from("products").update({ deleted_at: null }).eq("stock_code", productId)
-
-    if (error) {
-      console.error("Restore error:", error)
-      return { success: false, error: `Ürün geri yüklenirken hata: ${error.message}` }
-    }
-
-    revalidatePath("/products")
-    return { success: true }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+  if (error) {
+    console.error("Ürün geri yüklenirken hata:", error)
+    return { success: false, error: `Ürün geri yüklenemedi: ${error.message}` }
   }
+  revalidatePath("/products")
+  revalidatePath(`/products/${productId}`)
+  return { success: true }
 }

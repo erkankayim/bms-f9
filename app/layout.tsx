@@ -9,9 +9,9 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MNY Makine - İş Yönetim Sistemi",
-  description: "MNY Makine İş Yönetim ve Takip Sistemi",
-  generator: "v0.dev",
+  title: "İş Yönetim Uygulaması",
+  description: "Kapsamlı İş Yönetim Uygulaması",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
