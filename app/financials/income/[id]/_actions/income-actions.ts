@@ -3,18 +3,18 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
-export async function deleteExpense(entryId: number) {
+export async function deleteIncome(entryId: number) {
   try {
     const supabase = await createClient()
 
-    const { error } = await supabase.from("financial_entries").delete().eq("id", entryId).eq("entry_type", "expense")
+    const { error } = await supabase.from("financial_entries").delete().eq("id", entryId).eq("entry_type", "income")
 
     if (error) {
-      console.error("Expense deletion error:", error)
+      console.error("Income deletion error:", error)
       return { success: false, error: error.message }
     }
 
-    revalidatePath("/financials/expenses")
+    revalidatePath("/financials/income")
     return { success: true }
   } catch (error) {
     console.error("Unexpected error:", error)
@@ -22,39 +22,36 @@ export async function deleteExpense(entryId: number) {
   }
 }
 
-export async function updateExpenseEntryAction(entryId: number, updateData: any) {
+export async function updateIncomeEntryAction(entryId: number, updateData: any) {
   try {
     const supabase = await createClient()
 
     const { data, error } = await supabase
       .from("financial_entries")
       .update({
-        expense_title: updateData.expense_title,
         description: updateData.description,
-        expense_amount: updateData.expense_amount,
-        outgoing_amount: updateData.expense_amount,
-        payment_amount: updateData.payment_amount,
+        incoming_amount: updateData.incoming_amount,
+        payment_amount: updateData.incoming_amount,
         entry_date: updateData.entry_date,
-        expense_source: updateData.expense_source,
+        income_source: updateData.income_source,
         category_id: updateData.category_id ? Number.parseInt(updateData.category_id) : null,
-        supplier_id: updateData.supplier_id ? Number.parseInt(updateData.supplier_id) : null,
+        customer_mid: updateData.customer_mid || null,
         payment_method: updateData.payment_method,
         invoice_number: updateData.invoice_number,
-        receipt_url: updateData.receipt_url,
         notes: updateData.notes,
       })
       .eq("id", entryId)
-      .eq("entry_type", "expense")
+      .eq("entry_type", "income")
       .select()
       .single()
 
     if (error) {
-      console.error("Expense update error:", error)
+      console.error("Income update error:", error)
       return { success: false, error: error.message }
     }
 
-    revalidatePath(`/financials/expenses/${entryId}`)
-    revalidatePath("/financials/expenses")
+    revalidatePath(`/financials/income/${entryId}`)
+    revalidatePath("/financials/income")
     return { success: true, data }
   } catch (error) {
     console.error("Unexpected error:", error)
