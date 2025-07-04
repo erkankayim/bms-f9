@@ -1,37 +1,34 @@
 import { notFound } from "next/navigation"
-import { getUserById, updateUser } from "@/app/users/_actions/user-actions"
+import { getUser, updateUser } from "@/app/users/_actions/user-actions"
 import { UserForm } from "@/app/users/_components/user-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { requireAdmin } from "@/lib/auth"
 
 interface EditUserPageProps {
-  params: {
-    id: string
-  }
+  params: Promise<{ id: string }>
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  // Admin kontrolü
-  await requireAdmin()
-
-  const user = await getUserById(params.id)
+  const { id } = await params
+  const user = await getUser(id)
 
   if (!user) {
     notFound()
   }
 
-  // Server Action'ı bind et
-  const updateUserWithId = updateUser.bind(null, params.id)
+  async function handleUpdateUser(formData: FormData) {
+    "use server"
+    return await updateUser(id, formData)
+  }
 
   return (
     <div className="container mx-auto py-6">
-      <Card>
+      <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Kullanıcı Düzenle</CardTitle>
           <CardDescription>Kullanıcı bilgilerini güncelleyin</CardDescription>
         </CardHeader>
         <CardContent>
-          <UserForm user={user} action={updateUserWithId} />
+          <UserForm user={user} action={handleUpdateUser} />
         </CardContent>
       </Card>
     </div>

@@ -36,7 +36,7 @@ export async function debugCurrentUser() {
       return { error: "No authenticated user", user: null, profile: null }
     }
 
-    // Profili getir
+    // Profili getir - RLS bypass için service role kullan
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
       .select("*")

@@ -1,24 +1,19 @@
-"use client"
+import { createUser } from "@/app/users/_actions/user-actions"
+import { UserForm } from "@/app/users/_components/user-form"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-import { getCurrentUserRole, createUser } from "../_actions/user-actions"
-import { UserForm } from "../_components/user-form"
-import { redirect } from "next/navigation"
-
-export default async function NewUserPage() {
-  const currentRole = await getCurrentUserRole()
-
-  if (currentRole !== "admin") {
-    redirect("/users")
-  }
-
+export default function NewUserPage() {
   return (
-    <div className="container mx-auto py-8">
-      <UserForm
-        onSubmit={createUser}
-        title="Yeni Kullanıcı Ekle"
-        description="Sisteme yeni bir kullanıcı ekleyin"
-        submitText="Kullanıcı Oluştur"
-      />
+    <div className="container mx-auto py-6">
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Yeni Kullanıcı</CardTitle>
+          <CardDescription>Sisteme yeni kullanıcı ekleyin</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <UserForm action={createUser} />
+        </CardContent>
+      </Card>
     </div>
   )
 }

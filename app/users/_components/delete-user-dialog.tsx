@@ -1,7 +1,8 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,30 +14,38 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2 } from "lucide-react"
-import { deleteUser } from "../_actions/user-actions"
+import { deleteUser } from "@/app/users/_actions/user-actions"
 import { toast } from "@/hooks/use-toast"
+import type { UserWithAuth } from "@/lib/auth"
 
 interface DeleteUserDialogProps {
-  userId: string
-  userName: string
+  user: UserWithAuth
+  children: React.ReactNode
 }
 
-export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
+export function DeleteUserDialog({ user, children }: DeleteUserDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
+    setIsDeleting(true)
     try {
-      setIsDeleting(true)
-      const result = await deleteUser(userId)
-      toast({
-        title: "Başarılı",
-        description: result.message,
-      })
+      const result = await deleteUser(user.id)
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: result.success,
+        })
+      } else if (result.error) {
+        toast({
+          title: "Hata",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Kullanıcı silinirken bir hata oluştu",
+        description: "Beklenmeyen bir hata oluştu",
         variant: "destructive",
       })
     } finally {
@@ -46,25 +55,17 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </AlertDialogTrigger>
+      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            <strong>{userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            <strong>{user.full_name}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
+          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
             {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>
