@@ -1,109 +1,293 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useActionState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import {
+  createExpenseEntryAction,
+  getFinancialCategories,
+  getSuppliersForDropdown,
+  type FinancialCategory,
+  type SupplierForDropdown,
+} from "@/app/financials/_actions/financial-entries-actions"
+import { PAYMENT_METHODS } from "@/app/financials/_lib/financial-entry-shared"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
-import { createExpense } from "../_actions/expense-actions"
-import { useToast } from "@/components/ui/use-toast"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle, Receipt, Loader2, Info } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function ExpenseForm() {
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { toast } = useToast()
+  const [state, formAction, isPending] = useActionState(createExpenseEntryAction, {
+    success: false,
+    message: "",
+    errors: undefined,
+  })
 
-  async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
+  const [categories, setCategories] = useState<FinancialCategory[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierForDropdown[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [dataError, setDataError] = useState<string | null>(null)
 
-    try {
-      await createExpense(formData)
-      toast({
-        title: "Başarılı",
-        description: "Gider kaydı başarıyla oluşturuldu",
-        duration: 1500,
-      })
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: error instanceof Error ? error.message : "Beklenmeyen bir hata oluştu",
-        variant: "destructive",
-        duration: 1500,
-      })
-    } finally {
-      setIsLoading(false)
+  useEffect(() => {
+    async function fetchData() {
+      setLoadingData(true)
+      setDataError(null)
+
+      try {
+        const [catResult, suppResult] = await Promise.all([
+          getFinancialCategories("expense"),
+          getSuppliersForDropdown(),
+        ])
+
+        if (catResult.data) {
+          setCategories(catResult.data)
+        } else {
+          console.error("Gider kategorileri yüklenemedi:", catResult.error)
+          setDataError(catResult.error || "Kategoriler yüklenemedi")
+        }
+
+        if (suppResult.data) {
+          setSuppliers(suppResult.data)
+        } else {
+          console.error("Tedarikçiler yüklenemedi:", suppResult.error)
+        }
+      } catch (error) {
+        console.error("Veri yükleme hatası:", error)
+        setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
+      } finally {
+        setLoadingData(false)
+      }
     }
+
+    fetchData()
+  }, [])
+
+  useEffect(() => {
+    if (state.success) {
+      router.push("/financials/expenses")
+    }
+  }, [state.success, router])
+
+  const getError = (field: string) => {
+    if (!state.errors || !Array.isArray(state.errors)) return undefined
+    return state.errors.find((e: any) => e.path && e.path[0] === field)?.message
+  }
+
+  if (loadingData) {
+    return (
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            Yeni Gider Kaydı
+          </CardTitle>
+          <CardDescription>Yeni bir gider kaydı oluşturun.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg">Veriler yükleniyor, lütfen bekleyin...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (dataError) {
+    return (
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            Veri Yükleme Hatası
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{dataError}</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="w-full max-w-4xl">
       <CardHeader>
-        <CardTitle>Yeni Gider</CardTitle>
-        <CardDescription>Yeni bir gider kaydı oluşturun</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <Receipt className="h-5 w-5" />
+          Yeni Gider Kaydı
+        </CardTitle>
+        <CardDescription>Yeni bir gider kaydı oluşturun.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form action={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">Açıklama</Label>
-            <Input id="description" name="description" placeholder="Gider açıklaması" required disabled={isLoading} />
+      <form action={formAction}>
+        <CardContent className="space-y-6">
+          {state.message && !state.success && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Hata</AlertTitle>
+              <AlertDescription>
+                {state.message}
+                {state.errors && state.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium">Lütfen aşağıdaki alanları kontrol edin:</p>
+                    <ul className="list-disc list-inside text-sm mt-1">
+                      {state.errors.map((error: any, index: number) => (
+                        <li key={index}>{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="expense_amount">Gider Tutarı (TRY) *</Label>
+              <Input id="expense_amount" name="expense_amount" type="number" step="0.01" placeholder="0.00" required />
+              {getError("expense_amount") && <p className="text-sm text-destructive">{getError("expense_amount")}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment_amount">Ödenen Tutar (TRY) *</Label>
+              <Input id="payment_amount" name="payment_amount" type="number" step="0.01" placeholder="0.00" required />
+              {getError("payment_amount") && <p className="text-sm text-destructive">{getError("payment_amount")}</p>}
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="amount">Tutar</Label>
+            <Label htmlFor="entry_date">Tarih *</Label>
+            <Input id="entry_date" name="entry_date" type="date" required />
+            {getError("entry_date") && <p className="text-sm text-destructive">{getError("entry_date")}</p>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="category_id">Gider Kategorisi *</Label>
+              <Select name="category_id" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bir gider kategorisi seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.length === 0 ? (
+                    <SelectItem value="no-categories" disabled>
+                      Kategori bulunamadı
+                    </SelectItem>
+                  ) : (
+                    categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        <div>
+                          <div className="font-medium">{category.name}</div>
+                          {category.description && (
+                            <div className="text-xs text-muted-foreground">{category.description}</div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {getError("category_id") && <p className="text-sm text-destructive">{getError("category_id")}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier_id">Tedarikçi (Opsiyonel)</Label>
+              <Select name="supplier_id" defaultValue="no-supplier">
+                <SelectTrigger>
+                  <SelectValue placeholder="Bir tedarikçi seçin (varsa)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-supplier">Tedarikçi Yok</SelectItem>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                      <div>
+                        <div className="font-medium">{supplier.name}</div>
+                        {supplier.email && <div className="text-xs text-muted-foreground">{supplier.email}</div>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {getError("supplier_id") && <p className="text-sm text-destructive">{getError("supplier_id")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense_title">Gider Başlığı *</Label>
             <Input
-              id="amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
+              id="expense_title"
+              name="expense_title"
+              placeholder="Örn: Ofis Malzemeleri, Elektrik Faturası"
               required
-              disabled={isLoading}
             />
+            {getError("expense_title") && <p className="text-sm text-destructive">{getError("expense_title")}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category">Kategori</Label>
-            <Select name="category" disabled={isLoading}>
-              <SelectTrigger>
-                <SelectValue placeholder="Kategori seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="office">Ofis Giderleri</SelectItem>
-                <SelectItem value="marketing">Pazarlama</SelectItem>
-                <SelectItem value="travel">Seyahat</SelectItem>
-                <SelectItem value="utilities">Faturalar</SelectItem>
-                <SelectItem value="supplies">Malzemeler</SelectItem>
-                <SelectItem value="other">Diğer</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="expense_source">Gider Kaynağı *</Label>
+            <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Tedarik, XYZ Market" required />
+            {getError("expense_source") && <p className="text-sm text-destructive">{getError("expense_source")}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="date">Tarih</Label>
-            <Input id="date" name="date" type="date" required disabled={isLoading} />
+            <Label htmlFor="description">Detaylı Açıklama *</Label>
+            <Input id="description" name="description" placeholder="Giderin detaylı açıklaması..." required />
+            {getError("description") && <p className="text-sm text-destructive">{getError("description")}</p>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_number">Fatura No (Opsiyonel)</Label>
+              <Input id="invoice_number" name="invoice_number" placeholder="Örn: FAT-2024-001" />
+              {getError("invoice_number") && <p className="text-sm text-destructive">{getError("invoice_number")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment_method">Ödeme Şekli *</Label>
+              <Select name="payment_method" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ödeme şeklini seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {getError("payment_method") && <p className="text-sm text-destructive">{getError("payment_method")}</p>}
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notlar</Label>
-            <Textarea id="notes" name="notes" placeholder="Ek notlar (opsiyonel)" disabled={isLoading} />
+            <Label htmlFor="notes">Notlar (Opsiyonel)</Label>
+            <Textarea id="notes" name="notes" placeholder="Bu giderle ilgili ek notlar..." />
+            {getError("notes") && <p className="text-sm text-destructive">{getError("notes")}</p>}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+            </div>
           </div>
-
-          <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? "Kaydediliyor..." : "Gider Oluştur"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
-              İptal
-            </Button>
-          </div>
-        </form>
-      </CardContent>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" disabled={isPending} className="ml-auto">
+            {isPending ? "Oluşturuluyor..." : "Gider Kaydı Oluştur"}
+          </Button>
+        </CardFooter>
+      </form>
     </Card>
   )
 }
