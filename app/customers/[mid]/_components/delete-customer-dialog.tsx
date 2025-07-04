@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef } from "react"
+import { useFormState, useFormStatus } from "react-dom"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,17 +12,34 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Trash2, RotateCcw, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
+import { Trash2, RotateCcw } from "lucide-react"
+
+type ActionResponse = {
+  success: boolean
+  message: string
+} | null
+
+type ServerAction = (prevState: any, formData: FormData) => Promise<{ success: boolean; message: string }>
+
+// Butonun bekleme durumunu yönetmek için ayrı bir component
+function SubmitButton({ isDeleted }: { isDeleted: boolean }) {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button type="submit" variant={isDeleted ? "default" : "destructive"} disabled={pending}>
+      {pending ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
+    </Button>
+  )
+}
 
 interface DeleteCustomerDialogProps {
   customerId: string
   customerName: string
   isDeleted: boolean
-  deleteAction: (customerId: string) => Promise<{ success: boolean; message: string }>
-  restoreAction: (customerId: string) => Promise<{ success: boolean; message: string }>
+  deleteAction: ServerAction
+  restoreAction: ServerAction
 }
 
 export function DeleteCustomerDialog({
@@ -30,125 +49,48 @@ export function DeleteCustomerDialog({
   deleteAction,
   restoreAction,
 }: DeleteCustomerDialogProps) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [state, formAction] = useFormState<ActionResponse, FormData>(isDeleted ? restoreAction : deleteAction, null)
+  const formRef = useRef<HTMLFormElement>(null)
 
-  const handleDelete = async () => {
-    if (!customerId) {
-      toast.error("Müşteri ID bulunamadı")
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const result = await deleteAction(customerId)
-
-      if (result.success) {
-        toast.success(result.message)
-        setOpen(false)
-        window.location.reload()
+  useEffect(() => {
+    if (state) {
+      if (state.success) {
+        toast.success(state.message)
+        // Dialog'u kapatıp sayfayı yenilemek en basit ve güvenilir yöntem
+        setTimeout(() => window.location.reload(), 500)
       } else {
-        setError(result.message)
-        toast.error(result.message)
+        toast.error(state.message)
       }
-    } catch (err) {
-      console.error("Delete error:", err)
-      const errorMessage = "Silme işlemi başarısız oldu"
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
     }
-  }
-
-  const handleRestore = async () => {
-    if (!customerId) {
-      toast.error("Müşteri ID bulunamadı")
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const result = await restoreAction(customerId)
-
-      if (result.success) {
-        toast.success(result.message)
-        setOpen(false)
-        window.location.reload()
-      } else {
-        setError(result.message)
-        toast.error(result.message)
-      }
-    } catch (err) {
-      console.error("Restore error:", err)
-      const errorMessage = "Geri yükleme işlemi başarısız oldu"
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [state])
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog>
       <DialogTrigger asChild>
         <Button variant={isDeleted ? "outline" : "destructive"} size="sm">
-          {isDeleted ? (
-            <>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Geri Yükle
-            </>
-          ) : (
-            <>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Sil
-            </>
-          )}
+          {isDeleted ? <RotateCcw className="mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
+          {isDeleted ? "Geri Yükle" : "Arşivle"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
-            {isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Sil"}
-          </DialogTitle>
+          <DialogTitle>{isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Arşivle"}</DialogTitle>
           <DialogDescription>
-            {isDeleted ? (
-              <>
-                <strong>{customerName}</strong> müşterisini geri yüklemek istediğinizden emin misiniz?
-              </>
-            ) : (
-              <>
-                <strong>{customerName}</strong> müşterisini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-              </>
-            )}
+            <strong>{customerName}</strong> isimli müşteriyi {isDeleted ? "geri yüklemek" : "arşivlemek"} istediğinizden
+            emin misiniz?
           </DialogDescription>
         </DialogHeader>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
-            İptal
-          </Button>
-          <Button
-            variant={isDeleted ? "default" : "destructive"}
-            onClick={isDeleted ? handleRestore : handleDelete}
-            disabled={loading}
-          >
-            {loading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Sil"}
-          </Button>
-        </DialogFooter>
+        <form ref={formRef} action={formAction}>
+          <input type="hidden" name="customerId" value={customerId} />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                İptal
+              </Button>
+            </DialogClose>
+            <SubmitButton isDeleted={isDeleted} />
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

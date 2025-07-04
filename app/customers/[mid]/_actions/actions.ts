@@ -81,67 +81,73 @@ export async function getCustomerPageData(
   }
 }
 
-export async function deleteCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
-  console.log(`[Delete Action] Starting delete for customer: ${customerId}`)
+// --- YENİ SİLME MANTIĞI ---
+export async function deleteCustomer(
+  prevState: any,
+  formData: FormData,
+): Promise<{ success: boolean; message: string }> {
+  const customerId = formData.get("customerId") as string
 
   if (!customerId) {
-    return { success: false, message: "Müşteri ID gerekli" }
+    return { success: false, message: "Geçersiz Müşteri ID." }
   }
 
+  console.log(`[Action: deleteCustomer] Arşivleme işlemi başlatıldı: ${customerId}`)
   const supabase = createClient()
 
   try {
-    // Müşteriyi sil (deleted_at alanını güncelle)
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from("customers")
       .update({ deleted_at: new Date().toISOString() })
       .eq("mid", customerId)
 
-    if (error) {
-      console.error(`[Delete Action] Error deleting customer ${customerId}:`, error)
-      return { success: false, message: "Müşteri silinirken hata oluştu" }
+    if (updateError) {
+      console.error(`[Action: deleteCustomer] Arşivleme hatası:`, updateError.message)
+      return { success: false, message: `Veritabanı hatası: ${updateError.message}` }
     }
 
-    console.log(`[Delete Action] Successfully deleted customer: ${customerId}`)
-
-    // Cache'i temizle
+    console.log(`[Action: deleteCustomer] Başarıyla arşivlendi: ${customerId}`)
     revalidatePath("/customers")
     revalidatePath(`/customers/${customerId}`)
 
-    return { success: true, message: "Müşteri başarıyla silindi" }
-  } catch (error) {
-    console.error(`[Delete Action] Unexpected error:`, error)
-    return { success: false, message: "Beklenmedik bir hata oluştu" }
+    return { success: true, message: "Müşteri başarıyla arşivlendi." }
+  } catch (e) {
+    const error = e as Error
+    console.error(`[Action: deleteCustomer] Beklenmedik hata:`, error.message)
+    return { success: false, message: "Sunucuda beklenmedik bir hata oluştu." }
   }
 }
 
-export async function restoreCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
-  console.log(`[Restore Action] Starting restore for customer: ${customerId}`)
+// --- YENİ GERİ YÜKLEME MANTIĞI ---
+export async function restoreCustomer(
+  prevState: any,
+  formData: FormData,
+): Promise<{ success: boolean; message: string }> {
+  const customerId = formData.get("customerId") as string
 
   if (!customerId) {
-    return { success: false, message: "Müşteri ID gerekli" }
+    return { success: false, message: "Geçersiz Müşteri ID." }
   }
 
+  console.log(`[Action: restoreCustomer] Geri yükleme işlemi başlatıldı: ${customerId}`)
   const supabase = createClient()
 
   try {
-    // Müşteriyi geri yükle (deleted_at alanını null yap)
-    const { error } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
+    const { error: updateError } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
 
-    if (error) {
-      console.error(`[Restore Action] Error restoring customer ${customerId}:`, error)
-      return { success: false, message: "Müşteri geri yüklenirken hata oluştu" }
+    if (updateError) {
+      console.error(`[Action: restoreCustomer] Geri yükleme hatası:`, updateError.message)
+      return { success: false, message: `Veritabanı hatası: ${updateError.message}` }
     }
 
-    console.log(`[Restore Action] Successfully restored customer: ${customerId}`)
-
-    // Cache'i temizle
+    console.log(`[Action: restoreCustomer] Başarıyla geri yüklendi: ${customerId}`)
     revalidatePath("/customers")
     revalidatePath(`/customers/${customerId}`)
 
-    return { success: true, message: "Müşteri başarıyla geri yüklendi" }
-  } catch (error) {
-    console.error(`[Restore Action] Unexpected error:`, error)
-    return { success: false, message: "Beklenmedik bir hata oluştu" }
+    return { success: true, message: "Müşteri başarıyla geri yüklendi." }
+  } catch (e) {
+    const error = e as Error
+    console.error(`[Action: restoreCustomer] Beklenmedik hata:`, error.message)
+    return { success: false, message: "Sunucuda beklenmedik bir hata oluştu." }
   }
 }
