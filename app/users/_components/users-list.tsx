@@ -34,12 +34,14 @@ export function UsersList({ users, deleteUser }: UsersListProps) {
         toast({
           title: "Başarılı",
           description: result.success,
+          duration: 1500,
         })
       } else if (result.error) {
         toast({
           title: "Hata",
           description: result.error,
           variant: "destructive",
+          duration: 1500,
         })
       }
 
@@ -64,7 +66,10 @@ export function UsersList({ users, deleteUser }: UsersListProps) {
     )
   }
 
-  if (users.length === 0) {
+  // Null kontrolü ekle
+  const validUsers = users.filter((user) => user && user.full_name)
+
+  if (validUsers.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -89,7 +94,7 @@ export function UsersList({ users, deleteUser }: UsersListProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Kullanıcılar ({users.length})</CardTitle>
+              <CardTitle>Kullanıcılar ({validUsers.length})</CardTitle>
               <CardDescription>Sistem kullanıcılarını yönetin</CardDescription>
             </div>
             <Link href="/users/new">
@@ -113,10 +118,10 @@ export function UsersList({ users, deleteUser }: UsersListProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {validUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.full_name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell className="font-medium">{user.full_name || "İsimsiz Kullanıcı"}</TableCell>
+                  <TableCell>{user.email || "E-posta yok"}</TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
                   <TableCell>{getStatusBadge(user.status)}</TableCell>
                   <TableCell>

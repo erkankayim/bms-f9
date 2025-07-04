@@ -1,174 +1,230 @@
 "use client"
 
-import React from "react"
+import type React from "react"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { adjustStockQuantityAction, searchProductsForAdjustment } from "../../_actions/inventory-actions"
-import type { ProductSearchResult, StockAdjustmentFormState } from "../../_actions/inventory-actions"
-import { useDebounce } from "@/hooks/use-debounce"
-import { useToast } from "@/components/ui/use-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Loader2 } from "lucide-react"
+import { adjustStock } from "../../_actions/inventory-actions"
+import { useToast } from "@/hooks/use-toast"
 
-export function StockAdjustmentForm() {
-  const [isPending, startTransition] = useTransition()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
+interface Product {
+  id: number
+  stock_code: string
+  product_name: string
+  current_stock: number
+}
+
+interface StockAdjustmentFormProps {
+  products: Product[]
+}
+
+export default function StockAdjustmentForm({ products }: StockAdjustmentFormProps) {
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [adjustmentType, setAdjustmentType] = useState<"increase" | "decrease" | "set">()
+  const [quantity, setQuantity] = useState("")
+  const [reason, setReason] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
 
-  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  const handleProductSelect = (stockCode: string) => {
+    const product = products.find((p) => p.stock_code === stockCode)
+    setSelectedProduct(product || null)
+  }
 
-  // Ürün arama
-  React.useEffect(() => {
-    if (debouncedSearchTerm.length >= 2) {
-      setIsSearching(true)
-      searchProductsForAdjustment(debouncedSearchTerm)
-        .then((result) => {
-          if (result.success && result.data) {
-            setSearchResults(result.data)
-          } else {
-            setSearchResults([])
-          }
-        })
-        .catch(() => setSearchResults([]))
-        .finally(() => setIsSearching(false))
-    } else {
-      setSearchResults([])
-    }
-  }, [debouncedSearchTerm])
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  async function handleSubmit(formData: FormData) {
-    if (!selectedProduct) {
+    if (!selectedProduct || !adjustmentType || !quantity || !reason) {
       toast({
         title: "Hata",
-        description: "Lütfen bir ürün seçin",
+        description: "Lütfen tüm alanları doldurun",
         variant: "destructive",
+        duration: 1500,
       })
       return
     }
 
-    const initialState: StockAdjustmentFormState = {
-      success: false,
-      message: "",
+    const quantityNum = Number.parseInt(quantity)
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+      toast({
+        title: "Hata",
+        description: "Geçerli bir miktar girin",
+        variant: "destructive",
+        duration: 1500,
+      })
+      return
     }
 
-    startTransition(async () => {
-      try {
-        const result = await adjustStockQuantityAction(initialState, formData)
+    if (adjustmentType === "decrease" && quantityNum > selectedProduct.current_stock) {
+      toast({
+        title: "Hata",
+        description: "Azaltılacak miktar mevcut stoktan fazla olamaz",
+        variant: "destructive",
+        duration: 1500,
+      })
+      return
+    }
 
-        if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: result.message,
-            variant: "default",
-          })
-          // Formu temizle
-          setSelectedProduct(null)
-          setSearchTerm("")
-          setSearchResults([])
-          // Form elementlerini temizle
-          const form = document.querySelector("form") as HTMLFormElement
-          if (form) form.reset()
-        } else {
-          toast({
-            title: "Hata",
-            description: result.message,
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
+    setIsLoading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("productId", selectedProduct.id.toString())
+      formData.append("adjustmentType", adjustmentType)
+      formData.append("quantity", quantity)
+      formData.append("reason", reason)
+
+      const result = await adjustStock(formData)
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: result.success,
+          duration: 1500,
+        })
+        router.push("/inventory")
+      } else if (result.error) {
         toast({
           title: "Hata",
-          description: "Beklenmeyen bir hata oluştu",
+          description: result.error,
           variant: "destructive",
+          duration: 1500,
         })
       }
-    })
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Beklenmeyen bir hata oluştu",
+        variant: "destructive",
+        duration: 1500,
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
+  const calculateNewStock = () => {
+    if (!selectedProduct || !quantity || !adjustmentType) return null
+
+    const quantityNum = Number.parseInt(quantity)
+    if (isNaN(quantityNum)) return null
+
+    switch (adjustmentType) {
+      case "increase":
+        return selectedProduct.current_stock + quantityNum
+      case "decrease":
+        return Math.max(0, selectedProduct.current_stock - quantityNum)
+      case "set":
+        return quantityNum
+      default:
+        return null
+    }
+  }
+
+  const newStock = calculateNewStock()
+
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <Card className="max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>Stok Ayarlama</CardTitle>
-        <CardDescription>Ürün stoklarını artırın veya azaltın</CardDescription>
+        <CardDescription>Ürün stoklarını artırın, azaltın veya belirli bir değere ayarlayın</CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="product-search">Ürün Ara</Label>
-            <Input
-              id="product-search"
-              type="text"
-              placeholder="Ürün adı veya stok kodu ile arayın..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isPending}
-            />
-
-            {isSearching && <p className="text-sm text-muted-foreground">Aranıyor...</p>}
-
-            {searchResults.length > 0 && (
-              <div className="border rounded-md max-h-48 overflow-y-auto">
-                {searchResults.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0"
-                    onClick={() => {
-                      setSelectedProduct(product)
-                      setSearchTerm(product.name)
-                      setSearchResults([])
-                    }}
-                  >
-                    <div className="font-medium">{product.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      Stok Kodu: {product.stock_code} | Mevcut: {product.current_stock}
-                    </div>
-                  </button>
+            <Label htmlFor="product">Ürün</Label>
+            <Select onValueChange={handleProductSelect} disabled={isLoading}>
+              <SelectTrigger>
+                <SelectValue placeholder="Ürün seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {products.map((product) => (
+                  <SelectItem key={product.id} value={product.stock_code}>
+                    {product.product_name} ({product.stock_code}) - Mevcut: {product.current_stock}
+                  </SelectItem>
                 ))}
-              </div>
-            )}
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedProduct && (
-            <>
-              <input type="hidden" name="productId" value={selectedProduct.stock_code} />
-
-              <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium">{selectedProduct.name}</div>
-                <div className="text-sm text-muted-foreground">
-                  Stok Kodu: {selectedProduct.stock_code} | Mevcut Stok: {selectedProduct.current_stock}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Değişim Miktarı</Label>
-                <Input
-                  id="quantity"
-                  name="quantity"
-                  type="number"
-                  placeholder="Pozitif: artır, Negatif: azalt"
-                  required
-                  disabled={isPending}
-                />
-                <p className="text-sm text-muted-foreground">Örnek: +10 (10 adet ekle), -5 (5 adet çıkar)</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notlar</Label>
-                <Textarea id="notes" name="notes" placeholder="Stok ayarlama sebebi..." disabled={isPending} />
-              </div>
-
-              <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? "Ayarlanıyor..." : "Stok Ayarla"}
-              </Button>
-            </>
+            <div className="p-4 bg-muted rounded-lg">
+              <h3 className="font-medium">{selectedProduct.product_name}</h3>
+              <p className="text-sm text-muted-foreground">
+                Stok Kodu: {selectedProduct.stock_code} | Mevcut Stok: {selectedProduct.current_stock}
+              </p>
+            </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="adjustmentType">İşlem Türü</Label>
+            <Select
+              onValueChange={(value: "increase" | "decrease" | "set") => setAdjustmentType(value)}
+              disabled={isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="İşlem türü seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="increase">Stok Artır</SelectItem>
+                <SelectItem value="decrease">Stok Azalt</SelectItem>
+                <SelectItem value="set">Stok Belirle</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Miktar</Label>
+            <Input
+              id="quantity"
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="Miktar girin"
+              disabled={isLoading}
+            />
+          </div>
+
+          {newStock !== null && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm">
+                <span className="font-medium">Yeni Stok:</span> {newStock}
+                <span className="text-muted-foreground ml-2">
+                  (Mevcut: {selectedProduct?.current_stock} → Yeni: {newStock})
+                </span>
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="reason">Açıklama</Label>
+            <Textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Stok ayarlama sebebini açıklayın"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? "Kaydediliyor..." : "Stok Ayarla"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
+              İptal
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
