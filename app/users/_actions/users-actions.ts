@@ -2,224 +2,262 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { z } from "zod"
-import type { UserRole, UserProfile } from "@/app/lib/types"
+import type { CreateUserData, UpdateUserData, UserWithAuth } from "@/app/lib/types"
 
-const UserSchema = z.object({
-  fullName: z.string().min(2, "Ad Soyad en az 2 karakter olmalıdır."),
-  email: z.string().email("Geçersiz e-posta adresi."),
-  password: z.string().min(6, "Şifre en az 6 karakter olmalıdır.").optional().or(z.literal("")),
-  role: z.enum(["admin", "acc", "tech"]),
-  status: z.enum(["active", "inactive"]),
-})
-
-// Helper to check if the current user is an admin
-async function isAdmin() {
-  const supabase = createClient()
+// Get current user's role for authorization
+export async function getCurrentUserRole(): Promise<"admin" | "acc" | "tech" | null> {
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return false
+
+  if (!user) return null
 
   const { data: profile } = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single()
 
-  return profile?.role === "admin"
+  return profile?.role || null
 }
 
-export async function createUser(prevState: any, formData: FormData) {
-  if (!(await isAdmin())) {
-    return { success: false, message: "Yetkisiz işlem." }
+// Check if user is admin
+async function requireAdmin() {
+  const role = await getCurrentUserRole()
+  if (role !== "admin") {
+    throw new Error("Bu işlem için yönetici yetkisi gereklidir.")
   }
+}
 
-  const validatedFields = UserSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-    password: formData.get("password"),
-    role: formData.get("role"),
-    status: formData.get("status"),
-  })
+export async function getUsers(): Promise<UserWithAuth[]> {
+  await requireAdmin()
 
-  if (!validatedFields.success) {
-    return { success: false, message: "Geçersiz form verileri.", errors: validatedFields.error.flatten().fieldErrors }
-  }
+  const supabase = await createClient()
 
-  const { email, password, fullName, role, status } = validatedFields.data
-
-  if (!password) {
-    return { success: false, message: "Yeni kullanıcı için şifre zorunludur." }
-  }
-
-  const supabase = createClient()
-
-  // Create user in auth.users
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true, // Automatically confirm email
-    user_metadata: { full_name: fullName },
-  })
-
-  if (authError || !authData.user) {
-    return { success: false, message: authError?.message || "Kullanıcı oluşturulamadı." }
-  }
-
-  // Update profile created by trigger
-  const { error: profileError } = await supabase
+  // Get user profiles with auth data
+  const { data: profiles, error: profilesError } = await supabase
     .from("user_profiles")
-    .update({ role, status, full_name: fullName })
-    .eq("user_id", authData.user.id)
+    .select("*")
+    .order("created_at", { ascending: false })
 
-  if (profileError) {
-    // If profile update fails, delete the created auth user
-    await supabase.auth.admin.deleteUser(authData.user.id)
-    return { success: false, message: profileError.message || "Kullanıcı profili güncellenemedi." }
+  if (profilesError) {
+    console.error("Error fetching user profiles:", profilesError)
+    throw new Error("Kullanıcılar getirilemedi")
   }
 
-  revalidatePath("/users")
-  return { success: true, message: "Kullanıcı başarıyla oluşturuldu." }
-}
-
-export async function updateUser(userId: string, prevState: any, formData: FormData) {
-  if (!(await isAdmin())) {
-    return { success: false, message: "Yetkisiz işlem." }
-  }
-
-  const validatedFields = UserSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-    password: formData.get("password"),
-    role: formData.get("role"),
-    status: formData.get("status"),
-  })
-
-  if (!validatedFields.success) {
-    return { success: false, message: "Geçersiz form verileri.", errors: validatedFields.error.flatten().fieldErrors }
-  }
-
-  const { email, password, fullName, role, status } = validatedFields.data
-
-  const supabase = createClient()
-
-  // Update profile
-  const { error: profileError } = await supabase
-    .from("user_profiles")
-    .update({ full_name: fullName, role, status })
-    .eq("user_id", userId)
-
-  if (profileError) {
-    return { success: false, message: profileError.message || "Profil güncellenemedi." }
-  }
-
-  // Update auth data
-  const authUpdateData: { email?: string; password?: string } = { email }
-  if (password) {
-    authUpdateData.password = password
-  }
-
-  const { error: authError } = await supabase.auth.admin.updateUserById(userId, authUpdateData)
-
-  if (authError) {
-    return { success: false, message: authError.message || "Auth bilgileri güncellenemedi." }
-  }
-
-  revalidatePath("/users")
-  revalidatePath(`/users/${userId}/edit`)
-  return { success: true, message: "Kullanıcı başarıyla güncellendi." }
-}
-
-export async function getUsers(): Promise<{ users: UserProfile[]; error?: string }> {
-  if (!(await isAdmin())) {
-    return { users: [], error: "Yetkisiz işlem." }
-  }
-
-  const supabase = createClient()
+  // Get auth users to get emails
   const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
 
   if (authError) {
-    return { users: [], error: authError.message }
+    console.error("Error fetching auth users:", authError)
+    throw new Error("Kullanıcı bilgileri getirilemedi")
   }
 
-  const { data: profiles, error: profileError } = await supabase.from("user_profiles").select("*")
-
-  if (profileError) {
-    return { users: [], error: profileError.message }
-  }
-
-  const users = authUsers.users.map((user) => {
-    const profile = profiles.find((p) => p.user_id === user.id)
+  // Combine profile and auth data
+  const usersWithAuth: UserWithAuth[] = profiles.map((profile) => {
+    const authUser = authUsers.users.find((u) => u.id === profile.user_id)
     return {
-      id: user.id,
-      email: user.email || "",
-      full_name: profile?.full_name || user.user_metadata?.full_name || "N/A",
-      role: profile?.role || "tech",
-      status: profile?.status || "inactive",
-      created_at: user.created_at,
+      ...profile,
+      email: authUser?.email || "Bilinmiyor",
     }
   })
 
-  return { users }
+  return usersWithAuth
 }
 
-export async function getUserById(userId: string): Promise<{ user: UserProfile | null; error?: string }> {
-  if (!(await isAdmin())) {
-    return { user: null, error: "Yetkisiz işlem." }
+export async function getUserById(id: string): Promise<UserWithAuth | null> {
+  await requireAdmin()
+
+  const supabase = await createClient()
+
+  const { data: profile, error: profileError } = await supabase.from("user_profiles").select("*").eq("id", id).single()
+
+  if (profileError || !profile) {
+    return null
   }
 
-  const supabase = createClient()
-  const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId)
+  const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(profile.user_id)
 
   if (authError || !authUser.user) {
-    return { user: null, error: authError?.message || "Kullanıcı bulunamadı." }
+    return null
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .eq("user_id", userId)
-    .single()
-
-  if (profileError) {
-    return { user: null, error: profileError.message }
+  return {
+    ...profile,
+    email: authUser.user.email || "Bilinmiyor",
   }
-
-  const user = {
-    id: authUser.user.id,
-    email: authUser.user.email || "",
-    full_name: profile.full_name,
-    role: profile.role,
-    status: profile.status,
-    created_at: authUser.user.created_at,
-  }
-
-  return { user }
 }
 
-export async function deleteUser(userId: string): Promise<{ success: boolean; message: string }> {
-  if (!(await isAdmin())) {
-    return { success: false, message: "Yetkisiz işlem." }
+export async function createUser(_prevState: any, formData: FormData) {
+  try {
+    await requireAdmin()
+
+    const userData: CreateUserData = {
+      full_name: formData.get("full_name") as string,
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
+      role: formData.get("role") as "admin" | "acc" | "tech",
+      status: formData.get("status") as "active" | "inactive",
+    }
+
+    // Validate required fields
+    if (!userData.full_name || !userData.email || !userData.password) {
+      return { success: false, message: "Tüm alanları doldurun" }
+    }
+
+    const supabase = await createClient()
+
+    // Create user in auth
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: userData.email,
+      password: userData.password,
+      user_metadata: {
+        full_name: userData.full_name,
+      },
+    })
+
+    if (authError) {
+      console.error("Auth user creation error:", authError)
+      return { success: false, message: "Kullanıcı oluşturulamadı: " + authError.message }
+    }
+
+    if (!authData.user) {
+      return { success: false, message: "Kullanıcı oluşturulamadı" }
+    }
+
+    // Create user profile
+    const { error: profileError } = await supabase.from("user_profiles").insert({
+      user_id: authData.user.id,
+      full_name: userData.full_name,
+      role: userData.role,
+      status: userData.status,
+    })
+
+    if (profileError) {
+      console.error("Profile creation error:", profileError)
+      // If profile creation fails, delete the auth user
+      await supabase.auth.admin.deleteUser(authData.user.id)
+      return { success: false, message: "Kullanıcı profili oluşturulamadı" }
+    }
+
+    revalidatePath("/users")
+    return { success: true, message: "Kullanıcı başarıyla oluşturuldu" }
+  } catch (error) {
+    console.error("Create user error:", error)
+    return { success: false, message: error instanceof Error ? error.message : "Bir hata oluştu" }
   }
-
-  const supabase = createClient()
-  const { error } = await supabase.auth.admin.deleteUser(userId)
-
-  if (error) {
-    return { success: false, message: error.message }
-  }
-
-  // The profile is deleted automatically by the ON DELETE CASCADE constraint
-  revalidatePath("/users")
-  return { success: true, message: "Kullanıcı başarıyla silindi." }
 }
 
-export async function getCurrentUserRole(): Promise<UserRole | null> {
-  const supabase = createClient()
+export async function updateUser(_prevState: any, formData: FormData) {
+  try {
+    await requireAdmin()
+
+    const userId = formData.get("id") as string
+    const userData: UpdateUserData = {
+      full_name: formData.get("full_name") as string,
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
+      role: formData.get("role") as "admin" | "acc" | "tech",
+      status: formData.get("status") as "active" | "inactive",
+    }
+
+    if (!userId || !userData.full_name) {
+      return { success: false, message: "Gerekli alanları doldurun" }
+    }
+
+    const supabase = await createClient()
+
+    // Get current user profile
+    const { data: currentProfile, error: profileFetchError } = await supabase
+      .from("user_profiles")
+      .select("user_id")
+      .eq("id", userId)
+      .single()
+
+    if (profileFetchError || !currentProfile) {
+      return { success: false, message: "Kullanıcı bulunamadı" }
+    }
+
+    // Update user profile
+    const { error: profileError } = await supabase
+      .from("user_profiles")
+      .update({
+        full_name: userData.full_name,
+        role: userData.role,
+        status: userData.status,
+      })
+      .eq("id", userId)
+
+    if (profileError) {
+      console.error("Profile update error:", profileError)
+      return { success: false, message: "Kullanıcı profili güncellenemedi" }
+    }
+
+    // Update auth user if email or password changed
+    const authUpdates: any = {}
+    if (userData.email) {
+      authUpdates.email = userData.email
+    }
+    if (userData.password) {
+      authUpdates.password = userData.password
+    }
+
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await supabase.auth.admin.updateUserById(currentProfile.user_id, authUpdates)
+
+      if (authError) {
+        console.error("Auth update error:", authError)
+        return { success: false, message: "Kullanıcı bilgileri güncellenemedi: " + authError.message }
+      }
+    }
+
+    revalidatePath("/users")
+    return { success: true, message: "Kullanıcı başarıyla güncellendi" }
+  } catch (error) {
+    console.error("Update user error:", error)
+    return { success: false, message: error instanceof Error ? error.message : "Bir hata oluştu" }
+  }
+}
+
+export async function deleteUser(userId: string) {
+  try {
+    await requireAdmin()
+
+    const supabase = await createClient()
+
+    // Get user profile to get auth user ID
+    const { data: profile, error: profileFetchError } = await supabase
+      .from("user_profiles")
+      .select("user_id")
+      .eq("id", userId)
+      .single()
+
+    if (profileFetchError || !profile) {
+      throw new Error("Kullanıcı bulunamadı")
+    }
+
+    // Delete auth user (this will cascade delete the profile due to foreign key)
+    const { error: authError } = await supabase.auth.admin.deleteUser(profile.user_id)
+
+    if (authError) {
+      console.error("Auth user deletion error:", authError)
+      throw new Error("Kullanıcı silinemedi: " + authError.message)
+    }
+
+    revalidatePath("/users")
+    return { success: true, message: "Kullanıcı başarıyla silindi" }
+  } catch (error) {
+    console.error("Delete user error:", error)
+    throw error
+  }
+}
+
+export async function getCurrentUserProfile() {
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
   if (!user) return null
 
-  const { data: profile, error } = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single()
+  const { data: profile } = await supabase.from("user_profiles").select("*").eq("user_id", user.id).single()
 
-  if (error) return null
-  return profile.role
+  return profile
 }

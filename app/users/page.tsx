@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { getCurrentUserRole } from "./_actions/users-actions"
+import { getCurrentUserProfile } from "./_actions/users-actions"
 import { UsersList } from "./_components/users-list"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -7,10 +7,10 @@ import { Plus } from "lucide-react"
 import { redirect } from "next/navigation"
 
 export default async function UsersPage() {
-  const userRole = await getCurrentUserRole()
+  const currentUser = await getCurrentUserProfile()
 
-  // Sadece adminler bu sayfayı görebilir
-  if (userRole !== "admin") {
+  // Only admins can access this page
+  if (!currentUser || currentUser.role !== "admin") {
     redirect("/")
   }
 
@@ -21,15 +21,21 @@ export default async function UsersPage() {
           <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
           <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
         </div>
-        <Link href="/users/new">
-          <Button>
+        <Button asChild>
+          <Link href="/users/new">
             <Plus className="mr-2 h-4 w-4" />
             Yeni Kullanıcı
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
-      <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        }
+      >
         <UsersList />
       </Suspense>
     </div>

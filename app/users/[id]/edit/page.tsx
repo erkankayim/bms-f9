@@ -1,4 +1,4 @@
-import { getCurrentUserRole, getUserById } from "../../_actions/users-actions"
+import { getCurrentUserProfile, getUserById } from "../../_actions/users-actions"
 import { UserForm } from "../../_components/user-form"
 import { redirect, notFound } from "next/navigation"
 
@@ -9,27 +9,22 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const userRole = await getCurrentUserRole()
+  const currentUser = await getCurrentUserProfile()
 
-  // Sadece adminler kullanıcı düzenleyebilir
-  if (userRole !== "admin") {
+  // Only admins can edit users
+  if (!currentUser || currentUser.role !== "admin") {
     redirect("/")
   }
 
-  const { user, error } = await getUserById(params.id)
+  const user = await getUserById(params.id)
 
-  if (error || !user) {
+  if (!user) {
     notFound()
   }
 
   return (
     <div className="container mx-auto py-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Kullanıcı Düzenle</h1>
-        <p className="text-muted-foreground">{user.full_name || user.email} kullanıcısını düzenleyin</p>
-      </div>
-
-      <UserForm user={user} isEdit />
+      <UserForm user={user} mode="edit" />
     </div>
   )
 }
