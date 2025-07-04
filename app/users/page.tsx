@@ -1,29 +1,29 @@
 import { Suspense } from "react"
-import { getCurrentUserProfile } from "./_actions/users-actions"
-import { UsersList } from "./_components/users-list"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Plus, Users } from "lucide-react"
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { UsersList } from "./_components/users-list"
+import { getCurrentUserRole } from "./_actions/users-actions"
 import { redirect } from "next/navigation"
 
 export default async function UsersPage() {
-  const currentUser = await getCurrentUserProfile()
+  const userRole = await getCurrentUserRole()
 
-  // Only admins can access this page
-  if (!currentUser || currentUser.role !== "admin") {
+  if (userRole !== "admin") {
     redirect("/")
   }
 
   return (
     <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
-          <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          <h1 className="text-2xl font-bold">Kullanıcı Yönetimi</h1>
         </div>
         <Button asChild>
           <Link href="/users/new">
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4 mr-2" />
             Yeni Kullanıcı
           </Link>
         </Button>
@@ -31,9 +31,11 @@ export default async function UsersPage() {
 
       <Suspense
         fallback={
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">Kullanıcılar yükleniyor...</div>
+            </CardContent>
+          </Card>
         }
       >
         <UsersList />

@@ -1,12 +1,11 @@
-import { getCurrentUserProfile } from "../_actions/users-actions"
 import { UserForm } from "../_components/user-form"
+import { getCurrentUserRole } from "../_actions/users-actions"
 import { redirect } from "next/navigation"
 
 export default async function NewUserPage() {
-  const currentUser = await getCurrentUserProfile()
+  const userRole = await getCurrentUserRole()
 
-  // Only admins can create users
-  if (!currentUser || currentUser.role !== "admin") {
+  if (userRole !== "admin") {
     redirect("/")
   }
 

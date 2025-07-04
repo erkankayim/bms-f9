@@ -2,10 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { CreateUserData, UpdateUserData, UserWithAuth } from "@/app/lib/types"
+import type { UserRole, UserWithAuth } from "@/app/lib/types"
 
 // Get current user's role for authorization
-export async function getCurrentUserRole(): Promise<"admin" | "acc" | "tech" | null> {
+export async function getCurrentUserRole(): Promise<UserRole | null> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -31,7 +31,7 @@ export async function getUsers(): Promise<UserWithAuth[]> {
 
   const supabase = await createClient()
 
-  // Get user profiles with auth data
+  // Get user profiles
   const { data: profiles, error: profilesError } = await supabase
     .from("user_profiles")
     .select("*")
@@ -89,27 +89,30 @@ export async function createUser(_prevState: any, formData: FormData) {
   try {
     await requireAdmin()
 
-    const userData: CreateUserData = {
-      full_name: formData.get("full_name") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      role: formData.get("role") as "admin" | "acc" | "tech",
-      status: formData.get("status") as "active" | "inactive",
-    }
+    const fullName = formData.get("fullName") as string
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const role = formData.get("role") as UserRole
+    const status = formData.get("status") as "active" | "inactive"
 
     // Validate required fields
-    if (!userData.full_name || !userData.email || !userData.password) {
+    if (!fullName || !email || !password) {
       return { success: false, message: "Tüm alanları doldurun" }
+    }
+
+    if (password.length < 6) {
+      return { success: false, message: "Şifre en az 6 karakter olmalıdır" }
     }
 
     const supabase = await createClient()
 
     // Create user in auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: userData.email,
-      password: userData.password,
+      email,
+      password,
+      email_confirm: true,
       user_metadata: {
-        full_name: userData.full_name,
+        full_name: fullName,
       },
     })
 
@@ -122,19 +125,21 @@ export async function createUser(_prevState: any, formData: FormData) {
       return { success: false, message: "Kullanıcı oluşturulamadı" }
     }
 
-    // Create user profile
-    const { error: profileError } = await supabase.from("user_profiles").insert({
-      user_id: authData.user.id,
-      full_name: userData.full_name,
-      role: userData.role,
-      status: userData.status,
-    })
+    // Update the automatically created profile with correct role and status
+    const { error: profileError } = await supabase
+      .from("user_profiles")
+      .update({
+        full_name: fullName,
+        role,
+        status,
+      })
+      .eq("user_id", authData.user.id)
 
     if (profileError) {
-      console.error("Profile creation error:", profileError)
-      // If profile creation fails, delete the auth user
+      console.error("Profile update error:", profileError)
+      // If profile update fails, delete the created auth user
       await supabase.auth.admin.deleteUser(authData.user.id)
-      return { success: false, message: "Kullanıcı profili oluşturulamadı" }
+      return { success: false, message: "Kullanıcı profili güncellenemedi" }
     }
 
     revalidatePath("/users")
@@ -145,21 +150,18 @@ export async function createUser(_prevState: any, formData: FormData) {
   }
 }
 
-export async function updateUser(_prevState: any, formData: FormData) {
+export async function updateUser(userId: string, _prevState: any, formData: FormData) {
   try {
     await requireAdmin()
 
-    const userId = formData.get("id") as string
-    const userData: UpdateUserData = {
-      full_name: formData.get("full_name") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      role: formData.get("role") as "admin" | "acc" | "tech",
-      status: formData.get("status") as "active" | "inactive",
-    }
+    const fullName = formData.get("fullName") as string
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const role = formData.get("role") as UserRole
+    const status = formData.get("status") as "active" | "inactive"
 
-    if (!userId || !userData.full_name) {
-      return { success: false, message: "Gerekli alanları doldurun" }
+    if (!fullName) {
+      return { success: false, message: "Ad soyad gereklidir" }
     }
 
     const supabase = await createClient()
@@ -179,9 +181,10 @@ export async function updateUser(_prevState: any, formData: FormData) {
     const { error: profileError } = await supabase
       .from("user_profiles")
       .update({
-        full_name: userData.full_name,
-        role: userData.role,
-        status: userData.status,
+        full_name: fullName,
+        role,
+        status,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", userId)
 
@@ -192,11 +195,11 @@ export async function updateUser(_prevState: any, formData: FormData) {
 
     // Update auth user if email or password changed
     const authUpdates: any = {}
-    if (userData.email) {
-      authUpdates.email = userData.email
+    if (email) {
+      authUpdates.email = email
     }
-    if (userData.password) {
-      authUpdates.password = userData.password
+    if (password && password.length >= 6) {
+      authUpdates.password = password
     }
 
     if (Object.keys(authUpdates).length > 0) {
@@ -209,6 +212,7 @@ export async function updateUser(_prevState: any, formData: FormData) {
     }
 
     revalidatePath("/users")
+    revalidatePath(`/users/${userId}/edit`)
     return { success: true, message: "Kullanıcı başarıyla güncellendi" }
   } catch (error) {
     console.error("Update user error:", error)

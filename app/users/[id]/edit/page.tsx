@@ -1,4 +1,4 @@
-import { getCurrentUserProfile, getUserById } from "../../_actions/users-actions"
+import { getUserById, getCurrentUserRole } from "../../_actions/users-actions"
 import { UserForm } from "../../_components/user-form"
 import { redirect, notFound } from "next/navigation"
 
@@ -9,10 +9,9 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const currentUser = await getCurrentUserProfile()
+  const userRole = await getCurrentUserRole()
 
-  // Only admins can edit users
-  if (!currentUser || currentUser.role !== "admin") {
+  if (userRole !== "admin") {
     redirect("/")
   }
 
