@@ -1,6 +1,6 @@
-import { getCurrentUserRole, getUserById } from "../../_actions/users-actions"
+import { getUserById } from "../../_actions/users-actions"
 import { UserForm } from "../../_components/user-form"
-import { redirect, notFound } from "next/navigation"
+import { notFound } from "next/navigation"
 
 interface EditUserPageProps {
   params: {
@@ -9,12 +9,6 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const userRole = await getCurrentUserRole()
-
-  if (userRole !== "admin") {
-    redirect("/")
-  }
-
   const user = await getUserById(params.id)
 
   if (!user) {
@@ -22,7 +16,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-8">
       <UserForm user={user} mode="edit" />
     </div>
   )

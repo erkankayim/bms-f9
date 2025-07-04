@@ -36,7 +36,7 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
     } catch (error) {
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Kullanıcı silinirken hata oluştu",
+        description: error instanceof Error ? error.message : "Kullanıcı silinirken bir hata oluştu",
         variant: "destructive",
       })
     } finally {
@@ -48,19 +48,20 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="mr-2 h-4 w-4" />
+          Sil
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            <strong>{userName}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            <strong>{userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
             {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>

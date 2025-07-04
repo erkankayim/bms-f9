@@ -332,3 +332,42 @@ export async function debugUserStatus() {
     return { error }
   }
 }
+
+// Fix existing admin user profile
+export async function fixAdminProfile() {
+  try {
+    const supabase = await createClient()
+
+    // Get current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { success: false, message: "Kullanıcı bulunamadı" }
+    }
+
+    // Create or update profile for current user
+    const { error } = await supabase.from("user_profiles").upsert(
+      {
+        user_id: user.id,
+        full_name: user.user_metadata?.full_name || "Sistem Yöneticisi",
+        role: "admin",
+        status: "active",
+      },
+      {
+        onConflict: "user_id",
+      },
+    )
+
+    if (error) {
+      console.error("Profile upsert error:", error)
+      return { success: false, message: "Profil oluşturulamadı" }
+    }
+
+    return { success: true, message: "Admin profili oluşturuldu" }
+  } catch (error) {
+    console.error("Fix admin profile error:", error)
+    return { success: false, message: "Bir hata oluştu" }
+  }
+}

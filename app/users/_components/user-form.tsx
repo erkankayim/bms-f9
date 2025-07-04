@@ -2,14 +2,13 @@
 
 import { useActionState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createUser, updateUser } from "../_actions/users-actions"
 import type { UserWithAuth } from "@/app/lib/types"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
 
 interface UserFormProps {
   user?: UserWithAuth
@@ -17,30 +16,28 @@ interface UserFormProps {
 }
 
 export function UserForm({ user, mode }: UserFormProps) {
-  const router = useRouter()
-  const isEdit = mode === "edit"
-
-  const [state, formAction, isPending] = useActionState(isEdit && user ? updateUser.bind(null, user.id) : createUser, {
-    success: false,
-    message: "",
-  })
-
-  useEffect(() => {
-    if (state.success) {
-      router.push("/users")
-    }
-  }, [state.success, router])
+  const action = mode === "create" ? createUser : updateUser.bind(null, user?.id || "")
+  const [state, formAction, isPending] = useActionState(action, null)
 
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>{isEdit ? "Kullanıcı Düzenle" : "Yeni Kullanıcı"}</CardTitle>
+        <CardTitle>{mode === "create" ? "Yeni Kullanıcı Ekle" : "Kullanıcı Düzenle"}</CardTitle>
+        <CardDescription>
+          {mode === "create" ? "Sisteme yeni bir kullanıcı ekleyin" : "Mevcut kullanıcı bilgilerini güncelleyin"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="fullName">Ad Soyad *</Label>
-            <Input id="fullName" name="fullName" defaultValue={user?.full_name || ""} required disabled={isPending} />
+            <Input
+              id="fullName"
+              name="fullName"
+              defaultValue={user?.full_name || ""}
+              required
+              placeholder="Kullanıcının tam adı"
+            />
           </div>
 
           <div className="space-y-2">
@@ -50,29 +47,28 @@ export function UserForm({ user, mode }: UserFormProps) {
               name="email"
               type="email"
               defaultValue={user?.email || ""}
-              required={!isEdit}
-              disabled={isPending}
-              placeholder={isEdit ? "Değiştirmek için yeni e-posta girin" : ""}
+              required={mode === "create"}
+              placeholder="kullanici@example.com"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Şifre {!isEdit && "*"}</Label>
+            <Label htmlFor="password">Şifre {mode === "create" ? "*" : "(Değiştirmek için doldurun)"}</Label>
             <Input
               id="password"
               name="password"
               type="password"
-              required={!isEdit}
-              disabled={isPending}
-              placeholder={isEdit ? "Değiştirmek için yeni şifre girin" : "En az 6 karakter"}
+              required={mode === "create"}
+              placeholder={mode === "create" ? "En az 6 karakter" : "Yeni şifre (opsiyonel)"}
+              minLength={6}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol *</Label>
-            <Select name="role" defaultValue={user?.role || "tech"} disabled={isPending}>
+            <Select name="role" defaultValue={user?.role || "tech"} required>
               <SelectTrigger>
-                <SelectValue placeholder="Rol seçin" />
+                <SelectValue placeholder="Kullanıcı rolü seçin" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Yönetici</SelectItem>
@@ -84,9 +80,9 @@ export function UserForm({ user, mode }: UserFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="status">Durum *</Label>
-            <Select name="status" defaultValue={user?.status || "active"} disabled={isPending}>
+            <Select name="status" defaultValue={user?.status || "active"} required>
               <SelectTrigger>
-                <SelectValue placeholder="Durum seçin" />
+                <SelectValue placeholder="Kullanıcı durumu seçin" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Aktif</SelectItem>
@@ -95,21 +91,29 @@ export function UserForm({ user, mode }: UserFormProps) {
             </Select>
           </div>
 
-          {state.message && (
-            <div
-              className={`p-3 rounded-md text-sm ${
-                state.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-              }`}
-            >
-              {state.message}
-            </div>
+          {state && !state.success && (
+            <Alert variant="destructive">
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
+          )}
+
+          {state && state.success && (
+            <Alert>
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
           )}
 
           <div className="flex gap-2">
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Kaydediliyor..." : isEdit ? "Güncelle" : "Oluştur"}
+              {isPending
+                ? mode === "create"
+                  ? "Oluşturuluyor..."
+                  : "Güncelleniyor..."
+                : mode === "create"
+                  ? "Kullanıcı Oluştur"
+                  : "Güncelle"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button type="button" variant="outline" onClick={() => window.history.back()}>
               İptal
             </Button>
           </div>
