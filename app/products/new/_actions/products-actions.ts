@@ -293,3 +293,54 @@ export async function updateProductAction(productId: string, formData: FormData)
     return { success: false, error: "Beklenmeyen bir hata oluştu" }
   }
 }
+
+/**
+ * Soft-delete a product (sets deleted_at).
+ */
+export async function deleteProductAction(stockCode: string) {
+  try {
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from("products")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("stock_code", stockCode)
+
+    if (error) {
+      console.error("deleteProductAction error:", error)
+      return { success: false, error: error.message }
+    }
+
+    // Revalidate product lists & detail page
+    revalidatePath("/products")
+    revalidatePath(`/products/${stockCode}`)
+    return { success: true }
+  } catch (err) {
+    console.error("deleteProductAction unexpected:", err)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+  }
+}
+
+/**
+ * Restore a soft-deleted product (clears deleted_at).
+ */
+export async function restoreProductAction(stockCode: string) {
+  try {
+    const supabase = createClient()
+
+    const { error } = await supabase.from("products").update({ deleted_at: null }).eq("stock_code", stockCode)
+
+    if (error) {
+      console.error("restoreProductAction error:", error)
+      return { success: false, error: error.message }
+    }
+
+    // Revalidate product lists & detail page
+    revalidatePath("/products")
+    revalidatePath(`/products/${stockCode}`)
+    return { success: true }
+  } catch (err) {
+    console.error("restoreProductAction unexpected:", err)
+    return { success: false, error: "Beklenmeyen bir hata oluştu" }
+  }
+}

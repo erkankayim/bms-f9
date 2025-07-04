@@ -2,21 +2,20 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Upload, Trash2 } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
-import { createProduct } from "../_actions/products-actions"
-import { createClient } from "@/lib/supabase/client"
+import { Plus, X, Upload, Trash2 } from "lucide-react"
+import { toast } from "sonner"
+import { addProductAction } from "../_actions/products-actions"
+import Image from "next/image"
 
-// Sabit kategoriler
 const CATEGORIES = [
   "Elektronik",
   "Bilgisayar & Teknoloji",
@@ -40,8 +39,11 @@ const CATEGORIES = [
   "Diğer",
 ]
 
-// Para birimleri
-const CURRENCIES = ["TRY", "USD", "EUR", "GBP"]
+const CURRENCIES = [
+  { value: "TL", label: "₺ Türk Lirası" },
+  { value: "USD", label: "$ Amerikan Doları" },
+  { value: "EUR", label: "€ Euro" },
+]
 
 interface Variant {
   id: string
@@ -49,263 +51,220 @@ interface Variant {
   values: string[]
 }
 
-interface ProductFormData {
-  stock_code: string
+interface Supplier {
+  id: number
   name: string
-  description: string
-  category_name: string
-  purchase_price: string
-  purchase_price_currency: string
-  sale_price: string
-  sale_price_currency: string
-  stock_quantity: string
-  min_stock_level: string
-  supplier_id: string
-  variants: Variant[]
-  image_urls: string[]
+  company_name?: string
 }
 
-export default function ProductForm() {
+interface ProductFormProps {
+  suppliers: Supplier[]
+}
+
+export default function ProductForm({ suppliers }: ProductFormProps) {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  const [images, setImages] = useState<File[]>([])
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [isPending, startTransition] = useTransition()
+
+  // Form state
+  const [formData, setFormData] = useState({
     stock_code: "",
     name: "",
     description: "",
-    category_name: "",
+    category_id: "",
     purchase_price: "",
-    purchase_price_currency: "TRY",
+    purchase_price_currency: "TL",
     sale_price: "",
-    sale_price_currency: "TRY",
-    stock_quantity: "",
-    min_stock_level: "",
+    sale_price_currency: "TL",
+    quantity_on_hand: "0",
+    barcode: "",
+    tags: "",
+    vat_rate: "18",
     supplier_id: "",
-    variants: [],
-    image_urls: [],
   })
 
+  // Variants state
+  const [variants, setVariants] = useState<Variant[]>([])
   const [newVariant, setNewVariant] = useState({ name: "", value: "" })
 
-  // Tedarikçileri yükleme
-  useState(() => {
-    const loadSuppliers = async () => {
-      const supabase = createClient()
-      const { data } = await supabase.from("suppliers").select("id, name")
-      if (data) setSuppliers(data)
-    }
-    loadSuppliers()
-  })
+  // Images state
+  const [selectedImages, setSelectedImages] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
 
-  // Resim yükleme
-  const handleImageUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || [])
-      if (files.length === 0) return
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
 
-      const supabase = createClient()
-      const newImageUrls: string[] = []
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const fileExt = file.name.split(".").pop()
-        const fileName = `${Date.now()}-${Math.random()}.${fileExt}`
-        const filePath = `products/${fileName}`
+    // Limit to 5 images
+    const newFiles = [...selectedImages, ...files].slice(0, 5)
+    setSelectedImages(newFiles)
 
-        const { error: uploadError } = await supabase.storage.from("product-images").upload(filePath, file)
+    // Create previews
+    const newPreviews = newFiles.map((file) => URL.createObjectURL(file))
+    setImagePreviews(newPreviews)
+  }
 
-        if (uploadError) {
-          toast({
-            title: "Hata",
-            description: `Resim yüklenirken hata oluştu: ${uploadError.message}`,
-            variant: "destructive",
-          })
-          continue
-        }
+  const removeImage = (index: number) => {
+    const newFiles = selectedImages.filter((_, i) => i !== index)
+    const newPreviews = imagePreviews.filter((_, i) => i !== index)
 
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("product-images").getPublicUrl(filePath)
+    // Revoke old URL
+    URL.revokeObjectURL(imagePreviews[index])
 
-        newImageUrls.push(publicUrl)
-      }
+    setSelectedImages(newFiles)
+    setImagePreviews(newPreviews)
+  }
 
-      setImageUrls((prev) => [...prev, ...newImageUrls])
-      setFormData((prev) => ({
-        ...prev,
-        image_urls: [...prev.image_urls, ...newImageUrls],
-      }))
-    },
-    [toast],
-  )
-
-  // Resim silme
-  const removeImage = useCallback(
-    async (index: number) => {
-      const imageUrl = imageUrls[index]
-      const supabase = createClient()
-
-      // Dosya yolunu URL'den çıkarma
-      const urlParts = imageUrl.split("/")
-      const filePath = `products/${urlParts[urlParts.length - 1]}`
-
-      await supabase.storage.from("product-images").remove([filePath])
-
-      const newImageUrls = imageUrls.filter((_, i) => i !== index)
-      setImageUrls(newImageUrls)
-      setFormData((prev) => ({
-        ...prev,
-        image_urls: newImageUrls,
-      }))
-    },
-    [imageUrls],
-  )
-
-  // Varyant ekleme
-  const addVariant = useCallback(() => {
+  const addVariant = () => {
     if (!newVariant.name || !newVariant.value) return
 
-    const existingVariantIndex = formData.variants.findIndex((v) => v.name === newVariant.name)
+    const existingVariant = variants.find((v) => v.name === newVariant.name)
 
-    if (existingVariantIndex >= 0) {
-      // Mevcut varyant tipine değer ekle
-      const updatedVariants = [...formData.variants]
-      if (!updatedVariants[existingVariantIndex].values.includes(newVariant.value)) {
-        updatedVariants[existingVariantIndex].values.push(newVariant.value)
-        setFormData((prev) => ({ ...prev, variants: updatedVariants }))
+    if (existingVariant) {
+      // Add value to existing variant
+      if (!existingVariant.values.includes(newVariant.value)) {
+        setVariants((prev) =>
+          prev.map((v) => (v.name === newVariant.name ? { ...v, values: [...v.values, newVariant.value] } : v)),
+        )
       }
     } else {
-      // Yeni varyant tipi oluştur
-      const newVariantObj: Variant = {
-        id: Date.now().toString(),
-        name: newVariant.name,
-        values: [newVariant.value],
-      }
-      setFormData((prev) => ({
+      // Create new variant
+      setVariants((prev) => [
         ...prev,
-        variants: [...prev.variants, newVariantObj],
-      }))
+        {
+          id: Date.now().toString(),
+          name: newVariant.name,
+          values: [newVariant.value],
+        },
+      ])
     }
 
     setNewVariant({ name: "", value: "" })
-  }, [formData.variants, newVariant])
+  }
 
-  // Varyant tipi silme
-  const removeVariant = useCallback((variantId: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      variants: prev.variants.filter((v) => v.id !== variantId),
-    }))
-  }, [])
+  const removeVariantValue = (variantName: string, value: string) => {
+    setVariants(
+      (prev) =>
+        prev
+          .map((variant) => {
+            if (variant.name === variantName) {
+              const newValues = variant.values.filter((v) => v !== value)
+              return newValues.length > 0 ? { ...variant, values: newValues } : null
+            }
+            return variant
+          })
+          .filter(Boolean) as Variant[],
+    )
+  }
 
-  // Varyant değeri silme
-  const removeVariantValue = useCallback((variantId: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      variants: prev.variants
-        .map((v) => (v.id === variantId ? { ...v, values: v.values.filter((val) => val !== value) } : v))
-        .filter((v) => v.values.length > 0),
-    }))
-  }, [])
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  // Form gönderme
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      setIsLoading(true)
+    if (!formData.stock_code || !formData.name) {
+      toast.error("Stok kodu ve ürün adı zorunludur")
+      return
+    }
 
+    startTransition(async () => {
       try {
-        const result = await createProduct({
-          ...formData,
-          purchase_price: Number.parseFloat(formData.purchase_price) || 0,
-          sale_price: Number.parseFloat(formData.sale_price) || 0,
-          stock_quantity: Number.parseInt(formData.stock_quantity) || 0,
-          min_stock_level: Number.parseInt(formData.min_stock_level) || 0,
-          supplier_id: formData.supplier_id || null,
+        const submitFormData = new FormData()
+
+        // Add form fields
+        Object.entries(formData).forEach(([key, value]) => {
+          submitFormData.append(key, value)
         })
+
+        // Add variants
+        if (variants.length > 0) {
+          submitFormData.append("variants", JSON.stringify(variants))
+        }
+
+        // Add images
+        selectedImages.forEach((image) => {
+          submitFormData.append("images", image)
+        })
+
+        const result = await addProductAction(submitFormData)
 
         if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: "Ürün başarıyla eklendi",
-          })
+          toast.success("Ürün başarıyla eklendi")
           router.push("/products")
         } else {
-          toast({
-            title: "Hata",
-            description: result.error || "Ürün eklenirken hata oluştu",
-            variant: "destructive",
-          })
+          toast.error(result.error || "Ürün eklenirken hata oluştu")
         }
       } catch (error) {
-        console.error("Form submission error:", error)
-        toast({
-          title: "Hata",
-          description: "Beklenmeyen bir hata oluştu",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
+        console.error("Submit error:", error)
+        toast.error("Beklenmeyen bir hata oluştu")
       }
-    },
-    [formData, router, toast],
-  )
+    })
+  }
 
   return (
-    <div className="container mx-auto py-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Basic Information */}
       <Card>
         <CardHeader>
-          <CardTitle>Yeni Ürün Ekle</CardTitle>
+          <CardTitle>Temel Bilgiler</CardTitle>
+          <CardDescription>Ürünün temel bilgilerini girin</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Temel Bilgiler */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="stock_code">Stok Kodu *</Label>
-                <Input
-                  id="stock_code"
-                  value={formData.stock_code}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, stock_code: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="name">Ürün Adı *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="description">Açıklama</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                rows={3}
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="stock_code">Stok Kodu *</Label>
+              <Input
+                id="stock_code"
+                value={formData.stock_code}
+                onChange={(e) => handleInputChange("stock_code", e.target.value)}
+                placeholder="Örn: PRD001"
+                required
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="barcode">Barkod</Label>
+              <Input
+                id="barcode"
+                value={formData.barcode}
+                onChange={(e) => handleInputChange("barcode", e.target.value)}
+                placeholder="Barkod numarası"
+              />
+            </div>
+          </div>
 
-            <div>
-              <Label htmlFor="category">Kategori *</Label>
-              <Select
-                value={formData.category_name}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, category_name: value }))}
-                required
-              >
+          <div className="space-y-2">
+            <Label htmlFor="name">Ürün Adı *</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => handleInputChange("name", e.target.value)}
+              placeholder="Ürün adını girin"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Açıklama</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleInputChange("description", e.target.value)}
+              placeholder="Ürün açıklaması"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Kategori</Label>
+              <Select value={formData.category_id} onValueChange={(value) => handleInputChange("category_id", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Kategori seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
+                  {CATEGORIES.map((category, index) => (
+                    <SelectItem key={index} value={index.toString()}>
                       {category}
                     </SelectItem>
                   ))}
@@ -313,98 +272,66 @@ export default function ProductForm() {
               </Select>
             </div>
 
-            {/* Fiyat Bilgileri */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Alış Fiyatı</Label>
-                <div className="flex gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="supplier">Tedarikçi</Label>
+              <Select value={formData.supplier_id} onValueChange={(value) => handleInputChange("supplier_id", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tedarikçi seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                      {supplier.company_name || supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tags">Etiketler</Label>
+            <Input
+              id="tags"
+              value={formData.tags}
+              onChange={(e) => handleInputChange("tags", e.target.value)}
+              placeholder="Virgülle ayırın: elektronik, telefon, akıllı"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pricing */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Fiyatlandırma</CardTitle>
+          <CardDescription>Alış ve satış fiyatlarını belirleyin</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h4 className="font-medium">Alış Fiyatı</h4>
+              <div className="flex gap-2">
+                <div className="flex-1">
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.purchase_price}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, purchase_price: e.target.value }))}
+                    onChange={(e) => handleInputChange("purchase_price", e.target.value)}
                     placeholder="0.00"
                   />
-                  <Select
-                    value={formData.purchase_price_currency}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, purchase_price_currency: value }))}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((currency) => (
-                        <SelectItem key={currency} value={currency}>
-                          {currency}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
-              </div>
-              <div>
-                <Label>Satış Fiyatı *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.sale_price}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, sale_price: e.target.value }))}
-                    placeholder="0.00"
-                    required
-                  />
-                  <Select
-                    value={formData.sale_price_currency}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, sale_price_currency: value }))}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((currency) => (
-                        <SelectItem key={currency} value={currency}>
-                          {currency}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Stok Bilgileri */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="stock_quantity">Stok Miktarı</Label>
-                <Input
-                  id="stock_quantity"
-                  type="number"
-                  value={formData.stock_quantity}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, stock_quantity: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="min_stock_level">Minimum Stok Seviyesi</Label>
-                <Input
-                  id="min_stock_level"
-                  type="number"
-                  value={formData.min_stock_level}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, min_stock_level: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="supplier">Tedarikçi</Label>
                 <Select
-                  value={formData.supplier_id}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, supplier_id: value }))}
+                  value={formData.purchase_price_currency}
+                  onValueChange={(value) => handleInputChange("purchase_price_currency", value)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tedarikçi seçin" />
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                        {supplier.name}
+                    {CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.value} value={currency.value}>
+                        {currency.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -412,105 +339,187 @@ export default function ProductForm() {
               </div>
             </div>
 
-            {/* Ürün Resimleri */}
-            <div>
-              <Label>Ürün Resimleri</Label>
-              <div className="mt-2">
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50"
+            <div className="space-y-4">
+              <h4 className="font-medium">Satış Fiyatı</h4>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.sale_price}
+                    onChange={(e) => handleInputChange("sale_price", e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <Select
+                  value={formData.sale_price_currency}
+                  onValueChange={(value) => handleInputChange("sale_price_currency", value)}
                 >
-                  <div className="text-center">
-                    <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-2 text-sm text-gray-600">Resim yüklemek için tıklayın</p>
-                  </div>
-                </label>
-              </div>
-
-              {imageUrls.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {imageUrls.map((url, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={url || "/placeholder.svg"}
-                        alt={`Product ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-1 right-1 h-6 w-6 p-0"
-                        onClick={() => removeImage(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Ürün Varyantları */}
-            <div>
-              <Label>Ürün Varyantları</Label>
-              <div className="mt-2 space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Varyant adı (örn: Renk, Beden)"
-                    value={newVariant.name}
-                    onChange={(e) => setNewVariant((prev) => ({ ...prev, name: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Değer (örn: Kırmızı, XL)"
-                    value={newVariant.value}
-                    onChange={(e) => setNewVariant((prev) => ({ ...prev, value: e.target.value }))}
-                  />
-                  <Button type="button" onClick={addVariant}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {formData.variants.map((variant) => (
-                  <div key={variant.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium">{variant.name}</h4>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeVariant(variant.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {variant.values.map((value) => (
-                        <Badge key={value} variant="secondary" className="flex items-center gap-1">
-                          {value}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => removeVariantValue(variant.id, value)} />
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.value} value={currency.value}>
+                        {currency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+          </div>
 
-            <div className="flex gap-4">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Ekleniyor..." : "Ürün Ekle"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.push("/products")}>
-                İptal
-              </Button>
-            </div>
-          </form>
+          <div className="space-y-2">
+            <Label htmlFor="vat_rate">KDV Oranı (%)</Label>
+            <Input
+              id="vat_rate"
+              type="number"
+              step="0.01"
+              value={formData.vat_rate}
+              onChange={(e) => handleInputChange("vat_rate", e.target.value)}
+              placeholder="18"
+            />
+          </div>
         </CardContent>
       </Card>
-    </div>
+
+      {/* Stock */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Stok Bilgileri</CardTitle>
+          <CardDescription>Mevcut stok miktarını girin</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Mevcut Stok Miktarı</Label>
+            <Input
+              id="quantity"
+              type="number"
+              value={formData.quantity_on_hand}
+              onChange={(e) => handleInputChange("quantity_on_hand", e.target.value)}
+              placeholder="0"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Images */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ürün Resimleri</CardTitle>
+          <CardDescription>Ürün resimlerini yükleyin (maksimum 5 adet)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => document.getElementById("image-upload")?.click()}
+              disabled={selectedImages.length >= 5}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Resim Seç
+            </Button>
+            <span className="text-sm text-muted-foreground">{selectedImages.length}/5 resim seçildi</span>
+          </div>
+
+          <input
+            id="image-upload"
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
+          {imagePreviews.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {imagePreviews.map((preview, index) => (
+                <div key={index} className="relative group">
+                  <Image
+                    src={preview || "/placeholder.svg"}
+                    alt={`Preview ${index + 1}`}
+                    width={150}
+                    height={150}
+                    className="rounded-lg object-cover w-full h-32"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeImage(index)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Variants */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ürün Varyantları</CardTitle>
+          <CardDescription>Renk, beden, malzeme gibi varyantları ekleyin</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Varyant adı (örn: Renk)"
+              value={newVariant.name}
+              onChange={(e) => setNewVariant((prev) => ({ ...prev, name: e.target.value }))}
+            />
+            <Input
+              placeholder="Değer (örn: Kırmızı)"
+              value={newVariant.value}
+              onChange={(e) => setNewVariant((prev) => ({ ...prev, value: e.target.value }))}
+            />
+            <Button type="button" onClick={addVariant}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {variants.length > 0 && (
+            <div className="space-y-3">
+              {variants.map((variant) => (
+                <div key={variant.id} className="space-y-2">
+                  <Label className="font-medium">{variant.name}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {variant.values.map((value) => (
+                      <Badge key={value} variant="secondary" className="gap-1">
+                        {value}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 hover:bg-transparent"
+                          onClick={() => removeVariantValue(variant.name, value)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex gap-4">
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Ekleniyor..." : "Ürün Ekle"}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => router.back()}>
+          İptal
+        </Button>
+      </div>
+    </form>
   )
 }

@@ -1,75 +1,110 @@
--- Add new columns to products table (check if they exist first)
-DO $$ 
+-- Update products table structure for new features
+DO $$
 BEGIN
-    -- Add category_name column
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='category_name') THEN
+    -- Add new columns if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'category_name') THEN
         ALTER TABLE products ADD COLUMN category_name TEXT;
     END IF;
     
-    -- Add purchase_price_currency column
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='purchase_price_currency') THEN
-        ALTER TABLE products ADD COLUMN purchase_price_currency TEXT DEFAULT 'TRY';
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'purchase_price_currency') THEN
+        ALTER TABLE products ADD COLUMN purchase_price_currency TEXT DEFAULT 'TL';
     END IF;
     
-    -- Add sale_price_currency column
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='sale_price_currency') THEN
-        ALTER TABLE products ADD COLUMN sale_price_currency TEXT DEFAULT 'TRY';
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'sale_price_currency') THEN
+        ALTER TABLE products ADD COLUMN sale_price_currency TEXT DEFAULT 'TL';
     END IF;
     
-    -- Add image_urls column
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='image_urls') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'stock_quantity') THEN
+        ALTER TABLE products ADD COLUMN stock_quantity INTEGER DEFAULT 0;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'min_stock_level') THEN
+        ALTER TABLE products ADD COLUMN min_stock_level INTEGER DEFAULT 0;
+    END IF;
+    
+    -- Add supplier_id as UUID to match suppliers table
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'supplier_id') THEN
+        ALTER TABLE products ADD COLUMN supplier_id UUID;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'variants') THEN
+        ALTER TABLE products ADD COLUMN variants JSONB;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'image_urls') THEN
         ALTER TABLE products ADD COLUMN image_urls JSONB;
     END IF;
     
-    -- Add variants column
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='variants') THEN
-        ALTER TABLE products ADD COLUMN variants JSONB;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'barcode') THEN
+        ALTER TABLE products ADD COLUMN barcode TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'tags') THEN
+        ALTER TABLE products ADD COLUMN tags TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'vat_rate') THEN
+        ALTER TABLE products ADD COLUMN vat_rate DECIMAL(5,4) DEFAULT 0.18;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'deleted_at') THEN
+        ALTER TABLE products ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE;
     END IF;
 END $$;
 
--- Update existing products with category names based on category_id
-UPDATE products 
-SET category_name = CASE 
-    WHEN category_id = 0 THEN 'Elektronik'
-    WHEN category_id = 1 THEN 'Bilgisayar & Teknoloji'
-    WHEN category_id = 2 THEN 'Telefon & Aksesuar'
-    WHEN category_id = 3 THEN 'Ev & Yaşam'
-    WHEN category_id = 4 THEN 'Mutfak Gereçleri'
-    WHEN category_id = 5 THEN 'Mobilya'
-    WHEN category_id = 6 THEN 'Giyim & Aksesuar'
-    WHEN category_id = 7 THEN 'Ayakkabı & Çanta'
-    WHEN category_id = 8 THEN 'Kozmetik & Kişisel Bakım'
-    WHEN category_id = 9 THEN 'Spor & Outdoor'
-    WHEN category_id = 10 THEN 'Otomotiv'
-    WHEN category_id = 11 THEN 'Bahçe & Yapı Market'
-    WHEN category_id = 12 THEN 'Kitap & Kırtasiye'
-    WHEN category_id = 13 THEN 'Oyuncak & Hobi'
-    WHEN category_id = 14 THEN 'Sağlık & Medikal'
-    WHEN category_id = 15 THEN 'Gıda & İçecek'
-    WHEN category_id = 16 THEN 'Pet Shop'
-    WHEN category_id = 17 THEN 'Bebek & Çocuk'
-    WHEN category_id = 18 THEN 'Takı & Saat'
-    ELSE 'Diğer'
-END
-WHERE category_id IS NOT NULL AND (category_name IS NULL OR category_name = '');
+-- Create storage bucket for product images if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO NOTHING;
 
--- Create storage bucket for product images (if not exists)
+-- Set up storage policies
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload product images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update product images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete product images" ON storage.objects;
+
+CREATE POLICY "Public Access" ON storage.objects
+FOR SELECT USING (bucket_id = 'product-images');
+
+CREATE POLICY "Authenticated users can upload product images" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can update product images" ON storage.objects
+FOR UPDATE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can delete product images" ON storage.objects
+FOR DELETE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+-- Update existing products to have default values
+UPDATE products 
+SET 
+    category_name = 'Diğer',
+    purchase_price_currency = 'TL',
+    sale_price_currency = 'TL',
+    stock_quantity = COALESCE(quantity_on_hand, 0),
+    min_stock_level = 5
+WHERE category_name IS NULL OR purchase_price_currency IS NULL OR sale_price_currency IS NULL;
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_products_category_name ON products(category_name);
+CREATE INDEX IF NOT EXISTS idx_products_stock_quantity ON products(stock_quantity);
+CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+
+-- Add foreign key constraint only if suppliers table exists
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'product-images') THEN
-        INSERT INTO storage.buckets (id, name, public) VALUES ('product-images', 'product-images', true);
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'suppliers') THEN
+        -- Add foreign key constraint if it doesn't exist
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'products_supplier_id_fkey'
+        ) THEN
+            ALTER TABLE products 
+            ADD CONSTRAINT products_supplier_id_fkey 
+            FOREIGN KEY (supplier_id) REFERENCES suppliers(id);
+        END IF;
     END IF;
 END $$;
-
--- Create storage policies (drop and recreate to avoid conflicts)
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
-DROP POLICY IF EXISTS "Authenticated users can upload" ON storage.objects;
-DROP POLICY IF EXISTS "Users can update own uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Users can delete own uploads" ON storage.objects;
-
-CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
-CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Users can update own uploads" ON storage.objects FOR UPDATE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Users can delete own uploads" ON storage.objects FOR DELETE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
 
 SELECT 'Ürünler tablosu başarıyla güncellendi!' as message;
