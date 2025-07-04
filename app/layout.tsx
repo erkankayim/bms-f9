@@ -9,9 +9,10 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "İş Yönetim Uygulaması",
-  description: "Kapsamlı İş Yönetim Uygulaması",
-    generator: 'v0.dev'
+  title: "MNY Makine - İş Yönetim Sistemi",
+  description: "MNY Makine İş Yönetim ve Takip Sistemi - Müşteri, Ürün, Satış ve Servis Yönetimi",
+  generator: "Next.js",
+  keywords: ["MNY Makine", "iş yönetimi", "müşteri takibi", "envanter", "satış"],
 }
 
 export default function RootLayout({

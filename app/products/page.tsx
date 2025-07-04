@@ -1,441 +1,316 @@
-"use client"
-
-import type React from "react"
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { getSupabaseBrowserClient } from "@/lib/supabase/client"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Suspense } from "react"
+import { createClient } from "@/lib/supabase/server"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ImageOff, Edit, Trash2, Loader2, Search, ChevronLeft, ChevronRight, Tags } from "lucide-react"
-import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Plus, Search, Package, AlertTriangle, Eye, Edit, Trash2, ImageOff, Tags } from "lucide-react"
+import Link from "next/link"
 import Image from "next/image"
-import { DeleteProductDialog } from "./[stock_code]/_components/delete-product-dialog"
+import { DeleteProductDialog } from "./_components/delete-product-dialog"
 import { PrintLabelDialog } from "@/components/print-label-dialog"
-import { useToast } from "@/components/ui/use-toast"
-import { useDebounce } from "@/hooks/use-debounce"
-import { useRouter, useSearchParams } from "next/navigation"
 
-type Product = {
+interface Product {
+  id: string
   stock_code: string
   name: string
-  quantity_on_hand: number | null
-  sale_price: number | null
-  sale_price_currency: string | null
-  tags: string | null
-  image_urls: { url: string }[] | null
-  categories: { name: string } | null
-  deleted_at: string | null
+  description?: string
+  category_name?: string
+  purchase_price?: number
+  sale_price?: number
+  purchase_price_currency?: string
+  sale_price_currency?: string
+  stock_quantity?: number
+  quantity_on_hand?: number
+  min_stock_level?: number
+  minimum_stock_level?: number
+  image_urls?: Array<{ url: string }>
+  barcode?: string
+  tags?: string
+  vat_rate?: number
+  deleted_at?: string
+  created_at: string
+  updated_at: string
 }
 
-type FilterStatus = "active" | "archived" | "all"
+async function getProducts() {
+  const supabase = createClient()
 
-interface CategoryFilterItem {
-  id: number
-  name: string
-}
-
-const ITEMS_PER_PAGE = 10
-
-export default function ProductsPage() {
-  const supabase = getSupabaseBrowserClient()
-  const { toast } = useToast()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string | null } | null>(null)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalProducts, setTotalProducts] = useState(0)
-  const [searchTerm, setSearchTerm] = useState("")
-  const debouncedSearchTerm = useDebounce(searchTerm, 500)
-
-  const [categories, setCategories] = useState<CategoryFilterItem[]>([])
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>("active")
-
-  const totalPages = useMemo(() => Math.ceil(totalProducts / ITEMS_PER_PAGE), [totalProducts])
-
-  useEffect(() => {
-    const filterQuery = searchParams.get("filter") as FilterStatus | null
-    const pageQuery = searchParams.get("page")
-    const searchQuery = searchParams.get("search")
-    const categoryQuery = searchParams.get("category")
-
-    setFilterStatus(filterQuery && ["active", "archived", "all"].includes(filterQuery) ? filterQuery : "active")
-    setCurrentPage(pageQuery && !isNaN(Number.parseInt(pageQuery)) ? Number.parseInt(pageQuery) : 1)
-    setSearchTerm(searchQuery || "")
-    setSelectedCategoryId(categoryQuery || "")
-  }, [searchParams])
-
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (filterStatus !== "active") params.set("filter", filterStatus)
-    if (currentPage > 1) params.set("page", currentPage.toString())
-    if (debouncedSearchTerm) params.set("search", debouncedSearchTerm)
-    if (selectedCategoryId && selectedCategoryId !== "all") params.set("category", selectedCategoryId)
-
-    const currentParams = new URLSearchParams(searchParams.toString())
-    if (params.toString() !== currentParams.toString()) {
-      router.replace(`/products?${params.toString()}`, { scroll: false })
-    }
-  }, [filterStatus, currentPage, debouncedSearchTerm, selectedCategoryId, router, searchParams])
-
-  const fetchProducts = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    const from = (currentPage - 1) * ITEMS_PER_PAGE
-    const to = from + ITEMS_PER_PAGE - 1
-
-    let query = supabase
+  try {
+    const { data: products, error } = await supabase
       .from("products")
-      .select(
-        "stock_code, name, quantity_on_hand, sale_price, sale_price_currency, tags, image_urls, categories ( name ), deleted_at",
-        { count: "exact" },
-      )
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
 
-    if (filterStatus === "active") {
-      query = query.is("deleted_at", null)
-    } else if (filterStatus === "archived") {
-      query = query.not("deleted_at", "is", null)
+    if (error) {
+      console.error("Error fetching products:", error)
+      return []
     }
 
-    if (debouncedSearchTerm) {
-      query = query.ilike("name", `%${debouncedSearchTerm}%`)
-    }
+    return products as Product[]
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return []
+  }
+}
 
-    if (selectedCategoryId && selectedCategoryId !== "all") {
-      query = query.eq("category_id", Number(selectedCategoryId))
-    }
+async function getProductStats() {
+  const supabase = createClient()
 
-    query = query.order("name", { ascending: true }).range(from, to)
+  try {
+    const { data: products } = await supabase
+      .from("products")
+      .select("stock_quantity, quantity_on_hand, min_stock_level, minimum_stock_level")
+      .is("deleted_at", null)
 
-    const { data: productsData, error: fetchError, count } = await query
+    if (!products) return { total: 0, lowStock: 0, outOfStock: 0 }
 
-    if (fetchError) {
-      console.error("Error fetching products:", fetchError)
-      setError(`Ürünler yüklenirken bir hata oluştu: ${fetchError.message}`)
-      setProducts([])
-      setTotalProducts(0)
-    } else {
-      setProducts((productsData as Product[] | null) || [])
-      setTotalProducts(count || 0)
-    }
-    setLoading(false)
-  }, [supabase, currentPage, debouncedSearchTerm, selectedCategoryId, filterStatus])
+    const total = products.length
+    let lowStock = 0
+    let outOfStock = 0
 
-  useEffect(() => {
-    fetchProducts()
-  }, [fetchProducts])
+    products.forEach((product) => {
+      const currentStock = product.stock_quantity ?? product.quantity_on_hand ?? 0
+      const minLevel = product.min_stock_level ?? product.minimum_stock_level ?? 0
 
-  useEffect(() => {
-    const pageFromUrl = searchParams.get("page")
-    if (currentPage !== 1 && (!pageFromUrl || Number.parseInt(pageFromUrl) !== currentPage)) {
-      if (debouncedSearchTerm || selectedCategoryId || filterStatus !== (searchParams.get("filter") || "active")) {
-        setCurrentPage(1)
+      if (currentStock === 0) {
+        outOfStock++
+      } else if (currentStock <= minLevel) {
+        lowStock++
       }
-    }
-  }, [debouncedSearchTerm, selectedCategoryId, filterStatus, searchParams, currentPage])
+    })
 
-  useEffect(() => {
-    async function fetchFilterCategories() {
-      const { data, error: catError } = await supabase.from("categories").select("id, name").order("name")
-      if (catError) {
-        console.error("Kategori filtreleri yüklenemedi:", catError)
-      } else {
-        setCategories(data || [])
-      }
-    }
-    fetchFilterCategories()
-  }, [supabase])
-
-  const handleOpenDeleteDialog = (product: { id: string; name: string | null }) => {
-    setProductToDelete(product)
-    setIsDeleteDialogOpen(true)
+    return { total, lowStock, outOfStock }
+  } catch (error) {
+    console.error("Error fetching product stats:", error)
+    return { total: 0, lowStock: 0, outOfStock: 0 }
   }
+}
 
-  const handleProductArchived = () => {
-    if (products.length === 1 && currentPage > 1) {
-      setCurrentPage((prev) => prev - 1)
-    } else {
-      fetchProducts()
-    }
-  }
+function StatsCards({ stats }: { stats: { total: number; lowStock: number; outOfStock: number } }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Toplam Ürün</CardTitle>
+          <Package className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.total}</div>
+        </CardContent>
+      </Card>
 
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value)
-  }
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Az Stok</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-orange-600">{stats.lowStock}</div>
+        </CardContent>
+      </Card>
 
-  const handleCategoryChange = (categoryId: string) => {
-    setSelectedCategoryId(categoryId)
-  }
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Tükenen</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600">{stats.outOfStock}</div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page)
-    }
-  }
-
-  if (error && !loading) {
+function ProductsTable({ products }: { products: Product[] }) {
+  if (products.length === 0) {
     return (
-      <div className="container mx-auto py-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Hata</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-500">{error}</p>
-            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => fetchProducts()}>
-              Tekrar Dene
-            </Button>
-            <Link href="/">
-              <Button variant="link" className="mt-4 ml-2">
-                Ana Sayfaya Dön
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="text-center py-12">
+        <Package className="mx-auto h-12 w-12 text-muted-foreground" />
+        <h3 className="mt-4 text-lg font-semibold">Henüz ürün yok</h3>
+        <p className="mt-2 text-muted-foreground">İlk ürününüzü ekleyerek başlayın.</p>
+        <Button asChild className="mt-4">
+          <Link href="/products/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Ürün Ekle
+          </Link>
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-2">
-      <Card>
-        <CardHeader className="px-7">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Ürünler / Envanter</CardTitle>
-              <CardDescription>Ürün stoklarınızı, fiyatlarınızı ve detaylarınızı yönetin.</CardDescription>
-            </div>
-            <div className="flex w-full flex-col sm:flex-row sm:w-auto items-center gap-2">
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Ürün adı ile ara..."
-                  className="pl-8 w-full sm:w-52"
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                />
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[80px]">Resim</TableHead>
+            <TableHead>Stok Kodu</TableHead>
+            <TableHead>Ürün Adı</TableHead>
+            <TableHead>Kategori</TableHead>
+            <TableHead className="text-right">Stok</TableHead>
+            <TableHead className="text-right">Satış Fiyatı</TableHead>
+            <TableHead>Durum</TableHead>
+            <TableHead className="text-right">İşlemler</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {products.map((product) => {
+            const currentStock = product.stock_quantity ?? product.quantity_on_hand ?? 0
+            const minLevel = product.min_stock_level ?? product.minimum_stock_level ?? 0
+            const isLowStock = currentStock <= minLevel && currentStock > 0
+            const isOutOfStock = currentStock === 0
+            const firstImage = product.image_urls?.[0]?.url
+
+            return (
+              <TableRow key={product.id} className="hover:bg-muted/50">
+                <TableCell>
+                  {firstImage ? (
+                    <Image
+                      src={firstImage || "/placeholder.svg"}
+                      alt={product.name}
+                      width={48}
+                      height={48}
+                      className="rounded-md object-cover aspect-square"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted">
+                      <ImageOff className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="font-medium">{product.stock_code}</TableCell>
+                <TableCell>
+                  <div>
+                    <div className="font-medium">{product.name}</div>
+                    {product.description && (
+                      <div className="text-sm text-muted-foreground line-clamp-1">{product.description}</div>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {product.category_name ? (
+                    <Badge variant="outline" className="whitespace-nowrap">
+                      <Tags className="mr-1 h-3 w-3" />
+                      {product.category_name}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="font-medium">{currentStock}</span>
+                    {isOutOfStock && (
+                      <Badge variant="destructive" className="text-xs">
+                        Tükendi
+                      </Badge>
+                    )}
+                    {isLowStock && (
+                      <Badge variant="outline" className="text-xs text-orange-600">
+                        Az Stok
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  {product.sale_price ? (
+                    <div className="font-medium">
+                      {product.sale_price.toFixed(2)} {product.sale_price_currency || "TL"}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={isOutOfStock ? "destructive" : isLowStock ? "secondary" : "default"}>
+                    {isOutOfStock ? "Tükendi" : isLowStock ? "Az Stok" : "Stokta"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/products/${product.stock_code}`}>
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">Görüntüle</span>
+                      </Link>
+                    </Button>
+                    <PrintLabelDialog
+                      product={{
+                        stock_code: product.stock_code,
+                        name: product.name,
+                        sale_price: product.sale_price,
+                        sale_price_currency: product.sale_price_currency,
+                      }}
+                      variant="icon"
+                    />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/products/${product.stock_code}/edit`}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Düzenle</span>
+                      </Link>
+                    </Button>
+                    <DeleteProductDialog
+                      productId={product.stock_code}
+                      productName={product.name}
+                      trigger={
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Sil</span>
+                        </Button>
+                      }
+                    />
+                  </div>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+export default async function ProductsPage() {
+  const [products, stats] = await Promise.all([getProducts(), getProductStats()])
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Ürünler</h1>
+          <p className="text-muted-foreground">Ürün envanterinizi yönetin</p>
+        </div>
+        <Button asChild>
+          <Link href="/products/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Yeni Ürün
+          </Link>
+        </Button>
+      </div>
+
+      <StatsCards stats={stats} />
+
+      {/* Search and Filters */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Ürün ara..." className="pl-10" />
               </div>
-              <Select value={selectedCategoryId} onValueChange={handleCategoryChange}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Kategoriye göre filtrele" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tüm Kategoriler</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id.toString()}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as FilterStatus)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Durum Filtresi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Aktif Ürünler</SelectItem>
-                  <SelectItem value="archived">Arşivlenmiş Ürünler</SelectItem>
-                  <SelectItem value="all">Tüm Ürünler</SelectItem>
-                </SelectContent>
-              </Select>
-              <Link href="/products/new" className="w-full sm:w-auto">
-                <Button className="w-full sm:w-auto">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Ürün Ekle
-                </Button>
-              </Link>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading && products.length === 0 ? (
-            <div className="h-64 flex justify-center items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="ml-2 text-muted-foreground">Ürünler yükleniyor...</p>
-            </div>
-          ) : !loading && products.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-lg font-semibold">
-                {debouncedSearchTerm || selectedCategoryId || filterStatus !== "active"
-                  ? "Filtrelerinize uygun ürün bulunamadı."
-                  : "Henüz hiç ürün eklenmemiş."}
-              </p>
-              <p className="text-muted-foreground">
-                {debouncedSearchTerm || selectedCategoryId || filterStatus !== "active"
-                  ? "Farklı filtreler deneyin veya "
-                  : "Başlamak için "}
-                <Link href="/products/new" className="text-primary hover:underline">
-                  yeni bir ürün ekleyin
-                </Link>
-                .
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">Resim</TableHead>
-                  <TableHead>Stok Kodu</TableHead>
-                  <TableHead>Adı</TableHead>
-                  <TableHead>Kategori</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">Eldeki Miktar</TableHead>
-                  <TableHead className="text-right">Satış Fiyatı</TableHead>
-                  <TableHead>Etiketler</TableHead>
-                  <TableHead className="text-right">İşlemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.stock_code} className={product.deleted_at ? "opacity-60" : ""}>
-                    <TableCell>
-                      {product.image_urls && product.image_urls.length > 0 && product.image_urls[0].url ? (
-                        <Image
-                          src={product.image_urls[0].url || "/placeholder.svg"}
-                          alt={product.name}
-                          width={48}
-                          height={48}
-                          className="rounded-md object-cover aspect-square"
-                        />
-                      ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted">
-                          <ImageOff className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{product.stock_code}</TableCell>
-                    <TableCell>{product.name}</TableCell>
-                    <TableCell>
-                      {product.categories?.name ? (
-                        <Badge variant="outline" className="whitespace-nowrap">
-                          <Tags className="mr-1 h-3 w-3" />
-                          {product.categories.name}
-                        </Badge>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {product.deleted_at ? (
-                        <Badge variant="outline" className="border-yellow-500 text-yellow-600">
-                          Arşivlenmiş
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-green-500 text-green-600">
-                          Aktif
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">{product.quantity_on_hand ?? "-"}</TableCell>
-                    <TableCell className="text-right">
-                      {product.sale_price !== null
-                        ? `${product.sale_price.toFixed(2)} ${product.sale_price_currency || ""}`
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {product.tags
-                        ? product.tags.split(",").map((tag) => (
-                            <Badge key={tag.trim()} variant="secondary" className="mr-1 mb-1">
-                              {tag.trim()}
-                            </Badge>
-                          ))
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={`/products/${product.stock_code}`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="hidden md:inline-flex px-2 py-1 h-auto text-xs bg-transparent"
-                          >
-                            Görüntüle
-                          </Button>
-                        </Link>
-                        <PrintLabelDialog
-                          product={{
-                            stock_code: product.stock_code,
-                            name: product.name,
-                            sale_price: product.sale_price,
-                            sale_price_currency: product.sale_price_currency,
-                          }}
-                          variant="icon"
-                        />
-                        {!product.deleted_at && (
-                          <Link href={`/products/${product.stock_code}/edit`}>
-                            <Button variant="ghost" size="icon" aria-label="Düzenle">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Arşivle"
-                          onClick={() => handleOpenDeleteDialog({ id: product.stock_code, name: product.name })}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
         </CardContent>
-        {totalPages > 1 && (
-          <CardFooter className="flex items-center justify-between border-t px-7 py-4">
-            <div className="text-xs text-muted-foreground">
-              Sayfa {currentPage} / {totalPages} ({totalProducts} ürün)
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1 || loading}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" /> Önceki
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages || loading}
-              >
-                Sonraki <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </CardFooter>
-        )}
-        {productToDelete && (
-          <DeleteProductDialog
-            productId={productToDelete.id}
-            productName={productToDelete.name}
-            isOpen={isDeleteDialogOpen}
-            onOpenChange={(open) => {
-              setIsDeleteDialogOpen(open)
-              if (!open) {
-                setProductToDelete(null)
-              }
-            }}
-            onDelete={handleProductArchived}
-          />
-        )}
       </Card>
+
+      <Suspense fallback={<div>Ürünler yükleniyor...</div>}>
+        <ProductsTable products={products} />
+      </Suspense>
     </div>
   )
 }

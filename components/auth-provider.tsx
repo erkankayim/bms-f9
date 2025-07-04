@@ -3,9 +3,9 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
-import { usePathname, useRouter } from "next/navigation"
 import { MainNav } from "./main-nav"
 
 type AuthContextType = {
@@ -20,7 +20,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
@@ -33,61 +33,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const supabase = createClient()
 
-  const isAuthPage = pathname?.startsWith("/auth/")
+  // Auth sayfaları listesi
+  const authPages = ["/auth/login", "/auth/register"]
+  const isAuthPage = authPages.includes(pathname)
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      setLoading(false)
+    // Mevcut kullanıcıyı kontrol et
+    const getUser = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+        if (error) {
+          console.error("Auth error:", error)
+          setUser(null)
+        } else {
+          setUser(user)
+        }
+      } catch (error) {
+        console.error("Error getting user:", error)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    getInitialSession()
+    getUser()
 
-    // Listen for auth changes
+    // Auth state değişikliklerini dinle
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, session?.user?.email)
-      setUser(session?.user ?? null)
-      setLoading(false)
 
-      if (event === "SIGNED_IN") {
-        router.push("/")
+      if (event === "SIGNED_IN" && session?.user) {
+        setUser(session.user)
+        setLoading(false)
+        // Giriş yaptıktan sonra dashboard'a yönlendir (sadece auth sayfasındaysak)
+        if (isAuthPage) {
+          router.push("/")
+          router.refresh()
+        }
       } else if (event === "SIGNED_OUT") {
-        router.push("/auth/login")
+        setUser(null)
+        setLoading(false)
+        // Çıkış yaptıktan sonra login sayfasına yönlendir (auth sayfasında değilsek)
+        if (!isAuthPage) {
+          router.push("/auth/login")
+          router.refresh()
+        }
+      } else {
+        setUser(session?.user ?? null)
+        setLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [supabase.auth, router])
-
-  // Redirect logic
-  useEffect(() => {
-    if (!loading) {
-      if (!user && !isAuthPage) {
-        router.push("/auth/login")
-      } else if (user && isAuthPage) {
-        router.push("/")
-      }
+    return () => {
+      subscription.unsubscribe()
     }
-  }, [user, loading, isAuthPage, router])
+  }, [router, isAuthPage])
 
+  // Loading durumunda
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Kullanıcı giriş yapmamışsa ve auth sayfasında değilse login'e yönlendir
+  if (!user && !isAuthPage) {
+    router.push("/auth/login")
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Kullanıcı giriş yapmışsa ve auth sayfasındaysa dashboard'a yönlendir
+  if (user && isAuthPage) {
+    router.push("/")
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
-      {user && !isAuthPage && <MainNav />}
-      <main className={user && !isAuthPage ? "pt-0" : ""}>{children}</main>
+      {user && !isAuthPage ? <MainNav>{children}</MainNav> : children}
     </AuthContext.Provider>
   )
 }
