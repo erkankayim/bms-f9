@@ -1,117 +1,80 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useActionState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { signUpWithEmailAndPassword } from "../actions"
+import { registerAction } from "../actions"
 import Image from "next/image"
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    setSuccess("")
-
-    if (password !== confirmPassword) {
-      setError("Şifreler eşleşmiyor")
-      setLoading(false)
-      return
-    }
-
-    try {
-      const result = await signUpWithEmailAndPassword(email, password)
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setSuccess("Kayıt başarılı! E-posta adresinizi kontrol edin.")
-      }
-    } catch (err) {
-      setError("Kayıt olurken bir hata oluştu")
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [state, formAction, isPending] = useActionState(registerAction, null)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
+        <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <Image src="/mny-makine-logo.svg" alt="MNY Makine" width={160} height={40} className="h-10 w-auto" />
+            <Image
+              src="/mny-makine-logo.svg"
+              alt="MNY Makine"
+              width={208}
+              height={40}
+              className="h-10 w-auto"
+              priority
+            />
           </div>
-          <CardTitle className="text-2xl font-bold text-center">Kayıt Ol</CardTitle>
-          <CardDescription className="text-center">MNY Makine İş Yönetim Sistemi'ne kayıt olun</CardDescription>
+          <CardTitle className="text-2xl font-bold">Kayıt Ol</CardTitle>
+          <CardDescription>MNY Makine İş Yönetim Sistemi için yeni hesap oluşturun</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {success && (
-              <Alert>
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            )}
+        <CardContent>
+          <form action={formAction} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Ad Soyad</Label>
+              <Input id="name" name="name" type="text" placeholder="Adınız Soyadınız" required disabled={isPending} />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
-                placeholder="ornek@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ornek@mnymakine.com"
                 required
+                disabled={isPending}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
                 required
+                minLength={6}
+                disabled={isPending}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Şifre Tekrar</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Kayıt olunuyor..." : "Kayıt Ol"}
+            {state?.message && (
+              <Alert variant={state.message.includes("başarılı") ? "default" : "destructive"}>
+                <AlertDescription>{state.message}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Kayıt yapılıyor..." : "Kayıt Ol"}
             </Button>
-            <p className="text-sm text-center text-gray-600">
-              Zaten hesabınız var mı?{" "}
-              <Link href="/auth/login" className="text-blue-600 hover:underline">
-                Giriş yapın
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
+          </form>
+          <div className="mt-4 text-center text-sm">
+            <span className="text-gray-600">Zaten hesabınız var mı? </span>
+            <Link href="/auth/login" className="text-blue-600 hover:text-blue-500 font-medium">
+              Giriş Yap
+            </Link>
+          </div>
+        </CardContent>
       </Card>
     </div>
   )

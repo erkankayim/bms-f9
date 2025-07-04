@@ -38,13 +38,13 @@ export default async function EditCustomerPage({ params }: EditCustomerPageProps
 
   return (
     <div className="container mx-auto py-10">
-      <Card className="max-w-2xl mx-auto">
+      <Card className="max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle>Müşteriyi Düzenle: {customerName}</CardTitle>
           <CardDescription>Bu müşterinin bilgilerini güncelleyin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomerForm initialData={customer} />
+          <CustomerForm initialData={customer} isEditMode={true} customerId={customer.mid} />
         </CardContent>
       </Card>
     </div>

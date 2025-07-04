@@ -35,14 +35,15 @@ type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 interface CustomerFormProps {
   initialData?: any
+  isEditMode?: boolean
+  customerId?: string
 }
 
-export function CustomerForm({ initialData }: CustomerFormProps) {
+export function CustomerForm({ initialData, isEditMode = false, customerId }: CustomerFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
-  const isEditing = !!initialData
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
@@ -70,9 +71,9 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
 
     try {
       let result
-      if (isEditing) {
+      if (isEditMode && customerId) {
         // Use the original customer ID for updating
-        result = await updateCustomerAction(initialData.mid, data)
+        result = await updateCustomerAction(customerId, data)
       } else {
         result = await addCustomerAction(data)
       }
@@ -80,7 +81,7 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
       if (result.success) {
         toast({
           title: "Başarılı",
-          description: isEditing ? "Müşteri başarıyla güncellendi" : "Müşteri başarıyla eklendi",
+          description: isEditMode ? "Müşteri başarıyla güncellendi" : "Müşteri başarıyla eklendi",
         })
 
         // Navigate to the customer detail page using the final mid
@@ -263,7 +264,7 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
           İptal
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? "Kaydediliyor..." : isEditing ? "Güncelle" : "Kaydet"}
+          {loading ? "Kaydediliyor..." : isEditMode ? "Güncelle" : "Kaydet"}
         </Button>
       </div>
     </form>
