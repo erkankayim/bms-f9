@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,10 +13,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { deleteExpense } from "../_actions/expense-actions"
-import { toast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 interface DeleteExpenseDialogProps {
   expenseId: string
@@ -24,58 +24,53 @@ interface DeleteExpenseDialogProps {
 }
 
 export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDialogProps) {
-  const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
 
   const handleDelete = async () => {
-    setIsDeleting(true)
-
     try {
-      const result = await deleteExpense(Number.parseInt(expenseId))
+      setIsDeleting(true)
+      await deleteExpense(expenseId)
 
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: "Gider kaydı başarıyla silindi.",
-        })
-        router.push("/financials/expenses")
-      } else {
-        toast({
-          title: "Hata",
-          description: result.error || "Gider kaydı silinirken bir hata oluştu.",
-          variant: "destructive",
-        })
-      }
+      toast({
+        title: "Başarılı",
+        description: `${expenseTitle} adlı gider başarıyla silindi`,
+        duration: 1500,
+      })
+
+      router.push("/financials/expenses")
     } catch (error) {
-      console.error("Error deleting expense:", error)
       toast({
         title: "Hata",
-        description: "Gider kaydı silinirken bir hata oluştu.",
+        description: error instanceof Error ? error.message : "Gider silinirken hata oluştu",
         variant: "destructive",
+        duration: 1500,
       })
     } finally {
       setIsDeleting(false)
+      setOpen(false)
     }
   }
 
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Trash2 className="h-4 w-4" />
+        <Button variant="destructive" size="sm">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Sil
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Gider Kaydını Sil</AlertDialogTitle>
+          <AlertDialogTitle>Gideri Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            "{expenseTitle}" gider kaydını silmek istediğinizden emin misiniz?
-            <br />
-            Bu işlem geri alınamaz.
+            <strong>{expenseTitle}</strong> adlı gideri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>İptal</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}
