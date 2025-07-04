@@ -1,7 +1,7 @@
 "use server"
 
-import { deleteExpense as mainDeleteExpense } from "../../_actions/expense-actions"
+import { deleteExpense as deleteExpenseMain } from "../../_actions/expense-actions"
 
 export async function deleteExpense(id: string) {
-  return await mainDeleteExpense(id)
+  return await deleteExpenseMain(id)
 }

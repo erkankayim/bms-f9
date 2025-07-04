@@ -1,26 +1,28 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
-import { usePathname, useRouter } from "next/navigation"
-import { MainNav } from "./main-nav"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter, usePathname } from "next/navigation"
 
 type AuthContextType = {
   user: User | null
   loading: boolean
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  signOut: async () => {},
 })
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider")
+    throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
 }
@@ -29,8 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-  const pathname = usePathname()
   const router = useRouter()
+  const pathname = usePathname()
+  const supabase = createClient()
 
   useEffect(() => {
     setMounted(true)
@@ -39,9 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mounted) return
 
-    const supabase = createClient()
-
-    // İlk session kontrolü
+    // Get initial session
     const getInitialSession = async () => {
       try {
         const {
@@ -49,14 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error,
         } = await supabase.auth.getSession()
         if (error) {
-          console.error("Session error:", error)
-          setUser(null)
+          console.error("Error getting session:", error)
         } else {
           setUser(session?.user ?? null)
         }
       } catch (error) {
-        console.error("Auth error:", error)
-        setUser(null)
+        console.error("Error in getInitialSession:", error)
       } finally {
         setLoading(false)
       }
@@ -64,71 +63,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
 
-    // Auth değişikliklerini dinle
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, session?.user?.email)
 
-      if (event === "SIGNED_IN") {
-        setUser(session?.user ?? null)
-        setLoading(false)
-        // Login sonrası ana sayfaya yönlendir
-        if (pathname?.startsWith("/auth")) {
-          router.push("/")
-        }
+      setUser(session?.user ?? null)
+      setLoading(false)
+
+      if (event === "SIGNED_IN" && session?.user) {
+        // Force a small delay to ensure state is updated
+        setTimeout(() => {
+          if (pathname === "/auth/login" || pathname === "/auth/register") {
+            router.push("/")
+            router.refresh()
+          }
+        }, 100)
       } else if (event === "SIGNED_OUT") {
-        setUser(null)
-        setLoading(false)
         router.push("/auth/login")
-      } else {
-        setUser(session?.user ?? null)
-        setLoading(false)
+        router.refresh()
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [mounted, pathname, router])
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [mounted, router, pathname, supabase.auth])
 
-  // Mount edilmeden render etme
+  const signOut = async () => {
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error("Error signing out:", error)
+      }
+    } catch (error) {
+      console.error("Error in signOut:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Don't render anything until mounted to prevent hydration issues
   if (!mounted) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return null
   }
 
-  // Yükleniyor durumu
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  // Auth sayfaları
-  const isAuthPage = pathname?.startsWith("/auth")
-
-  if (isAuthPage) {
-    return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
-  }
-
-  // Kullanıcı giriş yapmamışsa login sayfasına yönlendir
-  if (!user) {
-    router.push("/auth/login")
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  // Ana uygulama - sidebar ile
-  return (
-    <AuthContext.Provider value={{ user, loading }}>
-      <MainNav>{children}</MainNav>
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
 }
