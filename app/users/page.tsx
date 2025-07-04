@@ -1,31 +1,42 @@
 import { Suspense } from "react"
-import { getCurrentUserRole } from "./_actions/user-actions"
 import { UsersList } from "./_components/users-list"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCurrentUserRole, debugCurrentUser } from "@/lib/auth"
+
+async function DebugInfo() {
+  const debugInfo = await debugCurrentUser()
+  return (
+    <div className="mb-4">
+      <details className="bg-gray-100 p-4 rounded">
+        <summary className="cursor-pointer font-medium">Debug Bilgisi (Geliştirici)</summary>
+        <pre className="mt-2 text-sm overflow-auto whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+      </details>
+    </div>
+  )
+}
 
 export default async function UsersPage() {
-  const currentRole = await getCurrentUserRole()
+  // Rol kontrolü
+  const userRole = await getCurrentUserRole()
 
-  if (currentRole !== "admin") {
+  if (userRole !== "admin") {
     return (
-      <div className="container mx-auto py-8">
+      <div className="container mx-auto py-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              Erişim Reddedildi
-            </CardTitle>
+            <CardTitle>Erişim Reddedildi</CardTitle>
             <CardDescription>Bu sayfaya erişim için yönetici yetkisi gereklidir.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Yönetici hesabı ile giriş yapmanız gerekmektedir.</AlertDescription>
-            </Alert>
+            <p className="text-sm text-muted-foreground">Yönetici hesabı ile giriş yapmanız gerekmektedir.</p>
+            <p className="text-xs text-muted-foreground mt-2">Mevcut rol: {userRole || "Bilinmiyor"}</p>
+
+            <Suspense fallback={<div>Debug bilgisi yükleniyor...</div>}>
+              <DebugInfo />
+            </Suspense>
           </CardContent>
         </Card>
       </div>
@@ -33,15 +44,15 @@ export default async function UsersPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
+          <h1 className="text-3xl font-bold">Kullanıcılar</h1>
           <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
         </div>
         <Button asChild>
           <Link href="/users/new">
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4 mr-2" />
             Yeni Kullanıcı
           </Link>
         </Button>

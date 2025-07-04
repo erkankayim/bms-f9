@@ -2,133 +2,107 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import type { UserWithAuth } from "@/lib/auth"
 
 interface UserFormProps {
   user?: UserWithAuth
-  onSubmit: (formData: FormData) => Promise<{ success?: string; error?: string }>
-  title: string
-  description: string
-  submitText: string
+  action: (formData: FormData) => Promise<{ success?: string; error?: string }>
 }
 
-export function UserForm({ user, onSubmit, title, description, submitText }: UserFormProps) {
-  const [message, setMessage] = useState("")
-  const [isError, setIsError] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+export function UserForm({ user, action }: UserFormProps) {
+  const [isPending, setIsPending] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
-    setMessage("")
+  const handleSubmit = async (formData: FormData) => {
+    setIsPending(true)
+    setMessage(null)
 
-    const result = await onSubmit(formData)
+    try {
+      const result = await action(formData)
 
-    if (result.error) {
-      setMessage(result.error)
-      setIsError(true)
-    } else if (result.success) {
-      setMessage(result.success)
-      setIsError(false)
+      if (result.success) {
+        setMessage({ type: "success", text: result.success })
+      } else if (result.error) {
+        setMessage({ type: "error", text: result.error })
+      }
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Bir hata oluştu",
+      })
+    } finally {
+      setIsPending(false)
     }
-
-    setIsLoading(false)
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form action={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Ad Soyad *</Label>
-            <Input
-              id="fullName"
-              name="fullName"
-              type="text"
-              required
-              defaultValue={user?.full_name}
-              placeholder="Kullanıcının tam adı"
-            />
-          </div>
+    <form action={handleSubmit} className="space-y-6">
+      {message && (
+        <Alert variant={message.type === "error" ? "destructive" : "default"}>
+          <AlertDescription>{message.text}</AlertDescription>
+        </Alert>
+      )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email">E-posta *</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              defaultValue={user?.email}
-              placeholder="kullanici@example.com"
-            />
-          </div>
+      <div className="grid gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Ad Soyad</Label>
+          <Input id="fullName" name="fullName" defaultValue={user?.full_name} required disabled={isPending} />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Şifre {!user && "*"}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              required={!user}
-              placeholder={user ? "Değiştirmek için yeni şifre girin" : "En az 6 karakter"}
-              minLength={6}
-            />
-            {user && <p className="text-sm text-muted-foreground">Şifreyi değiştirmek istemiyorsanız boş bırakın</p>}
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">E-posta</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            defaultValue={user?.email}
+            required={!user}
+            disabled={isPending}
+          />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">Rol *</Label>
-            <Select name="role" defaultValue={user?.role || "tech"} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Kullanıcı rolü seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Yönetici</SelectItem>
-                <SelectItem value="acc">Muhasebe</SelectItem>
-                <SelectItem value="tech">Teknisyen</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Şifre {user && "(Değiştirmek için doldurun)"}</Label>
+          <Input id="password" name="password" type="password" required={!user} disabled={isPending} minLength={6} />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="status">Durum *</Label>
-            <Select name="status" defaultValue={user?.status || "active"} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Kullanıcı durumu seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Aktif</SelectItem>
-                <SelectItem value="inactive">Pasif</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="role">Rol</Label>
+          <Select name="role" defaultValue={user?.role} required disabled={isPending}>
+            <SelectTrigger>
+              <SelectValue placeholder="Rol seçin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Yönetici</SelectItem>
+              <SelectItem value="acc">Muhasebe</SelectItem>
+              <SelectItem value="tech">Teknisyen</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          {message && (
-            <Alert variant={isError ? "destructive" : "default"}>
-              {isError ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          )}
+        <div className="space-y-2">
+          <Label htmlFor="status">Durum</Label>
+          <Select name="status" defaultValue={user?.status || "active"} required disabled={isPending}>
+            <SelectTrigger>
+              <SelectValue placeholder="Durum seçin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="inactive">Pasif</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-          <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "İşleniyor..." : submitText}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => window.history.back()}>
-              İptal
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <Button type="submit" disabled={isPending} className="w-full">
+        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {user ? "Güncelle" : "Oluştur"}
+      </Button>
+    </form>
   )
 }
