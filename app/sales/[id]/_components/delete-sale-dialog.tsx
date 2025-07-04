@@ -1,6 +1,7 @@
 "use client"
 
-import React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,77 +14,77 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Trash2, Loader2 } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
-import { useRouter } from "next/navigation"
-import { deleteSaleAction } from "../../new/_actions/sales-actions"
+import { Trash2 } from "lucide-react"
+import { deleteSaleAction } from "../_actions/sale-actions"
+import { toast } from "@/hooks/use-toast"
 
 interface DeleteSaleDialogProps {
   saleId: number
-  onDelete?: () => void
+  saleAmount: number
 }
 
-export const DeleteSaleDialog: React.FC<DeleteSaleDialogProps> = ({ saleId, onDelete }) => {
-  const { toast } = useToast()
+export function DeleteSaleDialog({ saleId, saleAmount }: DeleteSaleDialogProps) {
   const router = useRouter()
-  const [isDeleting, setIsDeleting] = React.useState(false)
-  const [isOpen, setIsOpen] = React.useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
     setIsDeleting(true)
-    const result = await deleteSaleAction(saleId)
-    setIsDeleting(false)
 
-    if (result.success) {
-      toast({
-        title: "Satış Arşivlendi",
-        description: `Satış #${saleId} başarıyla arşivlendi.`,
-      })
-      setIsOpen(false)
-      if (onDelete) {
-        onDelete()
+    try {
+      const result = await deleteSaleAction(saleId)
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: "Satış başarıyla silindi.",
+        })
+        router.push("/sales")
       } else {
-        router.push("/sales") // Satış listesine yönlendir
-        router.refresh()
+        toast({
+          title: "Hata",
+          description: result.error || "Satış silinirken bir hata oluştu.",
+          variant: "destructive",
+        })
       }
-    } else {
+    } catch (error) {
+      console.error("Error deleting sale:", error)
       toast({
-        title: "Satış Arşivleme Hatası",
-        description: result.error || "Satış arşivlenemedi. Lütfen tekrar deneyin.",
+        title: "Hata",
+        description: "Satış silinirken bir hata oluştu.",
         variant: "destructive",
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="destructive" size="sm">
-          <Trash2 className="mr-1 h-4 w-4" /> Arşivle
+          <Trash2 className="h-4 w-4 mr-2" />
+          Sil
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Satışı Arşivlemek İstediğinizden Emin misiniz?</AlertDialogTitle>
+          <AlertDialogTitle>Satışı Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            Bu işlem, Satış #{saleId} kaydını arşivleyecektir. Arşivlenen satışlar listelenmeyecek ancak sistemden
-            kalıcı olarak silinmeyecektir. Gerekirse daha sonra geri yüklenebilir.
+            Bu satış kaydını silmek istediğinizden emin misiniz?
+            <br />
+            <strong>Tutar: ₺{saleAmount.toFixed(2)}</strong>
+            <br />
+            Bu işlem geri alınamaz ve tüm ilgili veriler silinecektir.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
+          <AlertDialogCancel>İptal</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isDeleting}
-            className="bg-destructive hover:bg-destructive/90"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isDeleting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Arşivleniyor...
-              </>
-            ) : (
-              "Evet, Arşivle"
-            )}
+            {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
