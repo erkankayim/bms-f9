@@ -44,37 +44,45 @@ export async function getUsers(): Promise<UserWithAuth[]> {
   try {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    // Önce profilleri al
+    const { data: profiles, error: profilesError } = await supabase
       .from("user_profiles")
-      .select(`
-        *,
-        auth_users:user_id (
-          email
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching users:", error)
-      throw new Error("Kullanıcılar getirilemedi")
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError)
+      throw new Error("Kullanıcı profilleri getirilemedi: " + profilesError.message)
     }
 
-    // Veriyi düzenle
-    const users: UserWithAuth[] = data.map((user: any) => ({
-      id: user.id,
-      user_id: user.user_id,
-      full_name: user.full_name,
-      role: user.role,
-      status: user.status,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      email: user.auth_users?.email || "Bilinmiyor",
-    }))
+    if (!profiles || profiles.length === 0) {
+      return []
+    }
 
-    return users
+    // Her profil için auth bilgilerini al
+    const usersWithAuth: UserWithAuth[] = []
+
+    for (const profile of profiles) {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.admin.getUserById(profile.user_id)
+
+        usersWithAuth.push({
+          ...profile,
+          email: authData.user?.email || "Bilinmiyor",
+        })
+      } catch (authError) {
+        console.error("Error fetching auth data for user:", profile.user_id, authError)
+        usersWithAuth.push({
+          ...profile,
+          email: "Hata",
+        })
+      }
+    }
+
+    return usersWithAuth
   } catch (error) {
     console.error("Error in getUsers:", error)
-    throw error
+    throw new Error("Kullanıcılar getirilemedi: " + (error instanceof Error ? error.message : "Bilinmeyen hata"))
   }
 }
 
@@ -133,31 +141,23 @@ export async function getUser(id: string): Promise<UserWithAuth | null> {
   try {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
-      .select(`
-        *,
-        auth_users:user_id (
-          email
-        )
-      `)
+      .select("*")
       .eq("id", id)
       .single()
 
-    if (error) {
-      console.error("Error fetching user:", error)
+    if (profileError || !profile) {
+      console.error("Error fetching profile:", profileError)
       return null
     }
 
+    // Auth bilgilerini al
+    const { data: authData, error: authError } = await supabase.auth.admin.getUserById(profile.user_id)
+
     return {
-      id: data.id,
-      user_id: data.user_id,
-      full_name: data.full_name,
-      role: data.role,
-      status: data.status,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      email: data.auth_users?.email || "Bilinmiyor",
+      ...profile,
+      email: authData.user?.email || "Bilinmiyor",
     }
   } catch (error) {
     console.error("Error in getUser:", error)

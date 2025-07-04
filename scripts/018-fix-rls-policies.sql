@@ -1,20 +1,24 @@
--- Önce mevcut politikaları sil
-DROP POLICY IF EXISTS "Users can view own profile" ON public.user_profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON public.user_profiles;
-DROP POLICY IF EXISTS "Admins can view all profiles" ON public.user_profiles;
-DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.user_profiles;
-DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.user_profiles;
-DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.user_profiles;
-DROP POLICY IF EXISTS "Enable update for users based on user_id" ON public.user_profiles;
-DROP POLICY IF EXISTS "Enable delete for users based on user_id" ON public.user_profiles;
+-- RLS politikalarını sıfırla ve düzelt
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Admins can view all profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Admins can insert profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Admins can update profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Admins can delete profiles" ON user_profiles;
 
--- RLS'yi geçici olarak kapat
-ALTER TABLE public.user_profiles DISABLE ROW LEVEL SECURITY;
+-- Basit ve güvenli RLS politikaları
+CREATE POLICY "Enable read access for authenticated users" ON user_profiles
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Tabloyu temizle ve yeniden oluştur
-TRUNCATE TABLE public.user_profiles CASCADE;
+CREATE POLICY "Enable insert for authenticated users" ON user_profiles
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
--- Admin kullanıcısını bul ve profil oluştur
+CREATE POLICY "Enable update for authenticated users" ON user_profiles
+    FOR UPDATE USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Enable delete for authenticated users" ON user_profiles
+    FOR DELETE USING (auth.uid() IS NOT NULL);
+
+-- Admin kullanıcısını oluştur
 DO $$
 DECLARE
     admin_user_id UUID;
@@ -22,68 +26,58 @@ BEGIN
     -- Admin kullanıcısının ID'sini al
     SELECT id INTO admin_user_id 
     FROM auth.users 
-    WHERE email = 'admin@example.com' 
-    LIMIT 1;
+    WHERE email = 'admin@example.com';
     
-    IF admin_user_id IS NOT NULL THEN
-        -- Admin profili oluştur
-        INSERT INTO public.user_profiles (
-            user_id, 
-            full_name, 
-            role, 
-            status, 
-            created_at, 
-            updated_at
+    -- Eğer kullanıcı yoksa oluştur
+    IF admin_user_id IS NULL THEN
+        INSERT INTO auth.users (
+            instance_id,
+            id,
+            aud,
+            role,
+            email,
+            encrypted_password,
+            email_confirmed_at,
+            recovery_sent_at,
+            last_sign_in_at,
+            raw_app_meta_data,
+            raw_user_meta_data,
+            created_at,
+            updated_at,
+            confirmation_token,
+            email_change,
+            email_change_token_new,
+            recovery_token
         ) VALUES (
-            admin_user_id,
-            'Sistem Yöneticisi',
-            'admin',
-            'active',
+            '00000000-0000-0000-0000-000000000000',
+            gen_random_uuid(),
+            'authenticated',
+            'authenticated',
+            'admin@example.com',
+            crypt('admin123', gen_salt('bf')),
             NOW(),
-            NOW()
-        );
-        
-        RAISE NOTICE 'Admin profili oluşturuldu: %', admin_user_id;
-    ELSE
-        RAISE NOTICE 'Admin kullanıcısı bulunamadı!';
+            NOW(),
+            NOW(),
+            '{"provider":"email","providers":["email"]}',
+            '{"full_name":"Admin User"}',
+            NOW(),
+            NOW(),
+            '',
+            '',
+            '',
+            ''
+        ) RETURNING id INTO admin_user_id;
     END IF;
+    
+    -- Profil oluştur veya güncelle
+    INSERT INTO user_profiles (user_id, full_name, role, status)
+    VALUES (admin_user_id, 'Admin User', 'admin', 'active')
+    ON CONFLICT (user_id) 
+    DO UPDATE SET 
+        full_name = 'Admin User',
+        role = 'admin',
+        status = 'active',
+        updated_at = NOW();
+        
+    RAISE NOTICE 'Admin user created/updated with ID: %', admin_user_id;
 END $$;
-
--- Basit RLS politikaları oluştur (sonsuz döngü olmadan)
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
-
--- Herkese okuma izni ver (geçici olarak)
-CREATE POLICY "Allow read access for all authenticated users" 
-ON public.user_profiles FOR SELECT 
-TO authenticated 
-USING (true);
-
--- Kullanıcılar kendi profillerini güncelleyebilir
-CREATE POLICY "Users can update own profile" 
-ON public.user_profiles FOR UPDATE 
-TO authenticated 
-USING (auth.uid() = user_id);
-
--- Yeni profil oluşturma izni
-CREATE POLICY "Allow insert for authenticated users" 
-ON public.user_profiles FOR INSERT 
-TO authenticated 
-WITH CHECK (auth.uid() = user_id);
-
--- Silme işlemi sadece kendi profili için
-CREATE POLICY "Users can delete own profile" 
-ON public.user_profiles FOR DELETE 
-TO authenticated 
-USING (auth.uid() = user_id);
-
--- Kontrol et
-SELECT 
-    up.id,
-    up.user_id,
-    up.full_name,
-    up.role,
-    up.status,
-    au.email
-FROM public.user_profiles up
-JOIN auth.users au ON up.user_id = au.id
-WHERE au.email = 'admin@example.com';

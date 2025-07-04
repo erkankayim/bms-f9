@@ -1,23 +1,43 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
+
 import { getUser, updateUser } from "@/app/users/_actions/user-actions"
 import { UserForm } from "@/app/users/_components/user-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCurrentUserRole } from "@/app/users/_actions/user-actions"
 
 interface EditUserPageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const { id } = await params
-  const user = await getUser(id)
+  // Yalnızca admin erişebilsin
+  const role = await getCurrentUserRole()
+  if (role !== "admin") {
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Erişim Reddedildi</CardTitle>
+            <CardDescription>Bu sayfaya erişim için yönetici yetkisi gereklidir.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
 
+  // Kullanıcı verisini al
+  const user = await getUser(params.id)
   if (!user) {
     notFound()
   }
 
-  async function handleUpdateUser(formData: FormData) {
+  // Server Action’ı ID ile bind et
+  const updateUserWithId = updateUser.bind(null, params.id)
+
+  // Form submit işlemi başarılı olursa detay sayfasına yönlendirme
+  async function afterSubmit(_: FormData) {
     "use server"
-    return await updateUser(id, formData)
+    redirect(`/users/${params.id}`)
   }
 
   return (
@@ -28,7 +48,12 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
           <CardDescription>Kullanıcı bilgilerini güncelleyin</CardDescription>
         </CardHeader>
         <CardContent>
-          <UserForm user={user} action={handleUpdateUser} />
+          <UserForm
+            user={user}
+            action={updateUserWithId} /* Server Action */
+            onSuccessAction={afterSubmit}
+            submitText="Değişiklikleri Kaydet"
+          />
         </CardContent>
       </Card>
     </div>
