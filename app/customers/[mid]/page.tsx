@@ -1,165 +1,198 @@
-import { Suspense } from "react"
-import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { notFound } from "next/navigation"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarDays, Mail, MapPin, Phone, User, Edit, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, User, Building } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { format } from "date-fns"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CustomerOverview } from "./_components/customer-overview"
 import { CustomerSalesHistory } from "./_components/customer-sales-history"
 import { CustomerInvoiceHistory } from "./_components/customer-invoice-history"
 import { CustomerPurchaseInsights } from "./_components/customer-purchase-insights"
 import { DeleteCustomerDialog } from "./_components/delete-customer-dialog"
 
-interface CustomerDetailPageProps {
-  params: {
-    mid: string
-  }
+type Customer = {
+  mid: string
+  contact_name: string | null
+  company_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  country: string | null
+  postal_code: string | null
+  tax_number: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
 }
 
-async function getCustomer(mid: string) {
+export default async function CustomerDetailPage({ params }: { params: { mid: string } }) {
   const supabase = createClient()
+  const customerId = params.mid
 
-  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", mid).single()
+  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
 
-  if (error) {
-    console.error("Error fetching customer:", error)
-    return null
-  }
-
-  return customer
-}
-
-export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
-  const customer = await getCustomer(params.mid)
-
-  if (!customer) {
+  if (error || !customer) {
+    console.error("Error fetching customer:", error?.message)
     notFound()
   }
 
-  const isDeleted = !!customer.deleted_at
+  const typedCustomer = customer as Customer
+  const isDeleted = !!typedCustomer.deleted_at
 
   return (
-    <div className="container mx-auto py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/customers">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Geri
-            </Link>
+    <div className="container mx-auto py-10">
+      <div className="mb-6 flex justify-between items-center">
+        <Link href="/customers">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Müşterilere Geri Dön
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              {customer.name}
-              {isDeleted && <Badge variant="destructive">Silinmiş</Badge>}
-            </h1>
-            <p className="text-muted-foreground">Müşteri ID: {customer.mid}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/customers/${customer.mid}/edit`}>
-              <Edit className="h-4 w-4 mr-2" />
-              Düzenle
+        </Link>
+        <div className="flex gap-2">
+          {!isDeleted && (
+            <Link href={`/customers/${typedCustomer.mid}/edit`}>
+              <Button variant="outline" size="sm">
+                <Edit className="mr-2 h-4 w-4" /> Düzenle
+              </Button>
             </Link>
-          </Button>
-
-          <DeleteCustomerDialog customerId={customer.mid} customerName={customer.name} isDeleted={isDeleted} />
+          )}
+          <DeleteCustomerDialog
+            customerId={typedCustomer.mid}
+            customerName={typedCustomer.contact_name || typedCustomer.company_name || "Bilinmeyen"}
+            isDeleted={isDeleted}
+          />
         </div>
       </div>
 
-      {/* Customer Info Card */}
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Müşteri Bilgileri
-          </CardTitle>
-          <CardDescription>Müşterinin temel bilgileri ve iletişim detayları</CardDescription>
+        <CardHeader className="bg-muted/50 p-6">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div>
+              <CardTitle className="text-3xl font-bold flex items-center gap-2">
+                <User className="h-8 w-8" />
+                {typedCustomer.contact_name || typedCustomer.company_name || "İsimsiz Müşteri"}
+              </CardTitle>
+              <CardDescription className="text-md flex items-center mt-1">
+                <Calendar className="mr-1 h-4 w-4" />
+                Kayıt Tarihi: {format(new Date(typedCustomer.created_at), "dd.MM.yyyy")}
+              </CardDescription>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Badge variant="outline" className="text-sm">
+                ID: {typedCustomer.mid}
+              </Badge>
+              {isDeleted && (
+                <Badge variant="destructive" className="text-sm">
+                  Arşivlenmiş
+                </Badge>
+              )}
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {customer.email && (
-              <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">E-posta</p>
-                  <p className="text-sm text-muted-foreground">{customer.email}</p>
-                </div>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* İletişim Bilgileri */}
+            <div>
+              <h3 className="text-lg font-medium mb-3">İletişim Bilgileri</h3>
+              <div className="space-y-2">
+                {typedCustomer.email && (
+                  <p className="flex items-center text-sm">
+                    <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <a href={`mailto:${typedCustomer.email}`} className="hover:underline">
+                      {typedCustomer.email}
+                    </a>
+                  </p>
+                )}
+                {typedCustomer.phone && (
+                  <p className="flex items-center text-sm">
+                    <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <a href={`tel:${typedCustomer.phone}`} className="hover:underline">
+                      {typedCustomer.phone}
+                    </a>
+                  </p>
+                )}
+                {!typedCustomer.email && !typedCustomer.phone && (
+                  <p className="text-sm text-muted-foreground">İletişim bilgisi yok</p>
+                )}
               </div>
-            )}
+            </div>
 
-            {customer.phone && (
-              <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Telefon</p>
-                  <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                </div>
+            {/* Şirket Bilgileri */}
+            <div>
+              <h3 className="text-lg font-medium mb-3">Şirket Bilgileri</h3>
+              <div className="space-y-2">
+                {typedCustomer.company_name && (
+                  <p className="flex items-center text-sm">
+                    <Building className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {typedCustomer.company_name}
+                  </p>
+                )}
+                {typedCustomer.tax_number && (
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Vergi No:</span> {typedCustomer.tax_number}
+                  </p>
+                )}
+                {!typedCustomer.company_name && !typedCustomer.tax_number && (
+                  <p className="text-sm text-muted-foreground">Şirket bilgisi yok</p>
+                )}
               </div>
-            )}
+            </div>
 
-            {customer.address && (
-              <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Adres</p>
-                  <p className="text-sm text-muted-foreground">{customer.address}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Kayıt Tarihi</p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(customer.created_at).toLocaleDateString("tr-TR")}
-                </p>
+            {/* Adres Bilgileri */}
+            <div>
+              <h3 className="text-lg font-medium mb-3">Adres Bilgileri</h3>
+              <div className="space-y-2">
+                {typedCustomer.address && (
+                  <p className="flex items-start text-sm">
+                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground mt-0.5" />
+                    <span>
+                      {typedCustomer.address}
+                      {typedCustomer.city && <>, {typedCustomer.city}</>}
+                      {typedCustomer.postal_code && <> {typedCustomer.postal_code}</>}
+                      {typedCustomer.country && <>, {typedCustomer.country}</>}
+                    </span>
+                  </p>
+                )}
+                {!typedCustomer.address && <p className="text-sm text-muted-foreground">Adres bilgisi yok</p>}
               </div>
             </div>
           </div>
+
+          {typedCustomer.notes && (
+            <div className="mt-6 pt-6 border-t">
+              <h3 className="text-lg font-medium mb-2">Notlar</h3>
+              <p className="text-muted-foreground whitespace-pre-wrap">{typedCustomer.notes}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-          <TabsTrigger value="sales">Satış Geçmişi</TabsTrigger>
-          <TabsTrigger value="invoices">Fatura Geçmişi</TabsTrigger>
-          <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <Suspense fallback={<div>Yükleniyor...</div>}>
-            <CustomerOverview customerId={customer.mid} />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="sales">
-          <Suspense fallback={<div>Yükleniyor...</div>}>
-            <CustomerSalesHistory customerId={customer.mid} />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="invoices">
-          <Suspense fallback={<div>Yükleniyor...</div>}>
-            <CustomerInvoiceHistory customerId={customer.mid} />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="insights">
-          <Suspense fallback={<div>Yükleniyor...</div>}>
-            <CustomerPurchaseInsights customerId={customer.mid} />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
+      {!isDeleted && (
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
+            <TabsTrigger value="sales">Satış Geçmişi</TabsTrigger>
+            <TabsTrigger value="invoices">Fatura Geçmişi</TabsTrigger>
+            <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview" className="space-y-4">
+            <CustomerOverview customerId={typedCustomer.mid} />
+          </TabsContent>
+          <TabsContent value="sales" className="space-y-4">
+            <CustomerSalesHistory customerId={typedCustomer.mid} />
+          </TabsContent>
+          <TabsContent value="invoices" className="space-y-4">
+            <CustomerInvoiceHistory customerId={typedCustomer.mid} />
+          </TabsContent>
+          <TabsContent value="insights" className="space-y-4">
+            <CustomerPurchaseInsights customerId={typedCustomer.mid} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }

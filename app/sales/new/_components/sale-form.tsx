@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Trash2, Plus, Search, Loader2, Info, X } from "lucide-react"
@@ -18,13 +18,11 @@ import { createSaleAction } from "../_actions/sales-actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { addMonths, format } from "date-fns"
 
-// Müşteri tipi
 interface Customer {
   mid: string
   contact_name: string | null
 }
 
-// Ürün tipi
 interface Product {
   stock_code: string
   name: string
@@ -34,24 +32,22 @@ interface Product {
   quantity_on_hand: number | null
 }
 
-// Satış kalemi şeması
 const saleItemSchema = z.object({
   product_stock_code: z.string().min(1, "Ürün seçimi gereklidir"),
   product_name: z.string().optional(),
   quantity: z.coerce.number().int().positive("Miktar pozitif bir sayı olmalıdır"),
   unit_price: z.coerce.number().positive("Birim fiyat pozitif bir sayı olmalıdır"),
-  unit_price_currency: z.string().optional().nullable(),
   vat_rate: z.coerce.number().min(0, "KDV oranı negatif olamaz"),
   item_total_gross: z.coerce.number().nonnegative("Toplam tutar negatif olamaz"),
   item_total_net: z.coerce.number().nonnegative("KDV dahil toplam tutar negatif olamaz"),
 })
 
-// Satış formu şeması
 const saleFormSchema = z
   .object({
     customer_mid: z.string().optional().nullable(),
     items: z.array(saleItemSchema).min(1, "En az bir ürün eklemelisiniz"),
     payment_method: z.string().min(1, "Ödeme yöntemi seçimi gereklidir"),
+    sale_currency: z.string().length(3, "Para birimi 3 karakter olmalıdır.").default("TRY"),
     is_installment: z.boolean().default(false),
     installment_count: z.coerce
       .number()
@@ -80,8 +76,9 @@ const saleFormSchema = z
 
 type SaleFormValues = z.infer<typeof saleFormSchema>
 
+const CURRENCIES = ["TRY", "USD", "EUR"]
+
 export function SaleForm() {
-  const { toast } = useToast()
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
@@ -93,13 +90,13 @@ export function SaleForm() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
 
-  // Form tanımı
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       customer_mid: null,
       items: [],
       payment_method: "",
+      sale_currency: "TRY",
       is_installment: false,
       installment_count: null,
       discount_amount: 0,
@@ -107,18 +104,16 @@ export function SaleForm() {
     },
   })
 
-  // Satış kalemleri için field array
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "items",
   })
 
-  // Ödeme yöntemini ve taksit durumunu izle
   const paymentMethod = useWatch({ control: form.control, name: "payment_method" })
   const isInstallment = useWatch({ control: form.control, name: "is_installment" })
   const installmentCount = useWatch({ control: form.control, name: "installment_count" })
+  const saleCurrency = useWatch({ control: form.control, name: "sale_currency" })
 
-  // Müşterileri yükle
   useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true)
@@ -127,29 +122,32 @@ export function SaleForm() {
         .select("mid, contact_name")
         .is("deleted_at", null)
         .order("contact_name")
-
       if (error) {
-        toast({ title: "Müşteriler yüklenemedi", description: error.message, variant: "destructive" })
+        toast.error("Müşteriler yüklenemedi", { description: error.message })
       } else {
         setCustomers(data || [])
       }
       setLoadingCustomers(false)
     }
     fetchCustomers()
-  }, [supabase, toast])
+  }, [supabase])
 
-  // Ürün arama - debounced
   useEffect(() => {
+    const timer = setTimeout(() => {
+      if (productSearchTerm && productSearchTerm.length > 1 && !selectedProduct) {
+        searchProducts()
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+
     async function searchProducts() {
-      if (!productSearchTerm.trim() || productSearchTerm.length < 2) {
+      if (!productSearchTerm.trim()) {
         setProducts([])
         setShowProductDropdown(false)
         return
       }
-
       setLoadingProducts(true)
       setShowProductDropdown(true)
-
       const { data, error } = await supabase
         .from("products")
         .select("stock_code, name, sale_price, sale_price_currency, vat_rate, quantity_on_hand")
@@ -157,26 +155,16 @@ export function SaleForm() {
         .ilike("name", `%${productSearchTerm}%`)
         .order("name")
         .limit(10)
-
       if (error) {
-        toast({ title: "Ürünler aranamadı", description: error.message, variant: "destructive" })
+        toast.error("Ürünler aranamadı", { description: error.message })
         setProducts([])
       } else {
         setProducts(data || [])
       }
       setLoadingProducts(false)
     }
+  }, [productSearchTerm, selectedProduct, supabase])
 
-    const timer = setTimeout(() => {
-      if (productSearchTerm && !selectedProduct) {
-        searchProducts()
-      }
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [productSearchTerm, selectedProduct, supabase, toast])
-
-  // Ürün seçildiğinde
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
     setProductSearchTerm(product.name)
@@ -184,7 +172,6 @@ export function SaleForm() {
     setShowProductDropdown(false)
   }
 
-  // Ürün arama temizleme
   const clearProductSearch = () => {
     setSelectedProduct(null)
     setProductSearchTerm("")
@@ -192,12 +179,10 @@ export function SaleForm() {
     setShowProductDropdown(false)
   }
 
-  // Ürün ekleme
   const handleAddProduct = () => {
     if (!selectedProduct) return
 
     const unitPrice = selectedProduct.sale_price || 0
-    const unitPriceCurrency = selectedProduct.sale_price_currency || "TRY"
     const vatRate = selectedProduct.vat_rate || 0
     const quantity = 1
     const itemTotalGross = unitPrice * quantity
@@ -208,16 +193,20 @@ export function SaleForm() {
       product_name: selectedProduct.name,
       quantity,
       unit_price: unitPrice,
-      unit_price_currency: unitPriceCurrency,
       vat_rate: vatRate,
       item_total_gross: itemTotalGross,
       item_total_net: itemTotalNet,
     })
 
+    if (fields.length === 0 && selectedProduct.sale_price_currency) {
+      if (CURRENCIES.includes(selectedProduct.sale_price_currency)) {
+        form.setValue("sale_currency", selectedProduct.sale_price_currency)
+      }
+    }
+
     clearProductSearch()
   }
 
-  // Input focus/blur handlers
   const handleInputFocus = () => {
     if (productSearchTerm && !selectedProduct) {
       setShowProductDropdown(true)
@@ -225,52 +214,31 @@ export function SaleForm() {
   }
 
   const handleInputBlur = () => {
-    // Dropdown'ı hemen kapatma, kullanıcının tıklama şansı olsun
-    setTimeout(() => {
-      setShowProductDropdown(false)
-    }, 200)
+    setTimeout(() => setShowProductDropdown(false), 200)
   }
 
-  // Miktar veya birim fiyat değiştiğinde toplam tutarı güncelle
   const updateItemTotal = (index: number) => {
-    const items = form.getValues("items")
-    const item = items[index]
-
-    const quantity = item.quantity
-    const unitPrice = item.unit_price
-    const vatRate = item.vat_rate
-
-    const itemTotalGross = quantity * unitPrice
-    const itemTotalNet = itemTotalGross * (1 + vatRate)
-
+    const item = form.getValues(`items.${index}`)
+    const itemTotalGross = item.quantity * item.unit_price
+    const itemTotalNet = itemTotalGross * (1 + item.vat_rate)
     form.setValue(`items.${index}.item_total_gross`, itemTotalGross)
     form.setValue(`items.${index}.item_total_net`, itemTotalNet)
     form.trigger("items")
   }
 
-  // Toplam tutarları hesapla
-  const calculateTotals = useMemo(() => {
+  const { totalGross, totalTax, finalAmount } = useMemo(() => {
     const items = form.getValues("items")
     const discountAmount = form.getValues("discount_amount") || 0
-
-    const totalGross = items.reduce((sum, item) => sum + (item.item_total_gross || 0), 0)
     const totalNet = items.reduce((sum, item) => sum + (item.item_total_net || 0), 0)
+    const totalGross = items.reduce((sum, item) => sum + (item.item_total_gross || 0), 0)
     const totalTax = totalNet - totalGross
     const finalAmount = totalNet - discountAmount
-
-    return {
-      totalGross,
-      totalTax,
-      totalNet,
-      discountAmount,
-      finalAmount,
-    }
+    return { totalGross, totalTax, totalNet, discountAmount, finalAmount }
   }, [form.watch("items"), form.watch("discount_amount")])
 
-  // Taksit bilgilerini hesapla
   const installmentDetails = useMemo(() => {
-    if (isInstallment && installmentCount && installmentCount > 0 && calculateTotals.finalAmount > 0) {
-      const monthlyAmount = calculateTotals.finalAmount / installmentCount
+    if (isInstallment && installmentCount && installmentCount > 0 && finalAmount > 0) {
+      const monthlyAmount = finalAmount / installmentCount
       const firstDueDate = addMonths(new Date(), 1)
       return {
         monthlyAmount: monthlyAmount.toFixed(2),
@@ -278,32 +246,35 @@ export function SaleForm() {
       }
     }
     return null
-  }, [isInstallment, installmentCount, calculateTotals.finalAmount])
+  }, [isInstallment, installmentCount, finalAmount])
 
-  // Form gönderimi
+  const formatCurrency = (amount: number) => {
+    try {
+      return new Intl.NumberFormat("tr-TR", { style: "currency", currency: saleCurrency }).format(amount)
+    } catch (e) {
+      return `${amount.toFixed(2)} ${saleCurrency}`
+    }
+  }
+
   async function onSubmit(data: SaleFormValues) {
     const saleDataForAction = {
       ...data,
-      total_amount: calculateTotals.totalGross,
-      tax_amount: calculateTotals.totalTax,
-      final_amount: calculateTotals.finalAmount,
+      total_amount: totalGross,
+      tax_amount: totalTax,
+      final_amount: finalAmount,
       installment_count: data.is_installment ? data.installment_count : null,
     }
 
     const result = await createSaleAction(saleDataForAction)
 
     if (result.success) {
-      toast({
-        title: "Satış Oluşturuldu",
+      toast.success("Satış Oluşturuldu", {
         description: `Satış #${result.data?.id} başarıyla oluşturuldu.`,
       })
       router.push(`/sales/${result.data?.id}`)
-      router.refresh()
     } else {
-      toast({
-        title: "Hata",
+      toast.error("Hata", {
         description: result.error || "Satış oluşturulamadı. Lütfen tekrar deneyin.",
-        variant: "destructive",
       })
     }
   }
@@ -311,7 +282,6 @@ export function SaleForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* Müşteri Seçimi */}
         <div className="space-y-4 rounded-md border p-4">
           <h3 className="text-lg font-medium">Müşteri Bilgileri</h3>
           <FormField
@@ -341,20 +311,15 @@ export function SaleForm() {
                     )}
                   </SelectContent>
                 </Select>
-                <FormDescription>
-                  Müşteri seçimi opsiyoneldir. Misafir satışı için boş bırakabilirsiniz.
-                </FormDescription>
+                <FormDescription>Misafir satışı için boş bırakabilirsiniz.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
 
-        {/* Ürün Ekleme */}
         <div className="space-y-4 rounded-md border p-4">
           <h3 className="text-lg font-medium">Ürünler</h3>
-
-          {/* Ürün Arama */}
           <div className="flex flex-col md:flex-row gap-2">
             <div className="relative flex-grow">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -365,15 +330,11 @@ export function SaleForm() {
                 value={productSearchTerm}
                 onChange={(e) => {
                   setProductSearchTerm(e.target.value)
-                  if (selectedProduct) {
-                    setSelectedProduct(null)
-                  }
+                  if (selectedProduct) setSelectedProduct(null)
                 }}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
               />
-
-              {/* Temizleme butonu */}
               {productSearchTerm && (
                 <button
                   type="button"
@@ -383,15 +344,11 @@ export function SaleForm() {
                   <X className="h-4 w-4" />
                 </button>
               )}
-
-              {/* Loading göstergesi */}
               {loadingProducts && (
                 <div className="absolute right-8 top-2.5">
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
               )}
-
-              {/* Arama Sonuçları */}
               {showProductDropdown && products.length > 0 && (
                 <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-auto shadow-lg">
                   <CardContent className="p-0">
@@ -401,7 +358,7 @@ export function SaleForm() {
                           key={product.stock_code}
                           className="p-3 hover:bg-muted cursor-pointer transition-colors"
                           onMouseDown={(e) => {
-                            e.preventDefault() // Blur'u engelle
+                            e.preventDefault()
                             handleProductSelect(product)
                           }}
                         >
@@ -409,7 +366,7 @@ export function SaleForm() {
                           <div className="text-sm text-muted-foreground flex justify-between">
                             <span>Stok: {product.quantity_on_hand || 0}</span>
                             <span>
-                              {product.sale_price?.toFixed(2) || "0.00"} {product.sale_price_currency || "TRY"}
+                              {product.sale_price?.toFixed(2) || "0.00"} {product.sale_price_currency || ""}
                             </span>
                           </div>
                         </li>
@@ -419,13 +376,11 @@ export function SaleForm() {
                 </Card>
               )}
             </div>
-
             <Button type="button" onClick={handleAddProduct} disabled={!selectedProduct}>
               <Plus className="mr-1 h-4 w-4" /> Ürün Ekle
             </Button>
           </div>
 
-          {/* Ürün Listesi */}
           {fields.length > 0 ? (
             <div className="border rounded-md overflow-hidden">
               <table className="w-full">
@@ -433,7 +388,7 @@ export function SaleForm() {
                   <tr>
                     <th className="p-2 text-left">Ürün</th>
                     <th className="p-2 text-right">Miktar</th>
-                    <th className="p-2 text-right">Birim Fiyat</th>
+                    <th className="p-2 text-right">Birim Fiyat ({saleCurrency})</th>
                     <th className="p-2 text-right">KDV</th>
                     <th className="p-2 text-right">Toplam</th>
                     <th className="p-2 text-center">İşlem</th>
@@ -442,12 +397,7 @@ export function SaleForm() {
                 <tbody>
                   {fields.map((field, index) => (
                     <tr key={field.id} className="border-t">
-                      <td className="p-2">
-                        {form.getValues(`items.${index}.product_name`)}
-                        <input type="hidden" {...form.register(`items.${index}.product_stock_code`)} />
-                        <input type="hidden" {...form.register(`items.${index}.product_name`)} />
-                        <input type="hidden" {...form.register(`items.${index}.unit_price_currency`)} />
-                      </td>
+                      <td className="p-2">{form.getValues(`items.${index}.product_name`)}</td>
                       <td className="p-2">
                         <Input
                           type="number"
@@ -460,21 +410,16 @@ export function SaleForm() {
                         />
                       </td>
                       <td className="p-2">
-                        <div className="flex items-center justify-end">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-24 text-right"
-                            {...form.register(`items.${index}.unit_price`, {
-                              valueAsNumber: true,
-                              onChange: () => updateItemTotal(index),
-                            })}
-                          />
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            {form.getValues(`items.${index}.unit_price_currency`)}
-                          </span>
-                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24 text-right"
+                          {...form.register(`items.${index}.unit_price`, {
+                            valueAsNumber: true,
+                            onChange: () => updateItemTotal(index),
+                          })}
+                        />
                       </td>
                       <td className="p-2">
                         <Input
@@ -488,14 +433,9 @@ export function SaleForm() {
                             onChange: () => updateItemTotal(index),
                           })}
                         />
-                        <input type="hidden" {...form.register(`items.${index}.item_total_gross`)} />
-                        <input type="hidden" {...form.register(`items.${index}.item_total_net`)} />
                       </td>
                       <td className="p-2 text-right">
-                        {form.getValues(`items.${index}.item_total_net`).toFixed(2)}
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          {form.getValues(`items.${index}.unit_price_currency`)}
-                        </span>
+                        {formatCurrency(form.getValues(`items.${index}.item_total_net`))}
                       </td>
                       <td className="p-2 text-center">
                         <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>
@@ -510,20 +450,16 @@ export function SaleForm() {
           ) : (
             <div className="text-center py-8 border rounded-md bg-muted/20">
               <p className="text-muted-foreground">Henüz ürün eklenmedi.</p>
-              <p className="text-sm text-muted-foreground">Ürün eklemek için yukarıdaki arama kutusunu kullanın.</p>
             </div>
           )}
-
           {form.formState.errors.items?.root && (
             <p className="text-sm font-medium text-destructive">{form.formState.errors.items.root.message}</p>
           )}
         </div>
 
-        {/* Ödeme Bilgileri */}
         <div className="space-y-4 rounded-md border p-4">
           <h3 className="text-lg font-medium">Ödeme Bilgileri</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <FormField
               control={form.control}
               name="payment_method"
@@ -533,15 +469,13 @@ export function SaleForm() {
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value)
-                      if (value === "cash") {
-                        form.setValue("is_installment", false)
-                      }
+                      if (value === "cash") form.setValue("is_installment", false)
                     }}
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Ödeme yöntemi seçin" />
+                        <SelectValue placeholder="Seçin..." />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -555,13 +489,36 @@ export function SaleForm() {
                 </FormItem>
               )}
             />
-
+            <FormField
+              control={form.control}
+              name="sale_currency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Para Birimi</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seçin..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="discount_amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>İndirim Tutarı</FormLabel>
+                  <FormLabel>İndirim Tutarı ({saleCurrency})</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -569,10 +526,7 @@ export function SaleForm() {
                       min="0"
                       placeholder="0.00"
                       {...field}
-                      onChange={(e) => {
-                        field.onChange(e.target.value === "" ? 0 : Number(e.target.value))
-                        form.trigger("discount_amount")
-                      }}
+                      onChange={(e) => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))}
                     />
                   </FormControl>
                   <FormMessage />
@@ -581,25 +535,23 @@ export function SaleForm() {
             />
           </div>
 
-          {/* Taksit Seçenekleri */}
           {paymentMethod !== "cash" && (
             <div className="space-y-4 pt-4 border-t">
               <FormField
                 control={form.control}
                 name="is_installment"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow">
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel>Taksitli Ödeme</FormLabel>
-                      <FormDescription>Bu satış için taksitli ödeme planı oluşturulsun mu?</FormDescription>
+                      <FormDescription>Bu satış için ödeme planı oluşturulsun mu?</FormDescription>
                     </div>
                   </FormItem>
                 )}
               />
-
               {isInstallment && (
                 <FormField
                   control={form.control}
@@ -624,8 +576,8 @@ export function SaleForm() {
               {installmentDetails && (
                 <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
                   <Info className="inline-block h-4 w-4 mr-1" />
-                  Yaklaşık aylık taksit: <strong>₺{installmentDetails.monthlyAmount}</strong>. İlk taksit tarihi:{" "}
-                  <strong>{installmentDetails.firstDueDate}</strong>.
+                  Yaklaşık aylık taksit: <strong>{formatCurrency(Number(installmentDetails.monthlyAmount))}</strong>.
+                  İlk taksit tarihi: <strong>{installmentDetails.firstDueDate}</strong>.
                 </div>
               )}
             </div>
@@ -645,23 +597,22 @@ export function SaleForm() {
             )}
           />
 
-          {/* Toplam Özeti */}
-          <div className="mt-6 border-t pt-4">
-            <div className="flex justify-between items-center">
+          <div className="mt-6 border-t pt-4 space-y-1">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Ara Toplam:</span>
-              <span>₺{calculateTotals.totalGross.toFixed(2)}</span>
+              <span>{formatCurrency(totalGross)}</span>
             </div>
-            <div className="flex justify-between items-center mt-1">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">KDV:</span>
-              <span>₺{calculateTotals.totalTax.toFixed(2)}</span>
+              <span>{formatCurrency(totalTax)}</span>
             </div>
-            <div className="flex justify-between items-center mt-1">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">İndirim:</span>
-              <span>-₺{calculateTotals.discountAmount.toFixed(2)}</span>
+              <span>-{formatCurrency(form.getValues("discount_amount"))}</span>
             </div>
-            <div className="flex justify-between items-center mt-2 pt-2 border-t font-bold">
+            <div className="flex justify-between pt-2 border-t font-bold text-lg">
               <span>Genel Toplam:</span>
-              <span>₺{calculateTotals.finalAmount.toFixed(2)}</span>
+              <span>{formatCurrency(finalAmount)}</span>
             </div>
           </div>
         </div>

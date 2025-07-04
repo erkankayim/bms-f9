@@ -5,82 +5,70 @@ import { revalidatePath } from "next/cache"
 
 export async function deleteCustomer(customerId: string) {
   try {
-    console.log("Deleting customer:", customerId)
-
     const supabase = createClient()
 
-    // Müşteriyi soft delete yap (deleted_at alanını güncelle)
-    const { data, error } = await supabase
+    console.log(`[deleteCustomer] Müşteri siliniyor: ${customerId}`)
+
+    const { error } = await supabase
       .from("customers")
-      .update({
-        deleted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update({ deleted_at: new Date().toISOString() })
       .eq("mid", customerId)
-      .select()
+      .is("deleted_at", null)
 
     if (error) {
-      console.error("Supabase error:", error)
-      throw new Error(`Veritabanı hatası: ${error.message}`)
+      console.error(`[deleteCustomer] Supabase hatası:`, error)
+      return {
+        success: false,
+        error: `Müşteri silinemedi: ${error.message}`,
+      }
     }
 
-    if (!data || data.length === 0) {
-      throw new Error("Müşteri bulunamadı")
-    }
+    console.log(`[deleteCustomer] Müşteri başarıyla silindi: ${customerId}`)
 
-    console.log("Customer deleted successfully:", data)
-
-    // Cache'i yenile
     revalidatePath("/customers")
     revalidatePath(`/customers/${customerId}`)
 
-    return { success: true, message: "Müşteri başarıyla silindi" }
+    return { success: true }
   } catch (error) {
-    console.error("Delete customer error:", error)
+    console.error(`[deleteCustomer] Beklenmeyen hata:`, error)
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Müşteri silinirken bir hata oluştu",
+      error: "Beklenmeyen bir hata oluştu",
     }
   }
 }
 
 export async function restoreCustomer(customerId: string) {
   try {
-    console.log("Restoring customer:", customerId)
-
     const supabase = createClient()
 
-    // Müşteriyi geri yükle (deleted_at alanını null yap)
-    const { data, error } = await supabase
+    console.log(`[restoreCustomer] Müşteri geri yükleniyor: ${customerId}`)
+
+    const { error } = await supabase
       .from("customers")
-      .update({
-        deleted_at: null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ deleted_at: null })
       .eq("mid", customerId)
-      .select()
+      .not("deleted_at", "is", null)
 
     if (error) {
-      console.error("Supabase error:", error)
-      throw new Error(`Veritabanı hatası: ${error.message}`)
+      console.error(`[restoreCustomer] Supabase hatası:`, error)
+      return {
+        success: false,
+        error: `Müşteri geri yüklenemedi: ${error.message}`,
+      }
     }
 
-    if (!data || data.length === 0) {
-      throw new Error("Müşteri bulunamadı")
-    }
+    console.log(`[restoreCustomer] Müşteri başarıyla geri yüklendi: ${customerId}`)
 
-    console.log("Customer restored successfully:", data)
-
-    // Cache'i yenile
     revalidatePath("/customers")
     revalidatePath(`/customers/${customerId}`)
 
-    return { success: true, message: "Müşteri başarıyla geri yüklendi" }
+    return { success: true }
   } catch (error) {
-    console.error("Restore customer error:", error)
+    console.error(`[restoreCustomer] Beklenmeyen hata:`, error)
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Müşteri geri yüklenirken bir hata oluştu",
+      error: "Beklenmeyen bir hata oluştu",
     }
   }
 }

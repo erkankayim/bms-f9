@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Loader2, Search, ChevronLeft, ChevronRight, Calendar, User } from "lucide-react"
+import { PlusCircle, Loader2, Search, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -18,11 +17,8 @@ type Sale = {
   id: number
   sale_date: string
   customer_mid: string | null
-  total_amount: number
-  discount_amount: number
-  tax_amount: number
   final_amount: number
-  payment_method: string | null
+  sale_currency: string
   status: string
   customers?: {
     contact_name: string | null
@@ -31,12 +27,11 @@ type Sale = {
 
 const ITEMS_PER_PAGE = 10
 
-const getStatusBadgeVariant = (status: string) => {
+const getStatusBadgeVariant = (status: string): "success" | "warning" | "destructive" | "outline" | "secondary" => {
   switch (status.toLowerCase()) {
     case "completed":
       return "success"
     case "pending":
-    case "pending_installment":
       return "warning"
     case "cancelled":
       return "destructive"
@@ -47,19 +42,27 @@ const getStatusBadgeVariant = (status: string) => {
   }
 }
 
-const formatPaymentMethod = (method: string | null) => {
-  if (!method) return "-"
-  switch (method.toLowerCase()) {
-    case "cash":
-      return "Nakit"
-    case "credit_card":
-      return "Kredi Kartı"
-    case "bank_transfer":
-      return "Banka Havalesi"
-    case "other":
-      return "Diğer"
+const formatStatus = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "completed":
+      return "Tamamlandı"
+    case "pending":
+      return "Beklemede"
+    case "cancelled":
+      return "İptal Edildi"
+    case "refunded":
+      return "İade Edildi"
     default:
-      return method
+      return status
+  }
+}
+
+const formatCurrency = (amount: number, currencyCode: string) => {
+  const code = currencyCode || "TRY"
+  try {
+    return new Intl.NumberFormat("tr-TR", { style: "currency", currency: code }).format(amount)
+  } catch (e) {
+    return `${amount.toFixed(2)} ${code}`
   }
 }
 
@@ -68,7 +71,6 @@ export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const [currentPage, setCurrentPage] = useState(1)
   const [totalSales, setTotalSales] = useState(0)
   const [searchTerm, setSearchTerm] = useState("")
@@ -79,35 +81,27 @@ export default function SalesPage() {
   const fetchSales = useCallback(async () => {
     setLoading(true)
     setError(null)
-
     const from = (currentPage - 1) * ITEMS_PER_PAGE
     const to = from + ITEMS_PER_PAGE - 1
 
     let query = supabase
       .from("sales")
-      .select("*, customers(contact_name)", {
+      .select("id, sale_date, customer_mid, final_amount, sale_currency, status, customers(contact_name)", {
         count: "exact",
       })
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
 
     if (debouncedSearchTerm) {
-      if (!isNaN(Number(debouncedSearchTerm))) {
-        query = query.eq("id", Number(debouncedSearchTerm))
-      } else {
-        query = query.textSearch("customers.contact_name", debouncedSearchTerm, {
-          type: "websearch",
-          config: "english",
-        })
-      }
+      query = query.or(
+        `id.eq.${Number(debouncedSearchTerm) || 0},customers.contact_name.ilike.%${debouncedSearchTerm}%`,
+      )
     }
 
     query = query.range(from, to)
-
     const { data, error: fetchError, count } = await query
 
     if (fetchError) {
-      console.error("Error fetching sales:", fetchError)
       setError(`Satışlar yüklenirken bir hata oluştu: ${fetchError.message}`)
       setSales([])
       setTotalSales(0)
@@ -123,7 +117,7 @@ export default function SalesPage() {
   }, [fetchSales])
 
   useEffect(() => {
-    if (debouncedSearchTerm && currentPage !== 1) {
+    if (debouncedSearchTerm) {
       setCurrentPage(1)
     }
   }, [debouncedSearchTerm])
@@ -136,46 +130,6 @@ export default function SalesPage() {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page)
     }
-  }
-
-  const formatStatus = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "Tamamlandı"
-      case "pending":
-        return "Beklemede"
-      case "pending_installment":
-        return "Taksit Bekleniyor"
-      case "cancelled":
-        return "İptal Edildi"
-      case "refunded":
-        return "İade Edildi"
-      default:
-        return status
-    }
-  }
-
-  if (error && !loading) {
-    return (
-      <div className="container mx-auto py-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Hata</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-500">{error}</p>
-            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => fetchSales()}>
-              Tekrar Dene
-            </Button>
-            <Link href="/">
-              <Button variant="link" className="mt-4 ml-2">
-                Ana Sayfaya Dön
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    )
   }
 
   return (
@@ -211,17 +165,15 @@ export default function SalesPage() {
           {loading && sales.length === 0 ? (
             <div className="h-64 flex justify-center items-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="ml-2 text-muted-foreground">Satışlar yükleniyor...</p>
             </div>
-          ) : !loading && sales.length === 0 && (debouncedSearchTerm || totalSales === 0) ? (
+          ) : !loading && sales.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-lg font-semibold">
                 {debouncedSearchTerm ? "Aramanızla eşleşen satış bulunamadı." : "Henüz satış kaydı yok."}
               </p>
               <p className="text-muted-foreground">
-                {debouncedSearchTerm ? "Farklı bir arama terimi deneyin veya " : "Başlamak için "}
                 <Link href="/sales/new" className="text-primary hover:underline">
-                  yeni bir satış oluşturun
+                  Yeni bir satış oluşturun
                 </Link>
                 .
               </p>
@@ -231,22 +183,9 @@ export default function SalesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>
-                    <div className="flex items-center">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Tarih
-                    </div>
-                  </TableHead>
-                  <TableHead>
-                    <div className="flex items-center">
-                      <User className="mr-2 h-4 w-4" />
-                      Müşteri
-                    </div>
-                  </TableHead>
-                  <TableHead className="text-right">Toplam</TableHead>
-                  <TableHead className="text-right">İndirim</TableHead>
+                  <TableHead>Tarih</TableHead>
+                  <TableHead>Müşteri</TableHead>
                   <TableHead className="text-right">Son Tutar</TableHead>
-                  <TableHead>Ödeme Yöntemi</TableHead>
                   <TableHead>Durum</TableHead>
                   <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
@@ -265,12 +204,9 @@ export default function SalesPage() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">₺{sale.total_amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      {sale.discount_amount > 0 ? `₺${sale.discount_amount.toFixed(2)}` : "-"}
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(sale.final_amount, sale.sale_currency)}
                     </TableCell>
-                    <TableCell className="text-right font-medium">₺{sale.final_amount.toFixed(2)}</TableCell>
-                    <TableCell>{formatPaymentMethod(sale.payment_method)}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(sale.status)}>{formatStatus(sale.status)}</Badge>
                     </TableCell>
