@@ -42,7 +42,6 @@ export default function ExpensesPage() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Gider kayıtları yüklenirken bilinmeyen bir hata oluştu"
       setError(errorMessage)
-      console.error("Error fetching expenses:", err)
     } finally {
       setLoading(false)
     }
@@ -58,9 +57,8 @@ export default function ExpensesPage() {
       toast({
         title: "Başarılı",
         description: "Gider kaydı başarıyla silindi.",
-        variant: "default",
       })
-      fetchExpenses() // Re-fetch expenses after deletion
+      fetchExpenses()
     } catch (err) {
       toast({
         title: "Hata",

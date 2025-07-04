@@ -3,9 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
-import { redirect } from "next/navigation"
 
-// Schema for income entry
 const incomeEntrySchema = z.object({
   incoming_amount: z.coerce
     .number({ required_error: "Gelen tutar zorunludur." })
@@ -20,7 +18,6 @@ const incomeEntrySchema = z.object({
   notes: z.string().optional().nullable(),
 })
 
-// Get all income entries
 export async function getIncomeEntries() {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -35,13 +32,12 @@ export async function getIncomeEntries() {
   return data
 }
 
-// Create income entry action
 export async function createIncomeEntryAction(prevState: any, formData: FormData) {
   const supabase = createClient()
 
-  const rawData = Object.fromEntries(formData.entries())
-  if (rawData.customer_id === "no-customer") {
-    rawData.customer_id = ""
+  const rawData = {
+    ...Object.fromEntries(formData.entries()),
+    customer_id: formData.get("customer_id") === "no-customer" ? null : formData.get("customer_id"),
   }
 
   const validatedFields = incomeEntrySchema.safeParse(rawData)
@@ -49,7 +45,7 @@ export async function createIncomeEntryAction(prevState: any, formData: FormData
   if (!validatedFields.success) {
     return {
       success: false,
-      message: "Form verileri geçersiz. Lütfen hataları düzeltip tekrar deneyin.",
+      message: "Form verileri geçersiz.",
       errors: validatedFields.error.flatten().fieldErrors,
     }
   }
@@ -61,10 +57,9 @@ export async function createIncomeEntryAction(prevState: any, formData: FormData
   }
 
   revalidatePath("/financials/income")
-  redirect("/financials/income")
+  return { success: true, message: "Gelir başarıyla eklendi." }
 }
 
-// Delete income entry
 export async function deleteIncome(id: string) {
   const supabase = createClient()
   const { error } = await supabase.from("income_entries").delete().eq("id", id)
@@ -72,20 +67,4 @@ export async function deleteIncome(id: string) {
     throw new Error("Gelir kaydı silinemedi")
   }
   revalidatePath("/financials/income")
-}
-
-// Get customers for dropdown
-export async function getCustomersForDropdown() {
-  const supabase = createClient()
-  const { data, error } = await supabase.from("customers").select("mid, contact_name, email").order("contact_name")
-  if (error) return { data: null, error: "Müşteriler yüklenemedi." }
-  return { data, error: null }
-}
-
-// Get financial categories for income
-export async function getFinancialCategories(type: "income" | "expense") {
-  const supabase = createClient()
-  const { data, error } = await supabase.from("financial_categories").select("*").eq("type", type).order("name")
-  if (error) return { data: null, error: "Kategoriler yüklenemedi." }
-  return { data, error: null }
 }

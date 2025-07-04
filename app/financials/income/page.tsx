@@ -42,7 +42,6 @@ export default function IncomePage() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Gelir kayıtları yüklenirken bilinmeyen bir hata oluştu"
       setError(errorMessage)
-      console.error("Error fetching income:", err)
     } finally {
       setLoading(false)
     }
@@ -58,9 +57,8 @@ export default function IncomePage() {
       toast({
         title: "Başarılı",
         description: "Gelir kaydı başarıyla silindi.",
-        variant: "default",
       })
-      fetchIncome() // Re-fetch income after deletion
+      fetchIncome()
     } catch (err) {
       toast({
         title: "Hata",

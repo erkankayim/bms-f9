@@ -327,7 +327,7 @@ export function SaleForm() {
               <Checkbox
                 id="is_installment"
                 checked={isInstallment}
-                onCheckedChange={setIsInstallment}
+                onCheckedChange={(checked) => setIsInstallment(Boolean(checked))}
                 disabled={isSubmitting}
               />
               <Label htmlFor="is_installment">Taksitli Ödeme</Label>

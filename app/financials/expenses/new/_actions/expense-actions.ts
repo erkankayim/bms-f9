@@ -1,7 +1,6 @@
-"use server"
+```ts file="app/financials/income/new/_actions/income-actions.ts"
+[v0-no-op-code-block-prefix]
 
-import { createExpense as mainCreateExpense } from "../../_actions/expense-actions"
 
-export async function createExpense(formData: FormData) {
-  return await mainCreateExpense(formData)
-}
+``\`ts file="app/financials/expenses/[id]/_actions/expense-actions.ts"
+[v0-no-op-code-block-prefix]
