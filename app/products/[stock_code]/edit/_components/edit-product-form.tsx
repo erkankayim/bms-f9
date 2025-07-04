@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Plus, X, Upload } from "lucide-react"
-import { updateProductAction } from "../../new/_actions/products-actions"
+import { updateProductAction } from "../../../new/_actions/products-actions"
 import { toast } from "sonner"
 import Image from "next/image"
 
