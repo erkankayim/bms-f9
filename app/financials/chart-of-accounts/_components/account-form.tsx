@@ -1,206 +1,130 @@
 "use client"
 
-import { useTransition } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { toast } from "@/hooks/use-toast"
-import { AccountSchema, accountTypes, type AccountFormData } from "../_lib/schema"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { accountTypes } from "../_lib/schema"
 import { addAccountAction, updateAccountAction } from "../_actions/server-actions"
 
 interface AccountFormProps {
-  initialData?: {
-    id?: string
-    code: string
-    name: string
-    type: string
-    parent_id?: string | null
-    description?: string | null
-  }
-  parentAccounts?: Array<{
+  account?: {
     id: string
     code: string
     name: string
-  }>
+    type: string
+    parent_id?: string
+    description?: string
+    is_active: boolean
+  }
+  isEdit?: boolean
 }
 
-export function AccountForm({ initialData, parentAccounts = [] }: AccountFormProps) {
-  const [isPending, startTransition] = useTransition()
-  const isEditing = !!initialData?.id
+export function AccountForm({ account, isEdit = false }: AccountFormProps) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const form = useForm<AccountFormData>({
-    resolver: zodResolver(AccountSchema),
-    defaultValues: {
-      code: initialData?.code || "",
-      name: initialData?.name || "",
-      type: (initialData?.type as any) || "Varlık",
-      parent_id: initialData?.parent_id || null,
-      description: initialData?.description || "",
-    },
-  })
+  async function handleSubmit(formData: FormData) {
+    setLoading(true)
+    setError(null)
 
-  const onSubmit = async (data: AccountFormData) => {
-    startTransition(async () => {
-      try {
-        if (isEditing && initialData?.id) {
-          await updateAccountAction(initialData.id, data)
-          toast({
-            title: "Başarılı",
-            description: "Hesap başarıyla güncellendi.",
-          })
-        } else {
-          await addAccountAction(data)
-          toast({
-            title: "Başarılı",
-            description: "Hesap başarıyla eklendi.",
-          })
-        }
-      } catch (error) {
-        toast({
-          title: "Hata",
-          description: error instanceof Error ? error.message : "Bir hata oluştu.",
-          variant: "destructive",
-        })
+    try {
+      if (isEdit && account) {
+        await updateAccountAction(account.id, formData)
+      } else {
+        await addAccountAction(formData)
       }
-    })
+    } catch (err: any) {
+      setError(err.message || "Bir hata oluştu")
+      setLoading(false)
+    }
   }
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>{isEditing ? "Hesabı Düzenle" : "Yeni Hesap Ekle"}</CardTitle>
+        <CardTitle>{isEdit ? "Hesap Düzenle" : "Yeni Hesap Ekle"}</CardTitle>
         <CardDescription>
-          {isEditing ? "Hesap bilgilerini güncelleyin." : "Yeni bir mali hesap oluşturun."}
+          {isEdit ? "Mevcut hesap bilgilerini güncelleyin" : "Yeni bir hesap oluşturun"}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hesap Kodu *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Örn: 100, 120.01" {...field} className="font-mono" />
-                    </FormControl>
-                    <FormDescription>Benzersiz hesap kodu (harf, rakam, nokta, tire)</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <form action={handleSubmit} className="space-y-6">
+          {error && <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>}
 
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hesap Türü *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Hesap türünü seçin" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {accountTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="code">Hesap Kodu *</Label>
+              <Input id="code" name="code" defaultValue={account?.code} placeholder="Örn: 100" required />
             </div>
 
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hesap Adı *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Örn: Kasa, Banka, Ticari Alacaklar" {...field} />
-                  </FormControl>
-                  <FormDescription>Hesabın açıklayıcı adı</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <div className="space-y-2">
+              <Label htmlFor="name">Hesap Adı *</Label>
+              <Input id="name" name="name" defaultValue={account?.name} placeholder="Örn: Kasa" required />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="type">Hesap Türü *</Label>
+            <Select name="type" defaultValue={account?.type} required>
+              <SelectTrigger>
+                <SelectValue placeholder="Hesap türünü seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {accountTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="parent_id">Üst Hesap (Opsiyonel)</Label>
+            <Input
+              id="parent_id"
+              name="parent_id"
+              defaultValue={account?.parent_id || ""}
+              placeholder="Üst hesap ID'si"
             />
+          </div>
 
-            {parentAccounts.length > 0 && (
-              <FormField
-                control={form.control}
-                name="parent_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Üst Hesap (Opsiyonel)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Üst hesap seçin (opsiyonel)" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={null}>Üst hesap yok</SelectItem>
-                        {parentAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.code} - {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>Bu hesabın bağlı olacağı üst hesap</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <FormField
-              control={form.control}
+          <div className="space-y-2">
+            <Label htmlFor="description">Açıklama</Label>
+            <Textarea
+              id="description"
               name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Açıklama (Opsiyonel)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Hesap hakkında ek bilgiler..." className="resize-none" rows={3} {...field} />
-                  </FormControl>
-                  <FormDescription>Hesap hakkında ek açıklamalar</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              defaultValue={account?.description || ""}
+              placeholder="Hesap açıklaması"
+              rows={3}
             />
+          </div>
 
-            <div className="flex gap-4">
-              <Button type="submit" disabled={isPending} className="flex-1">
-                {isPending
-                  ? isEditing
-                    ? "Güncelleniyor..."
-                    : "Ekleniyor..."
-                  : isEditing
-                    ? "Hesabı Güncelle"
-                    : "Hesabı Ekle"}
-              </Button>
-              <Button type="button" variant="outline" asChild>
-                <a href="/financials/chart-of-accounts">İptal</a>
-              </Button>
-            </div>
-          </form>
-        </Form>
+          <div className="flex items-center space-x-2">
+            <Switch id="is_active" name="is_active" defaultChecked={account?.is_active ?? true} />
+            <Label htmlFor="is_active">Aktif</Label>
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit" disabled={loading}>
+              {loading ? "Kaydediliyor..." : isEdit ? "Güncelle" : "Kaydet"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>
+              İptal
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   )
 }
 
+// Default export for backward compatibility
 export default AccountForm
