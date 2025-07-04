@@ -9,8 +9,8 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "İş Yönetim Uygulaması",
-  description: "Kapsamlı İş Yönetim Uygulaması",
+  title: "MNY Makine - İş Yönetim Sistemi",
+  description: "MNY Makine İş Yönetim ve Takip Sistemi",
   generator: "v0.dev",
 }
 

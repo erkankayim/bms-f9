@@ -46,6 +46,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { signOut } from "@/app/auth/_actions/auth-actions"
 import { getCurrentUserRole } from "@/app/users/_actions/user-actions"
 import type { UserRole } from "@/lib/auth"
+import Image from "next/image"
 
 type NavigationItem = {
   name: string
@@ -215,9 +216,8 @@ export function MainNav({ children }: MainNavProps) {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="flex items-center gap-2 px-4 py-2">
-            <Package className="h-6 w-6" />
-            <span className="font-semibold">İş Yönetimi</span>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Image src="/mny-makine-logo.svg" alt="MNY Makine" width={120} height={24} className="h-6 w-auto" />
           </div>
         </SidebarHeader>
 
@@ -295,7 +295,7 @@ export function MainNav({ children }: MainNavProps) {
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium">İş Yönetim Uygulaması</span>
+            <span className="font-medium">MNY Makine İş Yönetim Sistemi</span>
             <span className="text-muted-foreground">
               ({userRole === "admin" ? "Yönetici" : userRole === "tech" ? "Teknisyen" : "Muhasebe"})
             </span>
