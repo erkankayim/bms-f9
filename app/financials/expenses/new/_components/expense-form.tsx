@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, Receipt, Loader2, Info } from "lucide-react"
+import { AlertCircle, CheckCircle2, Receipt, Loader2, Info, Building2, User } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const initialState = {
@@ -39,13 +39,25 @@ export default function ExpenseForm() {
       setDataError(null)
 
       try {
+        console.log("Fetching categories and suppliers...")
+
         const [catResult, suppResult] = await Promise.all([
-          getFinancialCategories("expense").catch((err) => ({ error: err.message })),
-          getSuppliersForDropdown().catch((err) => ({ error: err.message })),
+          getFinancialCategories("expense").catch((err) => {
+            console.error("Category fetch error:", err)
+            return { error: err.message }
+          }),
+          getSuppliersForDropdown().catch((err) => {
+            console.error("Supplier fetch error:", err)
+            return { error: err.message }
+          }),
         ])
+
+        console.log("Category result:", catResult)
+        console.log("Supplier result:", suppResult)
 
         if (catResult.data) {
           setCategories(catResult.data)
+          console.log(`Loaded ${catResult.data.length} categories`)
         } else {
           console.error("Gider kategorileri yüklenemedi:", catResult.error)
           setDataError(catResult.error || "Kategoriler yüklenemedi")
@@ -53,9 +65,12 @@ export default function ExpenseForm() {
 
         if (suppResult.data) {
           setSuppliers(suppResult.data)
+          console.log(`Loaded ${suppResult.data.length} suppliers`)
         } else {
           console.error("Tedarikçiler yüklenemedi:", suppResult.error)
-          // Tedarikçi hatası kritik değil, sadece log'la
+          // Tedarikçi hatası kritik değil, sadece log'la ama kullanıcıya bildir
+          console.warn("Tedarikçiler yüklenemedi, boş liste kullanılacak")
+          setSuppliers([])
         }
       } catch (error) {
         console.error("Veri yükleme hatası:", error)
@@ -224,24 +239,50 @@ export default function ExpenseForm() {
                   <SelectValue placeholder="Bir tedarikçi seçin (varsa)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="no-supplier">Tedarikçi Yok</SelectItem>
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                      <div>
-                        <div className="font-medium">{supplier.company_name}</div>
-                        {supplier.contact_name && (
-                          <div className="text-xs text-muted-foreground">{supplier.contact_name}</div>
-                        )}
+                  <SelectItem value="no-supplier">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Tedarikçi Yok</span>
+                    </div>
+                  </SelectItem>
+                  {suppliers.length === 0 ? (
+                    <SelectItem value="no-suppliers-available" disabled>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                        <span>Henüz tedarikçi eklenmemiş</span>
                       </div>
                     </SelectItem>
-                  ))}
+                  ) : (
+                    suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          <div>
+                            <div className="font-medium">{supplier.name || supplier.company_name}</div>
+                            {supplier.contact_name && (
+                              <div className="text-xs text-muted-foreground">İletişim: {supplier.contact_name}</div>
+                            )}
+                            {supplier.phone && (
+                              <div className="text-xs text-muted-foreground">Tel: {supplier.phone}</div>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {getError("supplier_id") && <p className="text-sm text-destructive">{getError("supplier_id")}</p>}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="h-3 w-3" />
-                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+                <span>Bu alan opsiyoneldir. Tedarikçi yoksa "Tedarikçi Yok" seçin.</span>
               </div>
+              {suppliers.length === 0 && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>Henüz sistemde tedarikçi bulunmuyor. Önce tedarikçi ekleyebilirsiniz.</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -22,8 +22,11 @@ export interface CustomerForDropdown {
 
 export interface SupplierForDropdown {
   id: string
+  name: string
   company_name: string
   contact_name: string | null
+  email: string | null
+  phone: string | null
 }
 
 export type IncomeEntryWithDetails = {
@@ -161,19 +164,34 @@ export async function getSuppliersForDropdown(): Promise<{ data: SupplierForDrop
   try {
     const supabase = await createClient()
 
+    console.log("Fetching suppliers for dropdown...")
+
     const { data, error } = await supabase
       .from("suppliers")
-      .select("id, company_name, contact_name")
-      .order("company_name")
+      .select("id, name, company_name, contact_name, email, phone")
+      .order("name")
 
     if (error) {
-      console.error("Database error:", error)
+      console.error("Database error fetching suppliers:", error)
       return { data: null, error: `Tedarikçiler alınırken hata: ${error.message}` }
     }
 
-    return { data, error: null }
+    console.log(`Found ${data?.length || 0} suppliers`)
+
+    // Format the data to ensure we have the right structure
+    const formattedData =
+      data?.map((supplier) => ({
+        id: supplier.id,
+        name: supplier.name || supplier.company_name || "İsimsiz Tedarikçi",
+        company_name: supplier.company_name || supplier.name || "İsimsiz Şirket",
+        contact_name: supplier.contact_name,
+        email: supplier.email,
+        phone: supplier.phone,
+      })) || []
+
+    return { data: formattedData, error: null }
   } catch (error) {
-    console.error("Unexpected error:", error)
+    console.error("Unexpected error fetching suppliers:", error)
     return { data: null, error: "Beklenmeyen bir hata oluştu" }
   }
 }
@@ -448,6 +466,22 @@ async function verifyCustomerByMID(supabase: any, mid: string): Promise<boolean>
   }
 }
 
+// Helper function to verify supplier exists by ID
+async function verifySupplierById(supabase: any, id: string): Promise<boolean> {
+  try {
+    const { data: supplier, error } = await supabase.from("suppliers").select("id").eq("id", id).single()
+
+    if (error || !supplier) {
+      console.error(`Supplier with ID ${id} not found.`, error)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error(`Error verifying supplier ID ${id}:`, error)
+    return false
+  }
+}
+
 // Server Actions
 export async function createIncomeEntryAction(
   prevState: any,
@@ -633,6 +667,16 @@ export async function createExpenseEntryAction(
 
     console.log("Validated expense data:", validatedFields.data)
 
+    // Handle supplier_id - if provided and not "none", verify it exists
+    let finalSupplierId: string | null = null
+    if (supplier_id && supplier_id !== "none" && supplier_id !== "no-supplier") {
+      const supplierExists = await verifySupplierById(supabase, supplier_id)
+      if (!supplierExists) {
+        return { success: false, message: `Seçilen tedarikçi bulunamadı.` }
+      }
+      finalSupplierId = supplier_id
+    }
+
     const { error } = await supabase.from("expense_entries").insert({
       description,
       expense_amount,
@@ -641,7 +685,7 @@ export async function createExpenseEntryAction(
       expense_source,
       entry_date,
       category_id,
-      supplier_id,
+      supplier_id: finalSupplierId,
       invoice_number,
       payment_method,
       notes,
