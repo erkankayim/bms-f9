@@ -86,7 +86,7 @@ export async function getUsers(): Promise<UserWithAuth[]> {
   }
 }
 
-// Kullanıcı oluştur - Yeni yaklaşım
+// Kullanıcı oluştur - Service role ile
 export async function createUser(formData: FormData): Promise<{ success?: string; error?: string }> {
   try {
     const supabase = await createClient()
@@ -112,22 +112,24 @@ export async function createUser(formData: FormData): Promise<{ success?: string
     }
 
     // Önce e-posta adresinin kullanılıp kullanılmadığını kontrol et
-    const { data: existingUser } = await supabase.from("user_profiles").select("id").eq("full_name", fullName).single()
+    const { data: existingProfiles } = await supabase.from("user_profiles").select("id").ilike("full_name", fullName)
 
-    if (existingUser) {
+    if (existingProfiles && existingProfiles.length > 0) {
       return { error: "Bu isimde bir kullanıcı zaten mevcut" }
     }
 
-    // Normal signup kullan (admin.createUser yerine)
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Service role client oluştur
+    const serviceSupabase = createClient()
+
+    // Auth kullanıcısı oluştur
+    const { data: authData, error: authError } = await serviceSupabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: role,
-          status: status,
-        },
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        role: role,
+        status: status,
       },
     })
 
@@ -140,20 +142,40 @@ export async function createUser(formData: FormData): Promise<{ success?: string
       return { error: "Kullanıcı verisi alınamadı" }
     }
 
+    console.log("Created user with ID:", authData.user.id)
+
+    // Kısa bir bekleme süresi ekle
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
     // Profil oluştur
-    const { error: profileError } = await supabase.from("user_profiles").insert({
-      user_id: authData.user.id,
-      full_name: fullName,
-      role,
-      status,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    const { data: profileData, error: profileError } = await supabase
+      .from("user_profiles")
+      .insert({
+        user_id: authData.user.id,
+        full_name: fullName,
+        role,
+        status,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
 
     if (profileError) {
       console.error("Profile error:", profileError)
+      console.error("User ID:", authData.user.id)
+
+      // Auth kullanıcısını sil (rollback)
+      try {
+        await serviceSupabase.auth.admin.deleteUser(authData.user.id)
+      } catch (deleteError) {
+        console.error("Failed to delete auth user:", deleteError)
+      }
+
       return { error: "Profil oluşturulamadı: " + profileError.message }
     }
+
+    console.log("Created profile:", profileData)
 
     revalidatePath("/users")
     return { success: "Kullanıcı başarıyla oluşturuldu" }

@@ -1,11 +1,11 @@
-import { getCurrentUserRole, getUser } from "@/app/users/_actions/user-actions"
+import { getCurrentUserRole, getUser } from "../_actions/user-actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Edit } from "lucide-react"
-import Link from "next/link"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle, Edit, ArrowLeft } from "lucide-react"
 import { notFound } from "next/navigation"
-import { DeleteUserDialog } from "../_components/delete-user-dialog"
+import Link from "next/link"
 
 interface UserPageProps {
   params: {
@@ -14,133 +14,99 @@ interface UserPageProps {
 }
 
 export default async function UserPage({ params }: UserPageProps) {
-  const currentRole = await getCurrentUserRole()
+  const currentUserRole = await getCurrentUserRole()
+
+  if (currentUserRole !== "admin") {
+    return (
+      <div className="container mx-auto py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Bu sayfaya erişim için yönetici yetkisi gereklidir.
+            <br />
+            Mevcut rol: {currentUserRole || "Bilinmiyor"}
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   const user = await getUser(params.id)
 
   if (!user) {
     notFound()
   }
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
       case "admin":
-        return "destructive"
+        return <Badge variant="destructive">Yönetici</Badge>
       case "acc":
-        return "secondary"
+        return <Badge variant="secondary">Muhasebe</Badge>
       case "tech":
-        return "outline"
+        return <Badge variant="outline">Teknisyen</Badge>
       default:
-        return "outline"
+        return <Badge variant="outline">{role}</Badge>
     }
   }
 
-  const getRoleText = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "Yönetici"
-      case "acc":
-        return "Muhasebe"
-      case "tech":
-        return "Teknisyen"
-      default:
-        return role
-    }
-  }
-
-  const getStatusBadgeVariant = (status: string) => {
-    return status === "active" ? "default" : "secondary"
-  }
-
-  const getStatusText = (status: string) => {
-    return status === "active" ? "Aktif" : "Pasif"
+  const getStatusBadge = (status: string) => {
+    return status === "active" ? <Badge variant="default">Aktif</Badge> : <Badge variant="secondary">Pasif</Badge>
   }
 
   return (
     <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="outline" size="sm" asChild>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
           <Link href="/users">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Geri
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Geri
+            </Button>
           </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{user.full_name}</h1>
-          <p className="text-muted-foreground">Kullanıcı detayları</p>
+          <h1 className="text-2xl font-bold">Kullanıcı Detayları</h1>
         </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Kişisel Bilgiler</CardTitle>
-            <CardDescription>Kullanıcının temel bilgileri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Ad Soyad</label>
-              <p className="text-lg">{user.full_name}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">E-posta</label>
-              <p className="text-lg">{user.email}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Rol</label>
-              <div className="mt-1">
-                <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleText(user.role)}</Badge>
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Durum</label>
-              <div className="mt-1">
-                <Badge variant={getStatusBadgeVariant(user.status)}>{getStatusText(user.status)}</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Sistem Bilgileri</CardTitle>
-            <CardDescription>Hesap oluşturma ve güncelleme tarihleri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Oluşturulma Tarihi</label>
-              <p className="text-lg">{new Date(user.created_at).toLocaleDateString("tr-TR")}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Son Güncelleme</label>
-              <p className="text-lg">{new Date(user.updated_at).toLocaleDateString("tr-TR")}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Kullanıcı ID</label>
-              <p className="text-sm font-mono text-muted-foreground">{user.id}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {currentRole === "admin" && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>İşlemler</CardTitle>
-            <CardDescription>Bu kullanıcı üzerinde yapabileceğiniz işlemler</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Button asChild>
-                <Link href={`/users/${user.id}/edit`}>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-xl">{user.full_name}</CardTitle>
+                <CardDescription>{user.email}</CardDescription>
+              </div>
+              <Link href={`/users/${user.id}/edit`}>
+                <Button variant="outline">
                   <Edit className="h-4 w-4 mr-2" />
                   Düzenle
-                </Link>
-              </Button>
-              <DeleteUserDialog user={user} />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Rol</h3>
+                {getRoleBadge(user.role)}
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Durum</h3>
+                {getStatusBadge(user.status)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Oluşturulma Tarihi</h3>
+                <p className="text-sm">{new Date(user.created_at).toLocaleDateString("tr-TR")}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Son Güncelleme</h3>
+                <p className="text-sm">{new Date(user.updated_at).toLocaleDateString("tr-TR")}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
+      </div>
     </div>
   )
 }

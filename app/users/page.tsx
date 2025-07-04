@@ -1,34 +1,51 @@
-import { getCurrentUserRole, getUsers } from "./_actions/user-actions"
+import { Suspense } from "react"
+import { getCurrentUserRole, getUsers, deleteUser } from "./_actions/user-actions"
 import { UsersList } from "./_components/users-list"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
-export default async function UsersPage() {
+async function UsersContent() {
   try {
     const [currentUserRole, users] = await Promise.all([getCurrentUserRole(), getUsers()])
 
-    return (
-      <div className="container mx-auto py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Kullanıcılar</h1>
-          <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
+    if (currentUserRole !== "admin") {
+      return (
+        <div className="container mx-auto py-8">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Bu sayfaya erişim için yönetici yetkisi gereklidir.
+              <br />
+              Mevcut rol: {currentUserRole || "Bilinmiyor"}
+            </AlertDescription>
+          </Alert>
         </div>
+      )
+    }
 
-        <UsersList users={users} currentUserRole={currentUserRole} />
-      </div>
-    )
+    return <UsersList users={users} onDelete={deleteUser} />
   } catch (error) {
     return (
       <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Hata</CardTitle>
-            <CardDescription>Kullanıcılar yüklenirken bir hata oluştu.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive">{error instanceof Error ? error.message : "Bilinmeyen hata"}</p>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Kullanıcılar yüklenirken bir hata oluştu.
+            <br />
+            {error instanceof Error ? error.message : "Bilinmeyen hata"}
+          </AlertDescription>
+        </Alert>
       </div>
     )
   }
+}
+
+export default function UsersPage() {
+  return (
+    <div className="container mx-auto py-8">
+      <Suspense fallback={<div>Yükleniyor...</div>}>
+        <UsersContent />
+      </Suspense>
+    </div>
+  )
 }
