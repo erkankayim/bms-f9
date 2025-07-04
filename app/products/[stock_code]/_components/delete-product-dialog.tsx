@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,83 +10,80 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  // AlertDialogTrigger, // Kaldırıldı
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Trash2, RotateCcw } from "lucide-react"
+import { deleteProductAction, restoreProductAction } from "../../new/_actions/products-actions"
 import { useToast } from "@/components/ui/use-toast"
-// import { useRouter } from "next/navigation"; // Eğer onDelete dışarıdan yönetiliyorsa, router'a burada gerek kalmayabilir.
-import type { FC } from "react"
 
 interface DeleteProductDialogProps {
   productId: string
-  productName: string | null
-  isOpen: boolean // Yeni prop
-  onOpenChange: (open: boolean) => void // Yeni prop
-  onDelete?: () => void
+  productName: string
+  isDeleted?: boolean
 }
 
-export const DeleteProductDialog: FC<DeleteProductDialogProps> = ({
-  productId,
-  productName,
-  isOpen,
-  onOpenChange,
-  onDelete,
-}) => {
+export function DeleteProductDialog({ productId, productName, isDeleted = false }: DeleteProductDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [open, setOpen] = useState(false)
   const { toast } = useToast()
-  const [isDeleting, setIsDeleting] = React.useState(false)
 
-  const handleDelete = async () => {
-    setIsDeleting(true)
-    // products-actions içindeki deleteProductAction zaten soft delete yapıyor.
-    // Bu action'ı doğrudan import etmek yerine, bir prop olarak almayı düşünebiliriz
-    // veya mevcut importu kullanmaya devam edebiliriz. Şimdilik mevcut import kalsın.
-    const { deleteProductAction } = await import("../../new/_actions/products-actions")
-    const result = await deleteProductAction(productId)
-    setIsDeleting(false)
+  async function handleAction() {
+    setIsLoading(true)
 
-    if (result.success) {
-      toast({
-        title: "Ürün Arşivlendi",
-        description: `Ürün "${productName || productId}" başarıyla arşivlendi.`,
-      })
-      onOpenChange(false) // Dialog'u kapat
-      if (onDelete) {
-        onDelete() // Listeyi yenilemek vb. için üst component'teki fonksiyonu çağır
+    try {
+      const result = isDeleted ? await restoreProductAction(productId) : await deleteProductAction(productId)
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: isDeleted
+            ? `${productName} adlı ürün başarıyla geri yüklendi`
+            : `${productName} adlı ürün başarıyla arşivlendi`,
+          variant: "default",
+        })
+        setOpen(false)
+      } else if (result.error) {
+        toast({
+          title: "Hata",
+          description: result.error,
+          variant: "destructive",
+        })
       }
-    } else {
+    } catch (error) {
       toast({
-        title: "Ürün Arşivleme Hatası",
-        description: result.error || "Ürün arşivlenemedi. Lütfen tekrar deneyin.",
+        title: "Hata",
+        description: "İşlem sırasında bir hata oluştu",
         variant: "destructive",
       })
-      // Hata durumunda dialog açık kalabilir veya kapatılabilir, tercihe bağlı.
-      // onOpenChange(false); // İstenirse hata durumunda da kapatılabilir.
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-      {/* AlertDialogTrigger kaldırıldığı için burası boş kalacak veya direkt AlertDialogContent render edilecek.
-          Shadcn AlertDialog normalde bir trigger bekler ama open/onOpenChange ile kontrol edildiğinde
-          doğrudan content render edilebilir. */}
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          {isDeleted ? <RotateCcw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+        </Button>
+      </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Ürünü Arşivlemek İstediğinizden Emin misiniz?</AlertDialogTitle>
+          <AlertDialogTitle>{isDeleted ? "Ürünü Geri Yükle" : "Ürünü Arşivle"}</AlertDialogTitle>
           <AlertDialogDescription>
-            Bu işlem, "<span className="font-semibold">{productName || productId}</span>" adlı ürünü arşivleyecektir.
-            Arşivlenen ürünler listelenmeyecek ancak sistemden kalıcı olarak silinmeyecektir. Gerekirse daha sonra geri
-            yüklenebilir.
+            <strong>{productName}</strong> adlı ürünü {isDeleted ? "geri yüklemek" : "arşivlemek"} istediğinizden emin
+            misiniz?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting} onClick={() => onOpenChange(false)}>
-            İptal
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>İptal</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="bg-destructive hover:bg-destructive/90"
+            onClick={handleAction}
+            disabled={isLoading}
+            className={isDeleted ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
           >
-            {isDeleting ? "Arşivleniyor..." : "Evet, Arşivle"}
+            {isLoading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

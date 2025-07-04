@@ -1,7 +1,8 @@
+import { notFound, redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UserForm } from "../../_components/user-form"
-import { getUserById } from "../../_actions/users-actions"
-import { notFound } from "next/navigation"
+import { getUser, updateUser } from "../../_actions/user-actions"
+import { requireRole } from "@/lib/auth"
 
 interface EditUserPageProps {
   params: {
@@ -10,24 +11,37 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const user = await getUserById(params.id)
+  try {
+    // Admin yetkisi kontrolü
+    await requireRole(["admin"])
+  } catch (error) {
+    redirect("/auth/login")
+  }
+
+  const user = await getUser(params.id)
 
   if (!user) {
     notFound()
   }
 
+  const updateUserWithId = async (formData: FormData) => {
+    "use server"
+    return updateUser(params.id, formData)
+  }
+
   return (
     <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Kullanıcı Düzenle</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Kullanıcı Bilgileri</CardTitle>
-          <CardDescription>Kullanıcı bilgilerini güncelleyin.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UserForm user={user} />
-        </CardContent>
-      </Card>
+      <div className="max-w-2xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle>Kullanıcı Düzenle</CardTitle>
+            <CardDescription>{user.full_name} kullanıcısının bilgilerini düzenleyin</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UserForm user={user} action={updateUserWithId} submitText="Değişiklikleri Kaydet" />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { AccountSchema } from "../_lib/schema"
-import type { z } from "zod"
 
 export type Account = {
   id: string
@@ -12,6 +10,7 @@ export type Account = {
   name: string
   type: string
   parent_id: string | null
+  description: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -35,7 +34,7 @@ export async function getChartOfAccounts(): Promise<{ data?: Account[]; error?: 
   }
 }
 
-export async function getAccountById(id: string): Promise<{ data?: Account; error?: string }> {
+export async function getAccountById(id: string): Promise<Account | null> {
   const supabase = createClient()
 
   try {
@@ -43,23 +42,37 @@ export async function getAccountById(id: string): Promise<{ data?: Account; erro
 
     if (error) {
       console.error("Hesap alınırken hata:", error)
-      return { error: `Hesap alınırken hata: ${error.message}` }
+      throw new Error(`Hesap alınırken hata: ${error.message}`)
     }
 
-    return { data }
+    return data
   } catch (error: any) {
     console.error("Hesap alınırken hata:", error)
-    return { error: `Hesap alınırken hata: ${error.message}` }
+    throw new Error(`Hesap alınırken hata: ${error.message}`)
   }
 }
 
-export async function addAccountAction(formData: z.infer<typeof AccountSchema>) {
+export async function addAccountAction(formData: FormData) {
   const supabase = createClient()
 
   try {
-    const validatedData = AccountSchema.parse(formData)
+    const code = formData.get("code") as string
+    const name = formData.get("name") as string
+    const type = formData.get("type") as string
+    const parentId = formData.get("parent_id") as string
+    const description = formData.get("description") as string
+    const isActive = formData.get("is_active") === "on"
 
-    const { error } = await supabase.from("chart_of_accounts").insert([validatedData])
+    const { error } = await supabase.from("chart_of_accounts").insert([
+      {
+        code,
+        name,
+        type,
+        parent_id: parentId || null,
+        description: description || null,
+        is_active: isActive,
+      },
+    ])
 
     if (error) {
       console.error("Hesap eklenirken hata:", error)
@@ -74,13 +87,28 @@ export async function addAccountAction(formData: z.infer<typeof AccountSchema>) 
   }
 }
 
-export async function updateAccountAction(id: string, formData: z.infer<typeof AccountSchema>) {
+export async function updateAccountAction(id: string, formData: FormData) {
   const supabase = createClient()
 
   try {
-    const validatedData = AccountSchema.parse(formData)
+    const code = formData.get("code") as string
+    const name = formData.get("name") as string
+    const type = formData.get("type") as string
+    const parentId = formData.get("parent_id") as string
+    const description = formData.get("description") as string
+    const isActive = formData.get("is_active") === "on"
 
-    const { error } = await supabase.from("chart_of_accounts").update(validatedData).eq("id", id)
+    const { error } = await supabase
+      .from("chart_of_accounts")
+      .update({
+        code,
+        name,
+        type,
+        parent_id: parentId || null,
+        description: description || null,
+        is_active: isActive,
+      })
+      .eq("id", id)
 
     if (error) {
       console.error("Hesap güncellenirken hata:", error)
