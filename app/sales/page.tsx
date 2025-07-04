@@ -16,7 +16,7 @@ import { format } from "date-fns"
 
 type Sale = {
   id: number
-  sale_date: string
+  created_at: string
   customer_mid: string | null
   total_amount: number
   discount_amount: number
@@ -89,16 +89,13 @@ export default function SalesPage() {
         count: "exact",
       })
       .is("deleted_at", null)
-      .order("sale_date", { ascending: false })
+      .order("created_at", { ascending: false })
 
     if (debouncedSearchTerm) {
       if (!isNaN(Number(debouncedSearchTerm))) {
         query = query.eq("id", Number(debouncedSearchTerm))
       } else {
-        query = query.textSearch("customers.contact_name", debouncedSearchTerm, {
-          type: "websearch",
-          config: "english",
-        })
+        query = query.ilike("customers.contact_name", `%${debouncedSearchTerm}%`)
       }
     }
 
@@ -255,7 +252,7 @@ export default function SalesPage() {
                 {sales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-medium">{sale.id}</TableCell>
-                    <TableCell>{format(new Date(sale.sale_date), "dd.MM.yyyy HH:mm")}</TableCell>
+                    <TableCell>{format(new Date(sale.created_at), "dd.MM.yyyy HH:mm")}</TableCell>
                     <TableCell>
                       {sale.customers?.contact_name ? (
                         <Link href={`/customers/${sale.customer_mid}`} className="hover:underline">
