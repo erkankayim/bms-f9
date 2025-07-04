@@ -1,15 +1,12 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-// noStore import'u ve çağrısı kaldırıldı
 import { revalidatePath } from "next/cache"
 import type { Customer, Sale, Invoice, PurchaseInsights, CustomerPageData } from "../_components/helpers"
 
 export async function getCustomerPageData(
   customerId: string,
 ): Promise<{ data: CustomerPageData | null; error: string | null }> {
-  // noStore() çağrısı kaldırıldı
-
   const supabase = createClient()
 
   try {
@@ -39,7 +36,7 @@ export async function getCustomerPageData(
       supabase
         .from("invoices")
         .select("id, invoice_number, issue_date, total_amount, status")
-        .eq("customer_id", customerId), // Faturalar için 'customer_id' doğruysa bu kalabilir.
+        .eq("customer_id", customerId),
     ])
 
     console.log(`[Action INFO] Sales and Invoices data promise settled for ${customerId}`)
@@ -84,24 +81,65 @@ export async function getCustomerPageData(
   }
 }
 
-// deleteCustomer ve restoreCustomer fonksiyonları aynı kalır
 export async function deleteCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
+  if (!customerId) {
+    return { success: false, message: "Müşteri ID bulunamadı" }
+  }
+
   const supabase = createClient()
-  const { error } = await supabase
-    .from("customers")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("mid", customerId)
-  if (error) return { success: false, message: `Arşivleme başarısız: ${error.message}` }
-  revalidatePath("/customers")
-  revalidatePath(`/customers/${customerId}`)
-  return { success: true, message: "Müşteri başarıyla arşivlendi." }
+
+  try {
+    console.log(`[Delete Action] Attempting to archive customer: ${customerId}`)
+
+    const { error } = await supabase
+      .from("customers")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("mid", customerId)
+
+    if (error) {
+      console.error(`[Delete Action Error] Failed to archive customer ${customerId}:`, error)
+      return { success: false, message: `Arşivleme başarısız: ${error.message}` }
+    }
+
+    console.log(`[Delete Action] Successfully archived customer: ${customerId}`)
+
+    // Revalidate paths
+    revalidatePath("/customers")
+    revalidatePath(`/customers/${customerId}`)
+
+    return { success: true, message: "Müşteri başarıyla arşivlendi." }
+  } catch (error: any) {
+    console.error(`[Delete Action Critical] Unexpected error archiving customer ${customerId}:`, error)
+    return { success: false, message: "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin." }
+  }
 }
 
 export async function restoreCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
+  if (!customerId) {
+    return { success: false, message: "Müşteri ID bulunamadı" }
+  }
+
   const supabase = createClient()
-  const { error } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
-  if (error) return { success: false, message: `Geri yükleme başarısız: ${error.message}` }
-  revalidatePath("/customers")
-  revalidatePath(`/customers/${customerId}`)
-  return { success: true, message: "Müşteri başarıyla geri yüklendi." }
+
+  try {
+    console.log(`[Restore Action] Attempting to restore customer: ${customerId}`)
+
+    const { error } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
+
+    if (error) {
+      console.error(`[Restore Action Error] Failed to restore customer ${customerId}:`, error)
+      return { success: false, message: `Geri yükleme başarısız: ${error.message}` }
+    }
+
+    console.log(`[Restore Action] Successfully restored customer: ${customerId}`)
+
+    // Revalidate paths
+    revalidatePath("/customers")
+    revalidatePath(`/customers/${customerId}`)
+
+    return { success: true, message: "Müşteri başarıyla geri yüklendi." }
+  } catch (error: any) {
+    console.error(`[Restore Action Critical] Unexpected error restoring customer ${customerId}:`, error)
+    return { success: false, message: "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin." }
+  }
 }

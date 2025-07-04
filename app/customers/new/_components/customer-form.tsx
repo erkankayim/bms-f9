@@ -1,303 +1,271 @@
 "use client"
 
-import React from "react"
-
-import { zodResolver } from "@hookform/resolvers/zod"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { addCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
-import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 const customerFormSchema = z.object({
   mid: z.string().min(1, "Müşteri ID gereklidir"),
-  service_name: z.string().optional(),
+  service_name: z.string().optional().nullable(),
   contact_name: z.string().min(1, "İletişim adı gereklidir"),
-  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  province: z.string().optional(),
-  postal_code: z.string().optional(),
-  tax_office: z.string().optional(),
-  tax_number: z.string().optional(),
-  customer_group: z.string().optional(),
-  balance: z.coerce.number().optional().default(0),
-  notes: z.string().optional(),
+  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")).nullable(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  province: z.string().optional().nullable(),
+  postal_code: z.string().optional().nullable(),
+  tax_office: z.string().optional().nullable(),
+  tax_number: z.string().optional().nullable(),
+  customer_group: z.string().optional().nullable(),
+  balance: z.coerce.number().optional().default(0).nullable(),
+  notes: z.string().optional().nullable(),
 })
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 interface CustomerFormProps {
-  initialData?: Partial<CustomerFormValues>
-  isEditMode?: boolean
-  customerId?: string
+  initialData?: any
 }
 
-export function CustomerForm({ initialData, isEditMode = false, customerId }: CustomerFormProps) {
-  const { toast } = useToast()
+export function CustomerForm({ initialData }: CustomerFormProps) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { toast } = useToast()
+  const isEditing = !!initialData
+
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
-    defaultValues: initialData || {
-      mid: "",
-      service_name: "",
-      contact_name: "",
-      email: "",
-      phone: "",
-      address: "",
-      city: "",
-      province: "",
-      postal_code: "",
-      tax_office: "",
-      tax_number: "",
-      customer_group: "",
-      balance: 0,
-      notes: "",
+    defaultValues: {
+      mid: initialData?.mid || "",
+      service_name: initialData?.service_name || "",
+      contact_name: initialData?.contact_name || "",
+      email: initialData?.email || "",
+      phone: initialData?.phone || "",
+      address: initialData?.address || "",
+      city: initialData?.city || "",
+      province: initialData?.province || "",
+      postal_code: initialData?.postal_code || "",
+      tax_office: initialData?.tax_office || "",
+      tax_number: initialData?.tax_number || "",
+      customer_group: initialData?.customer_group || "",
+      balance: initialData?.balance || 0,
+      notes: initialData?.notes || "",
     },
   })
 
-  React.useEffect(() => {
-    if (initialData) {
-      form.reset(initialData)
-    }
-  }, [initialData, form])
+  const onSubmit = async (data: CustomerFormValues) => {
+    setLoading(true)
+    setError(null)
 
-  async function onSubmit(data: CustomerFormValues) {
-    let result
-    if (isEditMode && customerId) {
-      result = await updateCustomerAction(customerId, data)
-    } else {
-      result = await addCustomerAction(data)
-    }
-
-    if (result.success) {
-      toast({
-        title: isEditMode ? "Müşteri Güncellendi" : "Müşteri Eklendi",
-        description: `Müşteri ${data.contact_name} başarıyla ${isEditMode ? "güncellendi" : "eklendi"}.`,
-      })
-      if (!isEditMode) {
-        form.reset()
+    try {
+      let result
+      if (isEditing) {
+        // Use the original customer ID for updating
+        result = await updateCustomerAction(initialData.mid, data)
+      } else {
+        result = await addCustomerAction(data)
       }
-      router.push("/customers")
-      router.refresh()
-    } else {
-      toast({
-        title: "Hata",
-        description: result.error || `Müşteri ${isEditMode ? "güncellenemedi" : "eklenemedi"}. Lütfen tekrar deneyin.`,
-        variant: "destructive",
-      })
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: isEditing ? "Müşteri başarıyla güncellendi" : "Müşteri başarıyla eklendi",
+        })
+
+        // Navigate to the customer detail page using the final mid
+        const finalMid = result.data?.mid || data.mid
+        router.push(`/customers/${finalMid}`)
+      } else {
+        setError(result.error || "Bir hata oluştu")
+      }
+    } catch (err) {
+      console.error("Form submission error:", err)
+      setError("Beklenmedik bir hata oluştu")
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="mid"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Müşteri ID *</FormLabel>
-                <FormControl>
-                  <Input placeholder="örn: MSTR-0001" {...field} readOnly={isEditMode} />
-                </FormControl>
-                {isEditMode && <FormDescription>Müşteri ID değiştirilemez.</FormDescription>}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="contact_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>İletişim Adı *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Ahmet Yılmaz" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>E-posta</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="ahmet.yilmaz@ornek.com" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Telefon</FormLabel>
-                <FormControl>
-                  <Input placeholder="+90 555 123 45 67" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="service_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Hizmet/Abonelik Adı</FormLabel>
-                <FormControl>
-                  <Input placeholder="Premium Destek" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="customer_group"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Müşteri Grubu</FormLabel>
-                <FormControl>
-                  <Input placeholder="Perakende / Toptan" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="balance"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Bakiye</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                </FormControl>
-                <FormDescription>Mevcut ödenmemiş bakiye.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Sokak Adresi</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Atatürk Cad. No:123, Merkez" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <FormField
-            control={form.control}
-            name="city"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Şehir</FormLabel>
-                <FormControl>
-                  <Input placeholder="İstanbul" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="province"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>İlçe/Eyalet</FormLabel>
-                <FormControl>
-                  <Input placeholder="Kadıköy" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="postal_code"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Posta Kodu</FormLabel>
-                <FormControl>
-                  <Input placeholder="34710" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="tax_office"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Vergi Dairesi</FormLabel>
-                <FormControl>
-                  <Input placeholder="Kadıköy Vergi Dairesi" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="tax_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Vergi Numarası</FormLabel>
-                <FormControl>
-                  <Input placeholder="1234567890" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notlar</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Müşteri hakkında ek notlar..." {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting
-            ? isEditMode
-              ? "Müşteri Güncelleniyor..."
-              : "Müşteri Ekleniyor..."
-            : isEditMode
-              ? "Değişiklikleri Kaydet"
-              : "Müşteri Ekle"}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Temel Bilgiler</CardTitle>
+            <CardDescription>Müşterinin temel iletişim bilgileri</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="mid">Müşteri ID *</Label>
+              <Input id="mid" {...form.register("mid")} placeholder="Örn: CUST001" disabled={loading} />
+              {form.formState.errors.mid && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.mid.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="contact_name">İletişim Adı *</Label>
+              <Input
+                id="contact_name"
+                {...form.register("contact_name")}
+                placeholder="Müşteri adı"
+                disabled={loading}
+              />
+              {form.formState.errors.contact_name && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.contact_name.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="service_name">Şirket/Servis Adı</Label>
+              <Input id="service_name" {...form.register("service_name")} placeholder="Şirket adı" disabled={loading} />
+            </div>
+
+            <div>
+              <Label htmlFor="email">E-posta</Label>
+              <Input
+                id="email"
+                type="email"
+                {...form.register("email")}
+                placeholder="ornek@email.com"
+                disabled={loading}
+              />
+              {form.formState.errors.email && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="phone">Telefon</Label>
+              <Input id="phone" {...form.register("phone")} placeholder="0555 123 45 67" disabled={loading} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Adres Bilgileri</CardTitle>
+            <CardDescription>Müşterinin adres ve konum bilgileri</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="address">Adres</Label>
+              <Textarea
+                id="address"
+                {...form.register("address")}
+                placeholder="Tam adres"
+                disabled={loading}
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="city">Şehir</Label>
+              <Input id="city" {...form.register("city")} placeholder="İstanbul" disabled={loading} />
+            </div>
+
+            <div>
+              <Label htmlFor="province">İl</Label>
+              <Input id="province" {...form.register("province")} placeholder="Marmara" disabled={loading} />
+            </div>
+
+            <div>
+              <Label htmlFor="postal_code">Posta Kodu</Label>
+              <Input id="postal_code" {...form.register("postal_code")} placeholder="34000" disabled={loading} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Vergi Bilgileri</CardTitle>
+            <CardDescription>Faturalama için vergi bilgileri</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="tax_office">Vergi Dairesi</Label>
+              <Input
+                id="tax_office"
+                {...form.register("tax_office")}
+                placeholder="Kadıköy Vergi Dairesi"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="tax_number">Vergi Numarası</Label>
+              <Input id="tax_number" {...form.register("tax_number")} placeholder="1234567890" disabled={loading} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Diğer Bilgiler</CardTitle>
+            <CardDescription>Ek müşteri bilgileri</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="customer_group">Müşteri Grubu</Label>
+              <Input
+                id="customer_group"
+                {...form.register("customer_group")}
+                placeholder="VIP, Standart, vs."
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="balance">Bakiye</Label>
+              <Input
+                id="balance"
+                type="number"
+                step="0.01"
+                {...form.register("balance")}
+                placeholder="0.00"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notlar</Label>
+              <Textarea
+                id="notes"
+                {...form.register("notes")}
+                placeholder="Müşteri hakkında notlar..."
+                disabled={loading}
+                rows={3}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-end space-x-4">
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>
+          İptal
         </Button>
-      </form>
-    </Form>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Kaydediliyor..." : isEditing ? "Güncelle" : "Kaydet"}
+        </Button>
+      </div>
+    </form>
   )
 }

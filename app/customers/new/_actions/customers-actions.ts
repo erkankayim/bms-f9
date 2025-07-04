@@ -60,8 +60,8 @@ export async function addCustomerAction(
         // created_at and updated_at will be set by default by Postgres
       },
     ])
-    .select() // Optionally select the inserted data if needed
-    .single() // Expect a single record to be inserted
+    .select()
+    .single()
 
   if (error) {
     console.error("Error inserting customer:", error)
@@ -78,47 +78,113 @@ export async function addCustomerAction(
 
   // Revalidate the customers list page so it shows the new customer
   revalidatePath("/customers")
-  revalidatePath(`/customers/${validationResult.data.mid}`) // Also revalidate detail page
+  revalidatePath(`/customers/${validationResult.data.mid}`)
 
   return { success: true, data: newCustomer }
 }
 
-// New function to update an existing customer
+// Updated function to properly update an existing customer
 export async function updateCustomerAction(
-  customerId: string, // The ID of the customer to update
+  originalCustomerId: string, // The original ID of the customer to update
   data: CustomerFormValues,
 ): Promise<{ success: boolean; error?: string | null; data?: any }> {
   const supabase = createClient()
 
-  // Validate data - note: mid from form data is ignored for update key, customerId param is used
+  if (!originalCustomerId) {
+    return {
+      success: false,
+      error: "Orijinal müşteri ID bulunamadı",
+    }
+  }
+
+  // Validate data - but we'll handle mid separately
   const validationResult = customerFormSchema.safeParse(data)
   if (!validationResult.success) {
     console.error("Validation errors:", validationResult.error.flatten().fieldErrors)
     return {
       success: false,
-      error: "Invalid data provided. Please check the form fields.",
+      error: "Geçersiz veri. Lütfen form alanlarını kontrol edin.",
     }
   }
 
-  // Exclude 'mid' from the data to be updated as it's the primary key and shouldn't be changed.
-  const { mid, ...updateData } = validationResult.data
+  try {
+    // Check if the customer exists
+    const { data: existingCustomer, error: fetchError } = await supabase
+      .from("customers")
+      .select("mid")
+      .eq("mid", originalCustomerId)
+      .single()
 
-  const { data: updatedCustomer, error } = await supabase
-    .from("customers")
-    .update(updateData)
-    .eq("mid", customerId) // Use the customerId parameter to identify the record
-    .select()
-    .single()
+    if (fetchError || !existingCustomer) {
+      return {
+        success: false,
+        error: "Güncellenecek müşteri bulunamadı",
+      }
+    }
 
-  if (error) {
-    console.error("Error updating customer:", error)
-    return { success: false, error: error.message }
+    // If mid is being changed, we need to handle it carefully
+    const newMid = validationResult.data.mid
+    const isChangingMid = newMid !== originalCustomerId
+
+    if (isChangingMid) {
+      // Check if new mid already exists
+      const { data: midExists } = await supabase.from("customers").select("mid").eq("mid", newMid).single()
+
+      if (midExists) {
+        return {
+          success: false,
+          error: `Müşteri ID "${newMid}" zaten kullanımda. Farklı bir ID seçin.`,
+        }
+      }
+    }
+
+    // Prepare update data
+    const updateData = {
+      mid: validationResult.data.mid,
+      service_name: validationResult.data.service_name,
+      contact_name: validationResult.data.contact_name,
+      email: validationResult.data.email,
+      phone: validationResult.data.phone,
+      address: validationResult.data.address,
+      city: validationResult.data.city,
+      province: validationResult.data.province,
+      postal_code: validationResult.data.postal_code,
+      tax_office: validationResult.data.tax_office,
+      tax_number: validationResult.data.tax_number,
+      customer_group: validationResult.data.customer_group,
+      balance: validationResult.data.balance,
+      notes: validationResult.data.notes,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data: updatedCustomer, error } = await supabase
+      .from("customers")
+      .update(updateData)
+      .eq("mid", originalCustomerId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating customer:", error)
+      if (error.code === "23505") {
+        return { success: false, error: `Müşteri ID "${newMid}" zaten kullanımda.` }
+      }
+      return { success: false, error: error.message }
+    }
+
+    // Revalidate paths
+    revalidatePath("/customers")
+    revalidatePath(`/customers/${originalCustomerId}`)
+    if (isChangingMid) {
+      revalidatePath(`/customers/${newMid}`)
+    }
+
+    return { success: true, data: updatedCustomer }
+  } catch (error: any) {
+    console.error("Unexpected error updating customer:", error)
+    return {
+      success: false,
+      error: "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin.",
+    }
   }
-
-  // Revalidate paths to ensure fresh data is shown
-  revalidatePath("/customers") // For the list page
-  revalidatePath(`/customers/${customerId}`) // For the detail page of this customer
-  revalidatePath(`/customers/${customerId}/edit`) // For the edit page itself
-
-  return { success: true, data: updatedCustomer }
 }
