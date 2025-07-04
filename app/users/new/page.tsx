@@ -1,5 +1,6 @@
-import { getCurrentUserRole } from "../_actions/users-actions"
-import { createUser } from "../_actions/users-actions"
+"use client"
+
+import { getCurrentUserRole, createUser } from "../_actions/user-actions"
 import { UserForm } from "../_components/user-form"
 import { redirect } from "next/navigation"
 
@@ -13,7 +14,7 @@ export default async function NewUserPage() {
   return (
     <div className="container mx-auto py-8">
       <UserForm
-        action={createUser}
+        onSubmit={createUser}
         title="Yeni Kullanıcı Ekle"
         description="Sisteme yeni bir kullanıcı ekleyin"
         submitText="Kullanıcı Oluştur"

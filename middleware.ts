@@ -83,12 +83,12 @@ export async function middleware(request: NextRequest) {
 
   // Kullanıcı giriş yapmışsa
   if (session) {
-    // Auth sayfasındaysa ana sayfaya yönlendir (sadece ilk giriş için)
+    // Auth sayfasındaysa ana sayfaya yönlendir
     if (isAuthPage) {
       const redirectUrl = new URL("/", request.url)
       return NextResponse.redirect(redirectUrl)
     }
-    // Diğer sayfalarda devam et - sekme değiştirme durumunda yönlendirme yapma
+    // Diğer sayfalarda devam et
     return response
   }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,18 +8,37 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
-import type { UserWithAuth } from "@/app/lib/types"
+import type { UserWithAuth } from "@/lib/auth"
 
 interface UserFormProps {
   user?: UserWithAuth
-  action: (prevState: any, formData: FormData) => Promise<{ success: boolean; message: string }>
+  onSubmit: (formData: FormData) => Promise<{ success?: string; error?: string }>
   title: string
   description: string
   submitText: string
 }
 
-export function UserForm({ user, action, title, description, submitText }: UserFormProps) {
-  const [state, formAction, isPending] = useActionState(action, null)
+export function UserForm({ user, onSubmit, title, description, submitText }: UserFormProps) {
+  const [message, setMessage] = useState("")
+  const [isError, setIsError] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  async function handleSubmit(formData: FormData) {
+    setIsLoading(true)
+    setMessage("")
+
+    const result = await onSubmit(formData)
+
+    if (result.error) {
+      setMessage(result.error)
+      setIsError(true)
+    } else if (result.success) {
+      setMessage(result.success)
+      setIsError(false)
+    }
+
+    setIsLoading(false)
+  }
 
   return (
     <Card className="max-w-2xl mx-auto">
@@ -28,9 +47,7 @@ export function UserForm({ user, action, title, description, submitText }: UserF
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-6">
-          {user && <input type="hidden" name="id" value={user.id} />}
-
+        <form action={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="fullName">Ad Soyad *</Label>
             <Input
@@ -95,16 +112,16 @@ export function UserForm({ user, action, title, description, submitText }: UserF
             </Select>
           </div>
 
-          {state && (
-            <Alert variant={state.success ? "default" : "destructive"}>
-              {state.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              <AlertDescription>{state.message}</AlertDescription>
+          {message && (
+            <Alert variant={isError ? "destructive" : "default"}>
+              {isError ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+              <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
 
           <div className="flex gap-4">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "İşleniyor..." : submitText}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "İşleniyor..." : submitText}
             </Button>
             <Button type="button" variant="outline" onClick={() => window.history.back()}>
               İptal

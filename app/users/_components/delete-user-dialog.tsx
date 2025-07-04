@@ -14,7 +14,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
-import { deleteUser } from "../_actions/users-actions"
+import { deleteUser } from "../_actions/user-actions"
 import { toast } from "@/hooks/use-toast"
 
 interface DeleteUserDialogProps {

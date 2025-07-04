@@ -1,4 +1,4 @@
-import { getCurrentUserRole, getUserById } from "../_actions/users-actions"
+import { getCurrentUserRole, getUserById } from "../_actions/user-actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

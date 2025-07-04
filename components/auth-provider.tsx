@@ -30,21 +30,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const pathname = usePathname()
-  const supabase = createClient()
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    const supabase = createClient()
+
+    // İlk session kontrolü
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
-    }
+    })
 
-    getInitialSession()
-
-    // Listen for auth changes
+    // Auth değişikliklerini dinle
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -53,9 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [])
 
-  // Show loading spinner while checking auth
+  // Yükleniyor durumu
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -64,14 +60,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Show auth pages without navigation
-  const isAuthPage = pathname?.startsWith("/auth/")
+  // Auth sayfaları
+  const isAuthPage = pathname?.startsWith("/auth")
 
   if (isAuthPage || !user) {
     return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
   }
 
-  // Show main app with navigation
+  // Ana uygulama
   return (
     <AuthContext.Provider value={{ user, loading }}>
       <MainNav>{children}</MainNav>

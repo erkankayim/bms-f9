@@ -1,6 +1,8 @@
 "use client"
 
-import type * as React from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -22,9 +24,6 @@ import {
   Receipt,
   Calculator,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
 import {
   Sidebar,
   SidebarContent,
@@ -44,46 +43,58 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { getCurrentUserRole } from "@/app/users/_actions/users-actions"
+import { signOut } from "@/app/auth/_actions/auth-actions"
+import { getCurrentUserRole } from "@/app/users/_actions/user-actions"
+import type { UserRole } from "@/lib/auth"
 
-type UserRole = "admin" | "tech" | "acc"
+type NavigationItem = {
+  name: string
+  href: string
+  icon: any
+  roles: UserRole[]
+  subItems?: {
+    name: string
+    href: string
+    icon: any
+  }[]
+}
 
-const navigation = [
+const navigation: NavigationItem[] = [
   {
     name: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
-    roles: ["admin", "tech", "acc"] as UserRole[],
+    roles: ["admin", "tech", "acc"],
   },
   {
     name: "Müşteriler",
     href: "/customers",
     icon: Users,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
   {
     name: "Ürünler",
     href: "/products",
     icon: Package,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
   {
     name: "Satışlar",
     href: "/sales",
     icon: ShoppingCart,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
   {
     name: "Faturalar",
     href: "/invoices",
     icon: FileText,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
   {
     name: "Finansal",
     href: "/financials",
     icon: DollarSign,
-    roles: ["admin", "acc"] as UserRole[],
+    roles: ["admin", "acc"],
     subItems: [
       {
         name: "Finansal Özet",
@@ -111,7 +122,7 @@ const navigation = [
     name: "Envanter",
     href: "/inventory",
     icon: Warehouse,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
     subItems: [
       {
         name: "Envanter Listesi",
@@ -134,19 +145,19 @@ const navigation = [
     name: "Servis",
     href: "/service",
     icon: Wrench,
-    roles: ["admin", "tech"] as UserRole[],
+    roles: ["admin", "tech"],
   },
   {
     name: "Tedarikçiler",
     href: "/suppliers",
     icon: Building,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
   {
     name: "Kullanıcılar",
     href: "/users",
     icon: UserCog,
-    roles: ["admin"] as UserRole[],
+    roles: ["admin"],
   },
 ]
 
@@ -156,14 +167,12 @@ interface MainNavProps {
 
 export function MainNav({ children }: MainNavProps) {
   const pathname = usePathname()
-  const router = useRouter()
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [userRole, setUserRole] = useState<UserRole>("admin")
   const [openItems, setOpenItems] = useState<string[]>([])
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  // Kullanıcı rolünü getir
   useEffect(() => {
-    const fetchUserRole = async () => {
+    async function fetchUserRole() {
       try {
         const role = await getCurrentUserRole()
         setUserRole(role || "admin")
@@ -187,9 +196,7 @@ export function MainNav({ children }: MainNavProps) {
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true)
-      const supabase = createClient()
-      await supabase.auth.signOut()
-      window.location.href = "/auth/login"
+      await signOut()
     } catch (error) {
       console.error("Logout error:", error)
     } finally {

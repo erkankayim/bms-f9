@@ -1,48 +1,30 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { signIn } from "../_actions/auth-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  async function handleSubmit(formData: FormData) {
     setIsLoading(true)
     setError("")
 
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+    const result = await signIn(formData)
 
-      if (error) {
-        setError("E-posta veya şifre hatalı")
-        return
-      }
-
-      router.push("/")
-      router.refresh()
-    } catch (error) {
-      setError("Giriş yapılırken bir hata oluştu")
-    } finally {
-      setIsLoading(false)
+    if (result?.error) {
+      setError(result.error)
     }
+
+    setIsLoading(false)
   }
 
   return (
@@ -53,28 +35,14 @@ export default function LoginPage() {
           <CardDescription>Hesabınıza giriş yapın</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form action={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="admin@example.com"
-              />
+              <Input id="email" name="email" type="email" required placeholder="admin@example.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="admin123"
-              />
+              <Input id="password" name="password" type="password" required placeholder="admin123" />
             </div>
             {error && (
               <Alert variant="destructive">
@@ -86,10 +54,20 @@ export default function LoginPage() {
               {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
             </Button>
           </form>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>Test hesabı:</p>
-            <p>E-posta: admin@example.com</p>
-            <p>Şifre: admin123</p>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Hesabınız yok mu?{" "}
+              <Link href="/auth/register" className="text-primary hover:underline">
+                Kayıt olun
+              </Link>
+            </p>
+          </div>
+
+          <div className="mt-4 p-3 bg-muted rounded-lg">
+            <p className="text-sm font-medium">Test Hesabı:</p>
+            <p className="text-sm">E-posta: admin@example.com</p>
+            <p className="text-sm">Şifre: admin123</p>
           </div>
         </CardContent>
       </Card>
