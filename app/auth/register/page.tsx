@@ -1,76 +1,61 @@
 "use client"
 
-import { useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { registerAction } from "../actions"
-import { useToast } from "@/components/ui/use-toast"
 
 export default function RegisterPage() {
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
-  const { toast } = useToast()
-
-  async function handleSubmit(formData: FormData) {
-    startTransition(async () => {
-      try {
-        const result = await registerAction(null, formData)
-
-        if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: result.message || "Kayıt başarılı!",
-            variant: "default",
-          })
-          router.push("/auth/login")
-        } else {
-          toast({
-            title: "Hata",
-            description: result.message || "Kayıt başarısız",
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        toast({
-          title: "Hata",
-          description: "Beklenmeyen bir hata oluştu",
-          variant: "destructive",
-        })
-      }
-    })
-  }
+  const [state, formAction, isPending] = useActionState(registerAction, null)
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Kayıt Ol</CardTitle>
-          <CardDescription>Yeni bir hesap oluşturmak için bilgilerinizi girin</CardDescription>
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Kayıt Ol</CardTitle>
+          <CardDescription className="text-center">Yeni hesap oluşturmak için bilgilerinizi girin</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Ad Soyad</Label>
-              <Input id="name" name="name" type="text" required disabled={isPending} />
+              <Input id="name" name="name" type="text" placeholder="Adınız Soyadınız" required disabled={isPending} />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input id="email" name="email" type="email" required disabled={isPending} />
+              <Input id="email" name="email" type="email" placeholder="ornek@email.com" required disabled={isPending} />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
-              <Input id="password" name="password" type="password" required disabled={isPending} minLength={6} />
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                required
+                minLength={6}
+                disabled={isPending}
+              />
             </div>
-
+            {state?.message && (
+              <Alert variant={state.message.includes("başarılı") ? "default" : "destructive"}>
+                <AlertDescription>{state.message}</AlertDescription>
+              </Alert>
+            )}
             <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Kayıt olunuyor..." : "Kayıt Ol"}
+              {isPending ? "Kayıt yapılıyor..." : "Kayıt Ol"}
             </Button>
           </form>
+          <div className="mt-4 text-center text-sm">
+            <span className="text-gray-600">Zaten hesabınız var mı? </span>
+            <Link href="/auth/login" className="text-blue-600 hover:text-blue-500 font-medium">
+              Giriş Yap
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

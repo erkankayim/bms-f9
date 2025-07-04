@@ -63,10 +63,9 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith("/auth")
   const isStaticFile = request.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|woff|woff2|ttf|eot)$/)
   const isNextStatic = request.nextUrl.pathname.startsWith("/_next")
-  const isApiRoute = request.nextUrl.pathname.startsWith("/api")
 
-  // Statik dosyalar ve API routes için middleware'i atla
-  if (isStaticFile || isNextStatic || isApiRoute) {
+  // Statik dosyalar için middleware'i atla
+  if (isStaticFile || isNextStatic) {
     return response
   }
 

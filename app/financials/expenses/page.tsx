@@ -40,20 +40,20 @@ export default function ExpensesPage() {
     async function fetchExpenses() {
       try {
         console.log("Fetching expenses from client...")
-        const data = await getExpenseEntries()
+        const result = await getExpenseEntries()
 
-        console.log("Expense fetch result:", data)
+        console.log("Expense fetch result:", result)
 
-        if (Array.isArray(data)) {
-          setExpenses(data)
-          setFilteredExpenses(data)
+        if (result.data) {
+          setExpenses(result.data)
+          setFilteredExpenses(result.data)
           setError(null)
         } else {
-          setError("Beklenmeyen veri formatı")
+          setError(result.error || "Veri yüklenirken hata oluştu")
         }
       } catch (err) {
         console.error("Client error:", err)
-        setError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu")
+        setError("Beklenmeyen bir hata oluştu")
       } finally {
         setLoading(false)
       }
