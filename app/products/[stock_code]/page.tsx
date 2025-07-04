@@ -17,7 +17,7 @@ interface ProductPageProps {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   try {
     const { data: product, error } = await supabase
@@ -27,6 +27,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         suppliers (
           id,
           name,
+          company_name,
           contact_person,
           phone,
           email
@@ -52,22 +53,22 @@ export default async function ProductPage({ params }: ProductPageProps) {
     return (
       <div className="container mx-auto py-6">
         <div className="flex items-center gap-4 mb-6">
-          <Link href="/products">
-            <Button variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/products">
               <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <div className="flex-1">
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <p className="text-muted-foreground">Stok Kodu: {product.stock_code}</p>
           </div>
           <div className="flex gap-2">
-            <Link href={`/products/${product.stock_code}/edit`}>
-              <Button variant="outline">
+            <Button asChild variant="outline">
+              <Link href={`/products/${product.stock_code}/edit`}>
                 <Edit className="mr-2 h-4 w-4" />
                 Düzenle
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <PrintLabelDialog
               product={{
                 stock_code: product.stock_code,
@@ -238,7 +239,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Firma:</span>
-                        <span>{product.suppliers.name}</span>
+                        <span>{product.suppliers.company_name || product.suppliers.name}</span>
                       </div>
                       {product.suppliers.contact_person && (
                         <div className="flex justify-between">
@@ -273,7 +274,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       <div className="flex flex-wrap gap-2">
                         {(variant.values || []).map((value: any, valueIndex: number) => (
                           <Badge key={valueIndex} variant="secondary">
-                            {typeof value === "string" ? value : value.value}
+                            {typeof value === "string" ? value : value.value || value}
                           </Badge>
                         ))}
                       </div>
