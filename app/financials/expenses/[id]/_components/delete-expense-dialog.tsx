@@ -3,19 +3,16 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Trash2 } from "lucide-react"
 import { deleteExpense } from "../_actions/expense-actions"
-import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
 interface DeleteExpenseDialogProps {
@@ -24,62 +21,54 @@ interface DeleteExpenseDialogProps {
 }
 
 export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
   const [open, setOpen] = useState(false)
-  const router = useRouter()
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   const handleDelete = async () => {
     try {
       setIsDeleting(true)
       await deleteExpense(expenseId)
-
       toast({
         title: "Başarılı",
-        description: `${expenseTitle} adlı gider başarıyla silindi`,
-        duration: 1500,
+        description: "Gider kaydı başarıyla silindi.",
       })
-
-      router.push("/financials/expenses")
+      setOpen(false)
     } catch (error) {
+      console.error("Delete error:", error)
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Gider silinirken hata oluştu",
+        description: "Gider kaydı silinirken bir hata oluştu.",
         variant: "destructive",
-        duration: 1500,
       })
     } finally {
       setIsDeleting(false)
-      setOpen(false)
     }
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="sm">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Sil
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+          <Trash2 className="h-4 w-4" />
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Gideri Sil</AlertDialogTitle>
-          <AlertDialogDescription>
-            <strong>{expenseTitle}</strong> adlı gideri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Gider Kaydını Sil</DialogTitle>
+          <DialogDescription>
+            "{expenseTitle}" adlı gider kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
+            İptal
+          </Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
             {isDeleting ? "Siliniyor..." : "Sil"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
