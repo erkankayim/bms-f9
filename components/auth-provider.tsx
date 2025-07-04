@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter, usePathname } from "next/navigation"
+import { MainNav } from "./main-nav"
 
 type AuthContextType = {
   user: User | null
@@ -110,5 +110,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null
   }
 
-  return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  // Auth pages
+  const isAuthPage = pathname?.startsWith("/auth")
+
+  if (isAuthPage) {
+    return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    router.push("/auth/login")
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  // Main app with sidebar
+  return (
+    <AuthContext.Provider value={{ user, loading, signOut }}>
+      <MainNav>{children}</MainNav>
+    </AuthContext.Provider>
+  )
 }
