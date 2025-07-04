@@ -122,7 +122,7 @@ export async function createSaleAction(
         notes: validatedData.notes,
         is_installment: validatedData.is_installment,
         installment_count: validatedData.is_installment ? validatedData.installment_count : null,
-        sale_date: new Date().toISOString(),
+        // user_id: userId, // Opsiyonel: Satışı yapan kullanıcıyı sales tablosuna da ekleyebilirsiniz.
       },
     ])
     .select()
@@ -233,17 +233,16 @@ export async function createSaleAction(
   }
 
   // 6. Create installments if applicable (existing logic)
-  if (validatedData.is_installment && validatedData.installment_count && validatedData.installment_count > 1) {
+  if (validatedData.is_installment && validatedData.installment_count && validatedData.installment_count > 0) {
     const installmentAmount = validatedData.final_amount / validatedData.installment_count
     const installmentsToInsert = []
     const saleDate = new Date(sale.created_at || Date.now()) // Use sale creation date
 
-    for (let i = 1; i <= validatedData.installment_count; i++) {
+    for (let i = 0; i < validatedData.installment_count; i++) {
       installmentsToInsert.push({
         sale_id: sale.id,
-        installment_number: i,
+        due_date: formatISO(addMonths(saleDate, i + 1), { representation: "date" }),
         amount: installmentAmount,
-        due_date: formatISO(addMonths(saleDate, i), { representation: "date" }),
         status: "pending",
       })
     }
@@ -263,51 +262,6 @@ export async function createSaleAction(
   })
 
   return { success: true, data: sale }
-}
-
-export async function getProductsForSale() {
-  try {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from("products")
-      .select("stock_code, product_name, sale_price, current_stock, tax_rate")
-      .gt("current_stock", 0)
-      .is("deleted_at", null)
-      .order("product_name")
-
-    if (error) {
-      console.error("Error fetching products:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return []
-  }
-}
-
-export async function getCustomersForSale() {
-  try {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from("customers")
-      .select("mid, contact_name, email, phone")
-      .is("deleted_at", null)
-      .order("contact_name")
-
-    if (error) {
-      console.error("Error fetching customers:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return []
-  }
 }
 
 // Mevcut deleteSaleAction, restoreSaleAction, updateSaleStatusAction,

@@ -1,63 +1,7 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import { revalidatePath } from "next/cache"
+import { deleteExpense as deleteExpenseMain } from "../../_actions/expense-actions"
 
-export async function deleteExpense(entryId: number) {
-  try {
-    const supabase = await createClient()
-
-    const { error } = await supabase.from("financial_entries").delete().eq("id", entryId).eq("entry_type", "expense")
-
-    if (error) {
-      console.error("Expense deletion error:", error)
-      return { success: false, error: error.message }
-    }
-
-    revalidatePath("/financials/expenses")
-    return { success: true }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
-  }
-}
-
-export async function updateExpenseEntryAction(entryId: number, updateData: any) {
-  try {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from("financial_entries")
-      .update({
-        expense_title: updateData.expense_title,
-        description: updateData.description,
-        expense_amount: updateData.expense_amount,
-        outgoing_amount: updateData.expense_amount,
-        payment_amount: updateData.payment_amount,
-        entry_date: updateData.entry_date,
-        expense_source: updateData.expense_source,
-        category_id: updateData.category_id ? Number.parseInt(updateData.category_id) : null,
-        supplier_id: updateData.supplier_id ? Number.parseInt(updateData.supplier_id) : null,
-        payment_method: updateData.payment_method,
-        invoice_number: updateData.invoice_number,
-        receipt_url: updateData.receipt_url,
-        notes: updateData.notes,
-      })
-      .eq("id", entryId)
-      .eq("entry_type", "expense")
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Expense update error:", error)
-      return { success: false, error: error.message }
-    }
-
-    revalidatePath(`/financials/expenses/${entryId}`)
-    revalidatePath("/financials/expenses")
-    return { success: true, data }
-  } catch (error) {
-    console.error("Unexpected error:", error)
-    return { success: false, error: "Beklenmeyen bir hata oluştu" }
-  }
+export async function deleteExpense(formData: FormData) {
+  return await deleteExpenseMain(formData)
 }
