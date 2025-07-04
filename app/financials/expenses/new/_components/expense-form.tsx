@@ -17,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { getExpenseCategories, getSuppliersForSelect } from "../../_actions/financial-entries-actions"
+import { getExpenseCategories, getSuppliersForSelect } from "../../../_actions/financial-entries-actions"
 import { createExpense } from "../_actions/expense-actions"
 
 type Supplier = { id: number; name: string }

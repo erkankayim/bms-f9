@@ -641,38 +641,70 @@ export const createExpenseEntry = createExpenseEntryAction
 export const updateIncomeEntry = updateIncomeEntryAction
 export const updateExpenseEntry = updateExpenseEntryAction
 
-// Bu fonksiyonlar veritabanından çekilebilir, şimdilik sabit.
+/**
+ * Income categories
+ */
 export async function getIncomeCategories() {
-  return [
-    { id: "sales", name: "Satış Geliri" },
-    { id: "service", name: "Hizmet Bedeli" },
-    { id: "consulting", name: "Danışmanlık" },
-    { id: "other", name: "Diğer" },
-  ]
-}
-
-export async function getExpenseCategories() {
-  return [
-    { id: "rent", name: "Kira" },
-    { id: "salary", name: "Maaş Ödemeleri" },
-    { id: "utilities", name: "Faturalar (Elektrik, Su, İnternet)" },
-    { id: "marketing", name: "Pazarlama ve Reklam" },
-    { id: "supplies", name: "Ofis Malzemeleri" },
-    { id: "raw_material", name: "Hammadde Alımı" },
-    { id: "other", name: "Diğer" },
-  ]
-}
-
-export async function getSuppliersForSelect() {
   const supabase = createClient()
-  const { data, error } = await supabase.from("suppliers").select("id, name").is("deleted_at", null)
-  if (error) return []
-  return data
+  const { data, error } = await supabase.from("income_categories").select("id,name").order("name", { ascending: true })
+
+  if (error || !data) {
+    // Fall-back list
+    return [
+      { id: "sales", name: "Satış" },
+      { id: "service", name: "Hizmet" },
+      { id: "consulting", name: "Danışmanlık" },
+      { id: "investment", name: "Yatırım" },
+      { id: "other", name: "Diğer" },
+    ]
+  }
+  return data as { id: string; name: string }[]
 }
 
+/**
+ * Expense categories
+ */
+export async function getExpenseCategories() {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("expense_categories").select("id,name").order("name", { ascending: true })
+
+  if (error || !data) {
+    return [
+      { id: "office", name: "Ofis Giderleri" },
+      { id: "marketing", name: "Pazarlama" },
+      { id: "travel", name: "Seyahat" },
+      { id: "utilities", name: "Faturalar" },
+      { id: "supplies", name: "Malzemeler" },
+      { id: "other", name: "Diğer" },
+    ]
+  }
+  return data as { id: string; name: string }[]
+}
+
+/**
+ * Customers for comboboxes
+ */
 export async function getCustomersForSelect() {
   const supabase = createClient()
-  const { data, error } = await supabase.from("customers").select("mid, contact_name").is("deleted_at", null)
-  if (error) return []
-  return data
+  const { data, error } = await supabase
+    .from("customers")
+    .select("mid, contact_name")
+    .order("contact_name", { ascending: true })
+
+  if (error || !data) return []
+  return data as { mid: string; contact_name: string }[]
+}
+
+/**
+ * Suppliers for comboboxes
+ */
+export async function getSuppliersForSelect() {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("id, company_name")
+    .order("company_name", { ascending: true })
+
+  if (error || !data) return []
+  return data.map((s) => ({ id: s.id as number, name: s.company_name as string }))
 }

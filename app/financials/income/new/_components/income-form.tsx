@@ -17,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { getIncomeCategories, getCustomersForSelect } from "../../_actions/financial-entries-actions"
+import { getIncomeCategories, getCustomersForSelect } from "../../../_actions/financial-entries-actions"
 import { createIncome } from "../_actions/income-actions"
 
 type Customer = { mid: string; contact_name: string }
