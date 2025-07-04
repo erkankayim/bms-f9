@@ -1,51 +1,29 @@
-import { Suspense } from "react"
-import { UsersList } from "./_components/users-list"
+import { getCurrentUserRole } from "@/app/users/_actions/user-actions"
+import { UsersList } from "@/app/users/_components/users-list"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUserRole, debugCurrentUser } from "@/lib/auth"
-
-async function DebugInfo() {
-  const debugInfo = await debugCurrentUser()
-  return (
-    <div className="mb-4">
-      <details className="bg-gray-100 p-4 rounded">
-        <summary className="cursor-pointer font-medium">Debug Bilgisi (Geliştirici)</summary>
-        <pre className="mt-2 text-sm overflow-auto whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
-      </details>
-    </div>
-  )
-}
 
 export default async function UsersPage() {
-  // Rol kontrolü
-  const userRole = await getCurrentUserRole()
+  const currentRole = await getCurrentUserRole()
 
-  if (userRole !== "admin") {
+  if (currentRole !== "admin") {
     return (
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto py-8">
         <Card>
           <CardHeader>
             <CardTitle>Erişim Reddedildi</CardTitle>
             <CardDescription>Bu sayfaya erişim için yönetici yetkisi gereklidir.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Yönetici hesabı ile giriş yapmanız gerekmektedir.</p>
-            <p className="text-xs text-muted-foreground mt-2">Mevcut rol: {userRole || "Bilinmiyor"}</p>
-
-            <Suspense fallback={<div>Debug bilgisi yükleniyor...</div>}>
-              <DebugInfo />
-            </Suspense>
-          </CardContent>
         </Card>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">Kullanıcılar</h1>
           <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
@@ -58,9 +36,7 @@ export default async function UsersPage() {
         </Button>
       </div>
 
-      <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>
-        <UsersList />
-      </Suspense>
+      <UsersList />
     </div>
   )
 }

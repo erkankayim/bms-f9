@@ -14,26 +14,32 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Trash2, Loader2 } from "lucide-react"
 import { deleteUser } from "../_actions/user-actions"
 import { toast } from "sonner"
 import type { UserWithAuth } from "@/lib/auth"
 
 interface DeleteUserDialogProps {
   user: UserWithAuth
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 export function DeleteUserDialog({ user, children }: DeleteUserDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
   const handleDelete = async () => {
     setIsDeleting(true)
+
     try {
       const result = await deleteUser(user.id)
-      if (result.error) {
+
+      if (result.success) {
+        toast.success(result.success)
+        setIsOpen(false)
+      } else if (result.error) {
         toast.error(result.error)
-      } else {
-        toast.success(result.success || "Kullanıcı silindi")
       }
     } catch (error) {
       toast.error("Kullanıcı silinirken bir hata oluştu")
@@ -43,8 +49,15 @@ export function DeleteUserDialog({ user, children }: DeleteUserDialogProps) {
   }
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogTrigger asChild>
+        {children || (
+          <Button variant="outline" size="sm">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Sil
+          </Button>
+        )}
+      </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
@@ -53,8 +66,13 @@ export function DeleteUserDialog({ user, children }: DeleteUserDialogProps) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>
