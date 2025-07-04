@@ -1,40 +1,29 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { addCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
-import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, AlertCircle } from "lucide-react"
+import { createCustomerAction, updateCustomerAction } from "../_actions/customers-actions"
+import { toast } from "sonner"
 
-const customerFormSchema = z.object({
-  mid: z.string().min(1, "Müşteri ID gereklidir"),
-  service_name: z.string().optional().nullable(),
-  contact_name: z.string().min(1, "İletişim adı gereklidir"),
-  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")).nullable(),
-  phone: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  province: z.string().optional().nullable(),
-  postal_code: z.string().optional().nullable(),
-  tax_office: z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
-  customer_group: z.string().optional().nullable(),
-  balance: z.coerce.number().optional().default(0).nullable(),
-  notes: z.string().optional().nullable(),
-})
-
-type CustomerFormValues = z.infer<typeof customerFormSchema>
+interface Customer {
+  mid: string
+  name: string
+  email?: string
+  phone?: string
+  address?: string
+  tax_number?: string
+  tax_office?: string
+  notes?: string
+}
 
 interface CustomerFormProps {
-  initialData?: any
+  initialData?: Customer
   isEditMode?: boolean
   customerId?: string
 }
@@ -42,231 +31,148 @@ interface CustomerFormProps {
 export function CustomerForm({ initialData, isEditMode = false, customerId }: CustomerFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-  const { toast } = useToast()
 
-  const form = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerFormSchema),
-    defaultValues: {
-      mid: initialData?.mid || "",
-      service_name: initialData?.service_name || "",
-      contact_name: initialData?.contact_name || "",
-      email: initialData?.email || "",
-      phone: initialData?.phone || "",
-      address: initialData?.address || "",
-      city: initialData?.city || "",
-      province: initialData?.province || "",
-      postal_code: initialData?.postal_code || "",
-      tax_office: initialData?.tax_office || "",
-      tax_number: initialData?.tax_number || "",
-      customer_group: initialData?.customer_group || "",
-      balance: initialData?.balance || 0,
-      notes: initialData?.notes || "",
-    },
-  })
-
-  const onSubmit = async (data: CustomerFormValues) => {
+  const handleSubmit = async (formData: FormData) => {
     setLoading(true)
     setError(null)
 
     try {
       let result
+
       if (isEditMode && customerId) {
-        // Use the original customer ID for updating
-        result = await updateCustomerAction(customerId, data)
+        console.log(`Updating customer with original ID: ${customerId}`)
+        result = await updateCustomerAction(formData, customerId)
       } else {
-        result = await addCustomerAction(data)
+        console.log("Creating new customer")
+        result = await createCustomerAction(formData)
       }
 
       if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: isEditMode ? "Müşteri başarıyla güncellendi" : "Müşteri başarıyla eklendi",
-        })
-
-        // Navigate to the customer detail page using the final mid
-        const finalMid = result.data?.mid || data.mid
-        router.push(`/customers/${finalMid}`)
+        toast.success(result.message)
+        if (!isEditMode) {
+          // Yeni müşteri oluşturulduysa formu temizle
+          const form = document.getElementById("customer-form") as HTMLFormElement
+          form?.reset()
+        }
       } else {
-        setError(result.error || "Bir hata oluştu")
+        setError(result.message)
+        toast.error(result.message)
       }
     } catch (err) {
       console.error("Form submission error:", err)
-      setError("Beklenmedik bir hata oluştu")
+      const errorMessage = "Beklenmedik bir hata oluştu."
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>{isEditMode ? "Müşteri Düzenle" : "Yeni Müşteri"}</CardTitle>
+        <CardDescription>
+          {isEditMode ? "Müşteri bilgilerini güncelleyin" : "Yeni müşteri bilgilerini girin"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form id="customer-form" action={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Temel Bilgiler</CardTitle>
-            <CardDescription>Müşterinin temel iletişim bilgileri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="mid">Müşteri ID *</Label>
-              <Input id="mid" {...form.register("mid")} placeholder="Örn: CUST001" disabled={loading} />
-              {form.formState.errors.mid && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.mid.message}</p>
-              )}
+              <Input id="mid" name="mid" defaultValue={initialData?.mid || ""} required placeholder="Örn: CUST001" />
             </div>
 
-            <div>
-              <Label htmlFor="contact_name">İletişim Adı *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="name">Müşteri Adı *</Label>
               <Input
-                id="contact_name"
-                {...form.register("contact_name")}
-                placeholder="Müşteri adı"
-                disabled={loading}
+                id="name"
+                name="name"
+                defaultValue={initialData?.name || ""}
+                required
+                placeholder="Müşteri adını girin"
               />
-              {form.formState.errors.contact_name && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.contact_name.message}</p>
-              )}
             </div>
+          </div>
 
-            <div>
-              <Label htmlFor="service_name">Şirket/Servis Adı</Label>
-              <Input id="service_name" {...form.register("service_name")} placeholder="Şirket adı" disabled={loading} />
-            </div>
-
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
-                {...form.register("email")}
+                defaultValue={initialData?.email || ""}
                 placeholder="ornek@email.com"
-                disabled={loading}
               />
-              {form.formState.errors.email && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
-              )}
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="phone">Telefon</Label>
-              <Input id="phone" {...form.register("phone")} placeholder="0555 123 45 67" disabled={loading} />
+              <Input id="phone" name="phone" defaultValue={initialData?.phone || ""} placeholder="0555 123 45 67" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Adres Bilgileri</CardTitle>
-            <CardDescription>Müşterinin adres ve konum bilgileri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="address">Adres</Label>
-              <Textarea
-                id="address"
-                {...form.register("address")}
-                placeholder="Tam adres"
-                disabled={loading}
-                rows={3}
+          <div className="space-y-2">
+            <Label htmlFor="address">Adres</Label>
+            <Textarea
+              id="address"
+              name="address"
+              defaultValue={initialData?.address || ""}
+              placeholder="Müşteri adresi"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="tax_number">Vergi Numarası</Label>
+              <Input
+                id="tax_number"
+                name="tax_number"
+                defaultValue={initialData?.tax_number || ""}
+                placeholder="1234567890"
               />
             </div>
 
-            <div>
-              <Label htmlFor="city">Şehir</Label>
-              <Input id="city" {...form.register("city")} placeholder="İstanbul" disabled={loading} />
-            </div>
-
-            <div>
-              <Label htmlFor="province">İl</Label>
-              <Input id="province" {...form.register("province")} placeholder="Marmara" disabled={loading} />
-            </div>
-
-            <div>
-              <Label htmlFor="postal_code">Posta Kodu</Label>
-              <Input id="postal_code" {...form.register("postal_code")} placeholder="34000" disabled={loading} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Vergi Bilgileri</CardTitle>
-            <CardDescription>Faturalama için vergi bilgileri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="tax_office">Vergi Dairesi</Label>
               <Input
                 id="tax_office"
-                {...form.register("tax_office")}
-                placeholder="Kadıköy Vergi Dairesi"
-                disabled={loading}
+                name="tax_office"
+                defaultValue={initialData?.tax_office || ""}
+                placeholder="Vergi dairesi adı"
               />
             </div>
+          </div>
 
-            <div>
-              <Label htmlFor="tax_number">Vergi Numarası</Label>
-              <Input id="tax_number" {...form.register("tax_number")} placeholder="1234567890" disabled={loading} />
-            </div>
-          </CardContent>
-        </Card>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notlar</Label>
+            <Textarea
+              id="notes"
+              name="notes"
+              defaultValue={initialData?.notes || ""}
+              placeholder="Müşteri hakkında notlar"
+              rows={3}
+            />
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Diğer Bilgiler</CardTitle>
-            <CardDescription>Ek müşteri bilgileri</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="customer_group">Müşteri Grubu</Label>
-              <Input
-                id="customer_group"
-                {...form.register("customer_group")}
-                placeholder="VIP, Standart, vs."
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="balance">Bakiye</Label>
-              <Input
-                id="balance"
-                type="number"
-                step="0.01"
-                {...form.register("balance")}
-                placeholder="0.00"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="notes">Notlar</Label>
-              <Textarea
-                id="notes"
-                {...form.register("notes")}
-                placeholder="Müşteri hakkında notlar..."
-                disabled={loading}
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-end space-x-4">
-        <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>
-          İptal
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? "Kaydediliyor..." : isEditMode ? "Güncelle" : "Kaydet"}
-        </Button>
-      </div>
-    </form>
+          <div className="flex gap-2 pt-4">
+            <Button type="submit" disabled={loading} className="flex-1">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditMode ? "Güncelle" : "Oluştur"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

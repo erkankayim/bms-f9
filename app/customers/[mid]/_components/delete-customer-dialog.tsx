@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Trash2, RotateCcw, AlertTriangle } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface DeleteCustomerDialogProps {
   customerId: string
@@ -33,7 +33,6 @@ export function DeleteCustomerDialog({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { toast } = useToast()
 
   const handleAction = async () => {
     if (!customerId) {
@@ -45,22 +44,28 @@ export function DeleteCustomerDialog({
     setError(null)
 
     try {
+      console.log(`Attempting ${isDeleted ? "restore" : "delete"} for customer:`, customerId)
+
       const result = isDeleted ? await restoreAction(customerId) : await deleteAction(customerId)
 
+      console.log("Action result:", result)
+
       if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: result.message,
-        })
+        toast.success(result.message)
         setOpen(false)
         // Sayfayı yenile
-        window.location.reload()
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
       } else {
         setError(result.message || "İşlem başarısız oldu")
+        toast.error(result.message || "İşlem başarısız oldu")
       }
     } catch (err) {
       console.error("Customer action error:", err)
-      setError("Beklenmedik bir hata oluştu. Lütfen tekrar deneyin.")
+      const errorMessage = "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin."
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

@@ -82,7 +82,10 @@ export async function getCustomerPageData(
 }
 
 export async function deleteCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
-  if (!customerId) {
+  console.log(`[Delete Action] Starting delete for customer: ${customerId}`)
+
+  if (!customerId || customerId.trim() === "") {
+    console.error(`[Delete Action] Invalid customer ID: ${customerId}`)
     return { success: false, message: "Müşteri ID bulunamadı" }
   }
 
@@ -91,21 +94,40 @@ export async function deleteCustomer(customerId: string): Promise<{ success: boo
   try {
     console.log(`[Delete Action] Attempting to archive customer: ${customerId}`)
 
-    const { error } = await supabase
+    // Önce müşterinin var olup olmadığını kontrol et
+    const { data: existingCustomer, error: checkError } = await supabase
+      .from("customers")
+      .select("mid, name")
+      .eq("mid", customerId)
+      .single()
+
+    if (checkError || !existingCustomer) {
+      console.error(`[Delete Action] Customer not found: ${customerId}`, checkError)
+      return { success: false, message: "Müşteri bulunamadı" }
+    }
+
+    console.log(`[Delete Action] Customer found: ${existingCustomer.name}`)
+
+    // Müşteriyi arşivle
+    const { error: updateError } = await supabase
       .from("customers")
       .update({ deleted_at: new Date().toISOString() })
       .eq("mid", customerId)
 
-    if (error) {
-      console.error(`[Delete Action Error] Failed to archive customer ${customerId}:`, error)
-      return { success: false, message: `Arşivleme başarısız: ${error.message}` }
+    if (updateError) {
+      console.error(`[Delete Action Error] Failed to archive customer ${customerId}:`, updateError)
+      return { success: false, message: `Arşivleme başarısız: ${updateError.message}` }
     }
 
     console.log(`[Delete Action] Successfully archived customer: ${customerId}`)
 
     // Revalidate paths
-    revalidatePath("/customers")
-    revalidatePath(`/customers/${customerId}`)
+    try {
+      revalidatePath("/customers")
+      revalidatePath(`/customers/${customerId}`)
+    } catch (revalidateError) {
+      console.warn(`[Delete Action] Revalidation warning:`, revalidateError)
+    }
 
     return { success: true, message: "Müşteri başarıyla arşivlendi." }
   } catch (error: any) {
@@ -115,7 +137,10 @@ export async function deleteCustomer(customerId: string): Promise<{ success: boo
 }
 
 export async function restoreCustomer(customerId: string): Promise<{ success: boolean; message: string }> {
-  if (!customerId) {
+  console.log(`[Restore Action] Starting restore for customer: ${customerId}`)
+
+  if (!customerId || customerId.trim() === "") {
+    console.error(`[Restore Action] Invalid customer ID: ${customerId}`)
     return { success: false, message: "Müşteri ID bulunamadı" }
   }
 
@@ -124,18 +149,37 @@ export async function restoreCustomer(customerId: string): Promise<{ success: bo
   try {
     console.log(`[Restore Action] Attempting to restore customer: ${customerId}`)
 
-    const { error } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
+    // Önce müşterinin var olup olmadığını kontrol et
+    const { data: existingCustomer, error: checkError } = await supabase
+      .from("customers")
+      .select("mid, name")
+      .eq("mid", customerId)
+      .single()
 
-    if (error) {
-      console.error(`[Restore Action Error] Failed to restore customer ${customerId}:`, error)
-      return { success: false, message: `Geri yükleme başarısız: ${error.message}` }
+    if (checkError || !existingCustomer) {
+      console.error(`[Restore Action] Customer not found: ${customerId}`, checkError)
+      return { success: false, message: "Müşteri bulunamadı" }
+    }
+
+    console.log(`[Restore Action] Customer found: ${existingCustomer.name}`)
+
+    // Müşteriyi geri yükle
+    const { error: updateError } = await supabase.from("customers").update({ deleted_at: null }).eq("mid", customerId)
+
+    if (updateError) {
+      console.error(`[Restore Action Error] Failed to restore customer ${customerId}:`, updateError)
+      return { success: false, message: `Geri yükleme başarısız: ${updateError.message}` }
     }
 
     console.log(`[Restore Action] Successfully restored customer: ${customerId}`)
 
     // Revalidate paths
-    revalidatePath("/customers")
-    revalidatePath(`/customers/${customerId}`)
+    try {
+      revalidatePath("/customers")
+      revalidatePath(`/customers/${customerId}`)
+    } catch (revalidateError) {
+      console.warn(`[Restore Action] Revalidation warning:`, revalidateError)
+    }
 
     return { success: true, message: "Müşteri başarıyla geri yüklendi." }
   } catch (error: any) {
