@@ -1,8 +1,8 @@
 import { getUsers } from "../_actions/users-actions"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Eye, Edit } from "lucide-react"
+import { Edit, Eye } from "lucide-react"
 import Link from "next/link"
 import { DeleteUserDialog } from "./delete-user-dialog"
 
@@ -13,10 +13,9 @@ export async function UsersList() {
     if (users.length === 0) {
       return (
         <Card>
-          <CardHeader>
-            <CardTitle>Kullanıcı Bulunamadı</CardTitle>
-            <CardDescription>Henüz hiç kullanıcı eklenmemiş.</CardDescription>
-          </CardHeader>
+          <CardContent className="p-6">
+            <p className="text-center text-muted-foreground">Henüz kullanıcı bulunmuyor.</p>
+          </CardContent>
         </Card>
       )
     }
@@ -26,32 +25,32 @@ export async function UsersList() {
         {users.map((user) => (
           <Card key={user.id}>
             <CardHeader>
-              <div className="flex justify-between items-start">
+              <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-lg">{user.full_name}</CardTitle>
-                  <CardDescription>{user.email}</CardDescription>
+                  <p className="text-sm text-muted-foreground">{user.email}</p>
                 </div>
-                <div className="flex gap-2">
-                  <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                    {user.status === "active" ? "Aktif" : "Pasif"}
-                  </Badge>
-                  <Badge variant="outline">
+                <div className="flex items-center gap-2">
+                  <Badge variant={user.role === "admin" ? "default" : user.role === "acc" ? "secondary" : "outline"}>
                     {user.role === "admin" ? "Yönetici" : user.role === "acc" ? "Muhasebe" : "Teknisyen"}
+                  </Badge>
+                  <Badge variant={user.status === "active" ? "default" : "destructive"}>
+                    {user.status === "active" ? "Aktif" : "Pasif"}
                   </Badge>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" asChild>
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm" variant="outline">
                   <Link href={`/users/${user.id}`}>
-                    <Eye className="mr-2 h-4 w-4" />
+                    <Eye className="h-4 w-4 mr-1" />
                     Görüntüle
                   </Link>
                 </Button>
-                <Button variant="outline" size="sm" asChild>
+                <Button asChild size="sm" variant="outline">
                   <Link href={`/users/${user.id}/edit`}>
-                    <Edit className="mr-2 h-4 w-4" />
+                    <Edit className="h-4 w-4 mr-1" />
                     Düzenle
                   </Link>
                 </Button>
@@ -65,12 +64,8 @@ export async function UsersList() {
   } catch (error) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Hata</CardTitle>
-          <CardDescription>Kullanıcılar yüklenirken bir hata oluştu.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-red-600">{error instanceof Error ? error.message : "Bilinmeyen hata"}</p>
+        <CardContent className="p-6">
+          <p className="text-center text-red-500">Kullanıcılar yüklenirken hata oluştu: {String(error)}</p>
         </CardContent>
       </Card>
     )

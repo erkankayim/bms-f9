@@ -1,6 +1,6 @@
-import { getUserById } from "../../_actions/users-actions"
+import { getCurrentUserRole, getUserById } from "../../_actions/users-actions"
 import { UserForm } from "../../_components/user-form"
-import { notFound } from "next/navigation"
+import { redirect, notFound } from "next/navigation"
 
 interface EditUserPageProps {
   params: {
@@ -9,6 +9,12 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
+  const userRole = await getCurrentUserRole()
+
+  if (userRole !== "admin") {
+    redirect("/users")
+  }
+
   const user = await getUserById(params.id)
 
   if (!user) {

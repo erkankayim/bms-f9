@@ -1,20 +1,7 @@
--- First, check if admin user already exists and delete if necessary
-DO $$
-DECLARE
-    admin_user_id UUID;
-BEGIN
-    -- Get admin user ID if exists
-    SELECT id INTO admin_user_id 
-    FROM auth.users 
-    WHERE email = 'admin@example.com';
-    
-    -- If admin user exists, delete it first
-    IF admin_user_id IS NOT NULL THEN
-        DELETE FROM auth.users WHERE id = admin_user_id;
-    END IF;
-END $$;
+-- Delete existing admin user if exists
+DELETE FROM auth.users WHERE email = 'admin@example.com';
 
--- Create admin user
+-- Insert admin user directly into auth.users
 INSERT INTO auth.users (
     instance_id,
     id,
@@ -43,8 +30,8 @@ INSERT INTO auth.users (
     NOW(),
     NOW(),
     NOW(),
-    '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Sistem Yöneticisi"}',
+    '{"provider": "email", "providers": ["email"]}',
+    '{"full_name": "Sistem Yöneticisi"}',
     NOW(),
     NOW(),
     '',
@@ -53,21 +40,16 @@ INSERT INTO auth.users (
     ''
 );
 
--- Get the created user ID and create profile
+-- Get the created user ID and insert profile
 DO $$
 DECLARE
     admin_user_id UUID;
 BEGIN
-    -- Get the admin user ID
-    SELECT id INTO admin_user_id 
-    FROM auth.users 
-    WHERE email = 'admin@example.com';
+    SELECT id INTO admin_user_id FROM auth.users WHERE email = 'admin@example.com';
     
-    -- Create admin profile (will be created automatically by trigger, but let's ensure it's admin)
     INSERT INTO user_profiles (user_id, full_name, role, status)
     VALUES (admin_user_id, 'Sistem Yöneticisi', 'admin', 'active')
-    ON CONFLICT (user_id) 
-    DO UPDATE SET 
+    ON CONFLICT (user_id) DO UPDATE SET
         full_name = 'Sistem Yöneticisi',
         role = 'admin',
         status = 'active';

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
+import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 
 interface DeleteUserDialogProps {
@@ -24,6 +25,7 @@ interface DeleteUserDialogProps {
 
 export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const router = useRouter()
 
   const handleDelete = async () => {
     try {
@@ -33,10 +35,11 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
         title: "Başarılı",
         description: "Kullanıcı başarıyla silindi",
       })
+      router.refresh()
     } catch (error) {
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Kullanıcı silinirken bir hata oluştu",
+        description: error instanceof Error ? error.message : "Kullanıcı silinirken hata oluştu",
         variant: "destructive",
       })
     } finally {
@@ -47,8 +50,8 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Trash2 className="mr-2 h-4 w-4" />
+        <Button size="sm" variant="destructive">
+          <Trash2 className="h-4 w-4 mr-1" />
           Sil
         </Button>
       </AlertDialogTrigger>
@@ -56,12 +59,12 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            <strong>{userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            <strong>{userName}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
             {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>

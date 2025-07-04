@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { redirect } from "next/navigation"
 
 async function FixAdminButton() {
   async function handleFix() {
     "use server"
     const result = await fixAdminProfile()
     console.log("Fix result:", result)
+    redirect("/users")
   }
 
   return (

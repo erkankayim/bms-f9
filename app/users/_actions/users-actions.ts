@@ -365,6 +365,7 @@ export async function fixAdminProfile() {
       return { success: false, message: "Profil oluşturulamadı" }
     }
 
+    revalidatePath("/users")
     return { success: true, message: "Admin profili oluşturuldu" }
   } catch (error) {
     console.error("Fix admin profile error:", error)
