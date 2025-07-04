@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { deleteUser } from "../_actions/users-actions"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -13,8 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2 } from "lucide-react"
-import { deleteUser } from "../_actions/users-actions"
+import { Trash2, Loader2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
 interface DeleteUserDialogProps {
@@ -25,9 +25,9 @@ interface DeleteUserDialogProps {
 export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
 
-  async function handleDelete() {
-    setIsDeleting(true)
+  const handleDelete = async () => {
     try {
+      setIsDeleting(true)
       const result = await deleteUser(userId)
       toast({
         title: "Başarılı",
@@ -47,9 +47,8 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="destructive">
-          <Trash2 className="h-4 w-4 mr-1" />
-          Sil
+        <Button variant="ghost" size="sm">
+          <Trash2 className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -60,9 +59,10 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Siliniyor..." : "Sil"}
+          <AlertDialogCancel>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Sil
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

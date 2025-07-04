@@ -1,12 +1,11 @@
 export type UserRole = "admin" | "acc" | "tech"
-export type UserStatus = "active" | "inactive"
 
 export interface UserProfile {
   id: string
   user_id: string
   full_name: string
   role: UserRole
-  status: UserStatus
+  status: "active" | "inactive"
   created_at: string
   updated_at: string
 }
@@ -20,7 +19,7 @@ export interface CreateUserData {
   email: string
   password: string
   role: UserRole
-  status: UserStatus
+  status: "active" | "inactive"
 }
 
 export interface UpdateUserData {
@@ -28,5 +27,5 @@ export interface UpdateUserData {
   email?: string
   password?: string
   role: UserRole
-  status: UserStatus
+  status: "active" | "inactive"
 }

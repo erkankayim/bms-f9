@@ -1,14 +1,25 @@
--- Mevcut admin kullanıcısı için profil oluştur
+-- Mevcut giriş yapmış kullanıcı için admin profili oluştur
 DO $$
 DECLARE
-    admin_user_id UUID := '89853a4b-9c01-402a-81e8-cb53e75c9fc7';
+    current_user_id UUID;
 BEGIN
-    -- Önce mevcut profili sil (varsa)
-    DELETE FROM user_profiles WHERE user_id = admin_user_id;
+    -- Mevcut admin@example.com kullanıcısının ID'sini bul
+    SELECT id INTO current_user_id 
+    FROM auth.users 
+    WHERE email = 'admin@example.com' 
+    ORDER BY created_at DESC 
+    LIMIT 1;
     
-    -- Yeni admin profili oluştur
-    INSERT INTO user_profiles (user_id, full_name, role, status)
-    VALUES (admin_user_id, 'Sistem Yöneticisi', 'admin', 'active');
-    
-    RAISE NOTICE 'Admin profili oluşturuldu!';
+    IF current_user_id IS NOT NULL THEN
+        -- Önce mevcut profili sil (varsa)
+        DELETE FROM user_profiles WHERE user_id = current_user_id;
+        
+        -- Yeni admin profili oluştur
+        INSERT INTO user_profiles (user_id, full_name, role, status)
+        VALUES (current_user_id, 'Sistem Yöneticisi', 'admin', 'active');
+        
+        RAISE NOTICE 'Admin profili oluşturuldu! User ID: %', current_user_id;
+    ELSE
+        RAISE NOTICE 'Admin kullanıcısı bulunamadı!';
+    END IF;
 END $$;

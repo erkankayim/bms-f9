@@ -8,18 +8,21 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { toast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
     try {
       const supabase = createClient()
@@ -29,25 +32,13 @@ export default function LoginPage() {
       })
 
       if (error) {
-        toast({
-          title: "Giriş Hatası",
-          description: error.message,
-          variant: "destructive",
-        })
+        setError("Giriş başarısız: " + error.message)
       } else {
-        toast({
-          title: "Başarılı",
-          description: "Giriş yapıldı",
-        })
         router.push("/")
         router.refresh()
       }
     } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Bir hata oluştu",
-        variant: "destructive",
-      })
+      setError("Bir hata oluştu")
     } finally {
       setIsLoading(false)
     }
@@ -73,6 +64,7 @@ export default function LoginPage() {
                 placeholder="admin@example.com"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
               <Input
@@ -84,10 +76,24 @@ export default function LoginPage() {
                 placeholder="admin123"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Giriş Yap
             </Button>
           </form>
+
+          <div className="mt-4 text-sm text-center text-muted-foreground">
+            <p>Test hesabı:</p>
+            <p>E-posta: admin@example.com</p>
+            <p>Şifre: admin123</p>
+          </div>
         </CardContent>
       </Card>
     </div>

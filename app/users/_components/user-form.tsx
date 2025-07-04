@@ -7,31 +7,40 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createUser, updateUser } from "../_actions/users-actions"
+import { Loader2 } from "lucide-react"
 import type { UserWithAuth } from "@/app/lib/types"
 
 interface UserFormProps {
   user?: UserWithAuth
-  mode: "create" | "edit"
+  action: (prevState: any, formData: FormData) => Promise<{ success: boolean; message: string }>
+  title: string
+  description: string
+  submitText: string
 }
 
-export function UserForm({ user, mode }: UserFormProps) {
-  const action = mode === "create" ? createUser : updateUser.bind(null, user!.id)
+export function UserForm({ user, action, title, description, submitText }: UserFormProps) {
   const [state, formAction, isPending] = useActionState(action, null)
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-2xl">
       <CardHeader>
-        <CardTitle>{mode === "create" ? "Yeni Kullanıcı" : "Kullanıcı Düzenle"}</CardTitle>
-        <CardDescription>
-          {mode === "create" ? "Sisteme yeni kullanıcı ekleyin" : "Kullanıcı bilgilerini güncelleyin"}
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4">
+          {user && <input type="hidden" name="id" value={user.id} />}
+
           <div className="space-y-2">
             <Label htmlFor="fullName">Ad Soyad</Label>
-            <Input id="fullName" name="fullName" defaultValue={user?.full_name} required disabled={isPending} />
+            <Input
+              id="fullName"
+              name="fullName"
+              type="text"
+              required
+              defaultValue={user?.full_name}
+              placeholder="Kullanıcının tam adı"
+            />
           </div>
 
           <div className="space-y-2">
@@ -40,28 +49,27 @@ export function UserForm({ user, mode }: UserFormProps) {
               id="email"
               name="email"
               type="email"
+              required={!user}
               defaultValue={user?.email}
-              required={mode === "create"}
-              disabled={isPending}
-              placeholder={mode === "edit" ? "Değiştirmek için yeni e-posta girin" : ""}
+              placeholder="kullanici@example.com"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Şifre</Label>
+            <Label htmlFor="password">Şifre {user && "(Değiştirmek için doldurun)"}</Label>
             <Input
               id="password"
               name="password"
               type="password"
-              required={mode === "create"}
-              disabled={isPending}
-              placeholder={mode === "edit" ? "Değiştirmek için yeni şifre girin" : ""}
+              required={!user}
+              placeholder="En az 6 karakter"
+              minLength={6}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
-            <Select name="role" defaultValue={user?.role || "tech"} disabled={isPending}>
+            <Select name="role" defaultValue={user?.role || "tech"}>
               <SelectTrigger>
                 <SelectValue placeholder="Rol seçin" />
               </SelectTrigger>
@@ -75,7 +83,7 @@ export function UserForm({ user, mode }: UserFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="status">Durum</Label>
-            <Select name="status" defaultValue={user?.status || "active"} disabled={isPending}>
+            <Select name="status" defaultValue={user?.status || "active"}>
               <SelectTrigger>
                 <SelectValue placeholder="Durum seçin" />
               </SelectTrigger>
@@ -86,26 +94,16 @@ export function UserForm({ user, mode }: UserFormProps) {
             </Select>
           </div>
 
-          {state && !state.success && (
-            <Alert variant="destructive">
+          {state && (
+            <Alert variant={state.success ? "default" : "destructive"}>
               <AlertDescription>{state.message}</AlertDescription>
             </Alert>
           )}
 
-          {state && state.success && (
-            <Alert>
-              <AlertDescription>{state.message}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex gap-2">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Kaydediliyor..." : mode === "create" ? "Kullanıcı Oluştur" : "Güncelle"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => window.history.back()}>
-              İptal
-            </Button>
-          </div>
+          <Button type="submit" disabled={isPending} className="w-full">
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {submitText}
+          </Button>
         </form>
       </CardContent>
     </Card>
