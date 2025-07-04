@@ -1,97 +1,129 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { useFormState, useFormStatus } from "react-dom"
-import { toast } from "sonner"
+import { useState } from "react"
+import { Trash2, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog"
-import { Trash2, RotateCcw } from "lucide-react"
-
-type ActionResponse = {
-  success: boolean
-  message: string
-} | null
-
-type ServerAction = (prevState: any, formData: FormData) => Promise<{ success: boolean; message: string }>
-
-// Butonun bekleme durumunu yönetmek için ayrı bir component
-function SubmitButton({ isDeleted }: { isDeleted: boolean }) {
-  const { pending } = useFormStatus()
-
-  return (
-    <Button type="submit" variant={isDeleted ? "default" : "destructive"} disabled={pending}>
-      {pending ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
-    </Button>
-  )
-}
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
+import { deleteCustomer, restoreCustomer } from "../_actions/actions"
 
 interface DeleteCustomerDialogProps {
   customerId: string
   customerName: string
-  isDeleted: boolean
-  deleteAction: ServerAction
-  restoreAction: ServerAction
+  isDeleted?: boolean
 }
 
-export function DeleteCustomerDialog({
-  customerId,
-  customerName,
-  isDeleted,
-  deleteAction,
-  restoreAction,
-}: DeleteCustomerDialogProps) {
-  const [state, formAction] = useFormState<ActionResponse, FormData>(isDeleted ? restoreAction : deleteAction, null)
-  const formRef = useRef<HTMLFormElement>(null)
+export function DeleteCustomerDialog({ customerId, customerName, isDeleted = false }: DeleteCustomerDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
-  useEffect(() => {
-    if (state) {
-      if (state.success) {
-        toast.success(state.message)
-        // Dialog'u kapatıp sayfayı yenilemek en basit ve güvenilir yöntem
-        setTimeout(() => window.location.reload(), 500)
+  const handleDelete = async () => {
+    try {
+      setIsLoading(true)
+      console.log("Starting delete process for:", customerId)
+
+      const result = await deleteCustomer(customerId)
+
+      if (result.success) {
+        toast.success(result.message)
+        setIsOpen(false)
+        // Sayfayı yenile
+        window.location.reload()
       } else {
-        toast.error(state.message)
+        toast.error(result.message)
       }
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Beklenmeyen bir hata oluştu")
+    } finally {
+      setIsLoading(false)
     }
-  }, [state])
+  }
+
+  const handleRestore = async () => {
+    try {
+      setIsLoading(true)
+      console.log("Starting restore process for:", customerId)
+
+      const result = await restoreCustomer(customerId)
+
+      if (result.success) {
+        toast.success(result.message)
+        setIsOpen(false)
+        // Sayfayı yenile
+        window.location.reload()
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      console.error("Restore error:", error)
+      toast.error("Beklenmeyen bir hata oluştu")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (isDeleted) {
+    return (
+      <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Geri Yükle
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Müşteriyi Geri Yükle</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{customerName}</strong> müşterisini geri yüklemek istediğinizden emin misiniz? Bu işlem müşteriyi
+              aktif duruma getirecektir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>İptal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestore} disabled={isLoading} className="bg-green-600 hover:bg-green-700">
+              {isLoading ? "Geri Yükleniyor..." : "Geri Yükle"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
+  }
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant={isDeleted ? "outline" : "destructive"} size="sm">
-          {isDeleted ? <RotateCcw className="mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
-          {isDeleted ? "Geri Yükle" : "Arşivle"}
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" size="sm">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Sil
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Arşivle"}</DialogTitle>
-          <DialogDescription>
-            <strong>{customerName}</strong> isimli müşteriyi {isDeleted ? "geri yüklemek" : "arşivlemek"} istediğinizden
-            emin misiniz?
-          </DialogDescription>
-        </DialogHeader>
-        <form ref={formRef} action={formAction}>
-          <input type="hidden" name="customerId" value={customerId} />
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                İptal
-              </Button>
-            </DialogClose>
-            <SubmitButton isDeleted={isDeleted} />
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
+          <AlertDialogDescription>
+            <strong>{customerName}</strong> müşterisini silmek istediğinizden emin misiniz? Bu işlem müşteriyi
+            arşivleyecektir ve daha sonra geri yükleyebilirsiniz.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isLoading}>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isLoading} className="bg-red-600 hover:bg-red-700">
+            {isLoading ? "Siliniyor..." : "Sil"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
