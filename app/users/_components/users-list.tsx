@@ -5,119 +5,137 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Plus, Edit, CheckCircle2 } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Edit, Trash2, Eye, Plus } from "lucide-react"
 import { DeleteUserDialog } from "./delete-user-dialog"
 import type { UserWithAuth } from "@/lib/auth"
 
 interface UsersListProps {
   users: UserWithAuth[]
-  onDelete: (id: string) => Promise<{ success?: string; error?: string }>
+  deleteUser: (id: string) => Promise<{ success?: string; error?: string }>
 }
 
-export function UsersList({ users, onDelete }: UsersListProps) {
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+export function UsersList({ users, deleteUser }: UsersListProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<UserWithAuth | null>(null)
 
-  const handleDelete = async (id: string) => {
-    const result = await onDelete(id)
+  const handleDeleteClick = (user: UserWithAuth) => {
+    setUserToDelete(user)
+    setDeleteDialogOpen(true)
+  }
 
-    if (result.success) {
-      setMessage({ type: "success", text: result.success })
-      // 3 saniye sonra mesajı temizle
-      setTimeout(() => setMessage(null), 3000)
-    } else if (result.error) {
-      setMessage({ type: "error", text: result.error })
+  const handleDeleteConfirm = async () => {
+    if (userToDelete) {
+      await deleteUser(userToDelete.id.toString())
+      setDeleteDialogOpen(false)
+      setUserToDelete(null)
     }
-
-    return result
   }
 
   const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "admin":
-        return <Badge variant="destructive">Yönetici</Badge>
-      case "acc":
-        return <Badge variant="secondary">Muhasebe</Badge>
-      case "tech":
-        return <Badge variant="outline">Teknisyen</Badge>
-      default:
-        return <Badge variant="outline">{role}</Badge>
+    const roleMap = {
+      admin: { label: "Yönetici", variant: "destructive" as const },
+      acc: { label: "Muhasebe", variant: "secondary" as const },
+      tech: { label: "Teknisyen", variant: "default" as const },
     }
+    const roleInfo = roleMap[role as keyof typeof roleMap] || { label: role, variant: "outline" as const }
+    return <Badge variant={roleInfo.variant}>{roleInfo.label}</Badge>
   }
 
   const getStatusBadge = (status: string) => {
-    return status === "active" ? <Badge variant="default">Aktif</Badge> : <Badge variant="secondary">Pasif</Badge>
+    return (
+      <Badge variant={status === "active" ? "default" : "secondary"}>{status === "active" ? "Aktif" : "Pasif"}</Badge>
+    )
+  }
+
+  if (users.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Kullanıcı Bulunamadı</CardTitle>
+          <CardDescription>Henüz hiç kullanıcı eklenmemiş.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/users/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              İlk Kullanıcıyı Ekle
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Kullanıcılar</h1>
-          <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
-        </div>
-        <Link href="/users/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Yeni Kullanıcı
-          </Button>
-        </Link>
-      </div>
-
-      {message && (
-        <Alert variant={message.type === "error" ? "destructive" : "default"}>
-          {message.type === "success" && <CheckCircle2 className="h-4 w-4" />}
-          <AlertDescription>{message.text}</AlertDescription>
-        </Alert>
-      )}
-
-      {users.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground mb-4">Henüz kullanıcı bulunmuyor</p>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Kullanıcılar ({users.length})</CardTitle>
+              <CardDescription>Sistem kullanıcılarını yönetin</CardDescription>
+            </div>
             <Link href="/users/new">
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                İlk Kullanıcıyı Ekle
+                Yeni Kullanıcı
               </Button>
             </Link>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {users.map((user) => (
-            <Card key={user.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{user.full_name}</CardTitle>
-                    <CardDescription>{user.email}</CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    {getRoleBadge(user.role)}
-                    {getStatusBadge(user.status)}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-muted-foreground">
-                    Oluşturulma: {new Date(user.created_at).toLocaleDateString("tr-TR")}
-                  </div>
-                  <div className="flex gap-2">
-                    <Link href={`/users/${user.id}/edit`}>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ad Soyad</TableHead>
+                <TableHead>E-posta</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead>Durum</TableHead>
+                <TableHead>Oluşturulma</TableHead>
+                <TableHead className="text-right">İşlemler</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">{user.full_name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{getRoleBadge(user.role)}</TableCell>
+                  <TableCell>{getStatusBadge(user.status)}</TableCell>
+                  <TableCell>
+                    {user.created_at ? new Date(user.created_at).toLocaleDateString("tr-TR") : "Bilinmiyor"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link href={`/users/${user.id}`}>
+                        <Button variant="ghost" size="sm">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                      <Link href={`/users/${user.id}/edit`}>
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(user)}>
+                        <Trash2 className="h-4 w-4" />
                       </Button>
-                    </Link>
-                    <DeleteUserDialog user={user} onDelete={handleDelete} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <DeleteUserDialog
+        user={userToDelete}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+      />
+    </>
   )
 }

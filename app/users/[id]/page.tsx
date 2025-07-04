@@ -1,35 +1,21 @@
-import { getCurrentUserRole, getUser } from "../_actions/user-actions"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Edit, ArrowLeft } from "lucide-react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Edit, ArrowLeft } from "lucide-react"
+import { getUser } from "../_actions/user-actions"
+import { requireRole } from "@/lib/auth"
 
-interface UserPageProps {
+interface UserDetailPageProps {
   params: {
     id: string
   }
 }
 
-export default async function UserPage({ params }: UserPageProps) {
-  const currentUserRole = await getCurrentUserRole()
-
-  if (currentUserRole !== "admin") {
-    return (
-      <div className="container mx-auto py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Bu sayfaya erişim için yönetici yetkisi gereklidir.
-            <br />
-            Mevcut rol: {currentUserRole || "Bilinmiyor"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
+export default async function UserDetailPage({ params }: UserDetailPageProps) {
+  // Admin yetkisi kontrolü
+  await requireRole("admin")
 
   const user = await getUser(params.id)
 
@@ -38,71 +24,89 @@ export default async function UserPage({ params }: UserPageProps) {
   }
 
   const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "admin":
-        return <Badge variant="destructive">Yönetici</Badge>
-      case "acc":
-        return <Badge variant="secondary">Muhasebe</Badge>
-      case "tech":
-        return <Badge variant="outline">Teknisyen</Badge>
-      default:
-        return <Badge variant="outline">{role}</Badge>
+    const roleMap = {
+      admin: { label: "Yönetici", variant: "destructive" as const },
+      acc: { label: "Muhasebe", variant: "secondary" as const },
+      tech: { label: "Teknisyen", variant: "default" as const },
     }
+    const roleInfo = roleMap[role as keyof typeof roleMap] || { label: role, variant: "outline" as const }
+    return <Badge variant={roleInfo.variant}>{roleInfo.label}</Badge>
   }
 
   const getStatusBadge = (status: string) => {
-    return status === "active" ? <Badge variant="default">Aktif</Badge> : <Badge variant="secondary">Pasif</Badge>
+    return (
+      <Badge variant={status === "active" ? "default" : "secondary"}>{status === "active" ? "Aktif" : "Pasif"}</Badge>
+    )
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/users">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Geri
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Kullanıcı Detayları</h1>
+    <div className="container mx-auto py-6">
+      <div className="mb-6 flex items-center gap-4">
+        <Link href="/users">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Geri
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold">{user.full_name}</h1>
+          <p className="text-muted-foreground">Kullanıcı detayları</p>
         </div>
+      </div>
 
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-xl">{user.full_name}</CardTitle>
-                <CardDescription>{user.email}</CardDescription>
-              </div>
+            <div className="flex items-center justify-between">
+              <CardTitle>Kullanıcı Bilgileri</CardTitle>
               <Link href={`/users/${user.id}/edit`}>
-                <Button variant="outline">
-                  <Edit className="h-4 w-4 mr-2" />
+                <Button variant="outline" size="sm">
+                  <Edit className="mr-2 h-4 w-4" />
                   Düzenle
                 </Button>
               </Link>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Rol</h3>
-                {getRoleBadge(user.role)}
-              </div>
-              <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Durum</h3>
-                {getStatusBadge(user.status)}
-              </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Ad Soyad</label>
+              <p className="text-lg">{user.full_name}</p>
             </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">E-posta</label>
+              <p className="text-lg">{user.email}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Rol</label>
+              <div className="mt-1">{getRoleBadge(user.role)}</div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Durum</label>
+              <div className="mt-1">{getStatusBadge(user.status)}</div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Oluşturulma Tarihi</h3>
-                <p className="text-sm">{new Date(user.created_at).toLocaleDateString("tr-TR")}</p>
-              </div>
-              <div>
-                <h3 className="font-medium text-sm text-muted-foreground">Son Güncelleme</h3>
-                <p className="text-sm">{new Date(user.updated_at).toLocaleDateString("tr-TR")}</p>
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sistem Bilgileri</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Kullanıcı ID</label>
+              <p className="text-sm font-mono bg-muted p-2 rounded">{user.user_id}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Oluşturulma Tarihi</label>
+              <p className="text-lg">
+                {user.created_at ? new Date(user.created_at).toLocaleString("tr-TR") : "Bilinmiyor"}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Son Güncelleme</label>
+              <p className="text-lg">
+                {user.updated_at ? new Date(user.updated_at).toLocaleString("tr-TR") : "Bilinmiyor"}
+              </p>
             </div>
           </CardContent>
         </Card>

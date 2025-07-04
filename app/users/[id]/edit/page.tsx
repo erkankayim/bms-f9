@@ -1,9 +1,8 @@
-import { getCurrentUserRole, getUser, updateUser } from "../../_actions/user-actions"
-import { UserForm } from "../../_components/user-form"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
 import { notFound } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { UserForm } from "../../_components/user-form"
+import { getUser, updateUser } from "../../_actions/user-actions"
+import { requireRole } from "@/lib/auth"
 
 interface EditUserPageProps {
   params: {
@@ -12,22 +11,8 @@ interface EditUserPageProps {
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const currentUserRole = await getCurrentUserRole()
-
-  if (currentUserRole !== "admin") {
-    return (
-      <div className="container mx-auto py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Bu sayfaya erişim için yönetici yetkisi gereklidir.
-            <br />
-            Mevcut rol: {currentUserRole || "Bilinmiyor"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
+  // Admin yetkisi kontrolü
+  await requireRole("admin")
 
   const user = await getUser(params.id)
 
@@ -41,14 +26,19 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Kullanıcı Düzenle</h1>
+        <p className="text-muted-foreground">{user.full_name} kullanıcısını düzenleyin</p>
+      </div>
+
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Kullanıcı Düzenle</CardTitle>
-          <CardDescription>{user.full_name} kullanıcısının bilgilerini düzenleyin</CardDescription>
+          <CardTitle>Kullanıcı Bilgileri</CardTitle>
+          <CardDescription>Kullanıcı bilgilerini güncelleyin</CardDescription>
         </CardHeader>
         <CardContent>
-          <UserForm user={user} action={updateUserWithId} submitText="Değişiklikleri Kaydet" />
+          <UserForm user={user} action={updateUserWithId} submitText="Kullanıcıyı Güncelle" />
         </CardContent>
       </Card>
     </div>

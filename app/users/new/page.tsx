@@ -1,33 +1,23 @@
-import { getCurrentUserRole, createUser } from "../_actions/user-actions"
-import { UserForm } from "../_components/user-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { UserForm } from "../_components/user-form"
+import { createUser } from "../_actions/user-actions"
+import { requireRole } from "@/lib/auth"
 
 export default async function NewUserPage() {
-  const currentUserRole = await getCurrentUserRole()
-
-  if (currentUserRole !== "admin") {
-    return (
-      <div className="container mx-auto py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Bu sayfaya erişim için yönetici yetkisi gereklidir.
-            <br />
-            Mevcut rol: {currentUserRole || "Bilinmiyor"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
+  // Admin yetkisi kontrolü
+  await requireRole("admin")
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Yeni Kullanıcı</h1>
+        <p className="text-muted-foreground">Sisteme yeni kullanıcı ekleyin</p>
+      </div>
+
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Yeni Kullanıcı Ekle</CardTitle>
-          <CardDescription>Sisteme yeni bir kullanıcı ekleyin</CardDescription>
+          <CardTitle>Kullanıcı Bilgileri</CardTitle>
+          <CardDescription>Yeni kullanıcının bilgilerini girin</CardDescription>
         </CardHeader>
         <CardContent>
           <UserForm action={createUser} submitText="Kullanıcı Oluştur" />
