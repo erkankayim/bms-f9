@@ -1,118 +1,135 @@
 "use server"
 
-import { getSupabaseServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
 export async function createProduct(formData: FormData) {
-  const supabase = getSupabaseServerClient()
+  const supabase = await createClient()
 
   const productData = {
     stock_code: formData.get("stock_code") as string,
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || null,
-    category_id: formData.get("category_id") ? Number.parseInt(formData.get("category_id") as string) : null,
-    quantity_on_hand: formData.get("quantity_on_hand")
-      ? Number.parseFloat(formData.get("quantity_on_hand") as string)
-      : 0,
-    minimum_stock_level: formData.get("minimum_stock_level")
-      ? Number.parseFloat(formData.get("minimum_stock_level") as string)
-      : 0,
-    purchase_price: formData.get("purchase_price") ? Number.parseFloat(formData.get("purchase_price") as string) : 0,
-    selling_price: formData.get("selling_price") ? Number.parseFloat(formData.get("selling_price") as string) : 0,
-  }
-
-  // Stok kodu benzersizlik kontrolü
-  const { data: existingProduct } = await supabase
-    .from("products")
-    .select("stock_code")
-    .eq("stock_code", productData.stock_code)
-    .is("deleted_at", null)
-    .single()
-
-  if (existingProduct) {
-    return {
-      success: false,
-      error: "Bu stok kodu zaten kullanılmaktadır. Lütfen farklı bir stok kodu seçin.",
-    }
+    category_id: Number.parseInt(formData.get("category_id") as string),
+    quantity_on_hand: Number.parseFloat(formData.get("quantity_on_hand") as string) || 0,
+    minimum_stock_level: Number.parseFloat(formData.get("minimum_stock_level") as string) || 0,
+    purchase_price: Number.parseFloat(formData.get("purchase_price") as string),
+    selling_price: Number.parseFloat(formData.get("selling_price") as string) || 0,
   }
 
   const { error } = await supabase.from("products").insert([productData])
 
   if (error) {
-    console.error("Error creating product:", error)
-    return {
-      success: false,
-      error: "Ürün oluşturulurken bir hata oluştu.",
-    }
+    throw new Error(`Ürün oluşturulurken hata: ${error.message}`)
   }
 
   revalidatePath("/products")
-  return { success: true }
 }
 
 export async function updateProduct(id: number, formData: FormData) {
-  const supabase = getSupabaseServerClient()
+  const supabase = await createClient()
 
   const productData = {
     stock_code: formData.get("stock_code") as string,
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || null,
-    category_id: formData.get("category_id") ? Number.parseInt(formData.get("category_id") as string) : null,
-    quantity_on_hand: formData.get("quantity_on_hand")
-      ? Number.parseFloat(formData.get("quantity_on_hand") as string)
-      : 0,
-    minimum_stock_level: formData.get("minimum_stock_level")
-      ? Number.parseFloat(formData.get("minimum_stock_level") as string)
-      : 0,
-    purchase_price: formData.get("purchase_price") ? Number.parseFloat(formData.get("purchase_price") as string) : 0,
-    selling_price: formData.get("selling_price") ? Number.parseFloat(formData.get("selling_price") as string) : 0,
-    updated_at: new Date().toISOString(),
-  }
-
-  // Stok kodu benzersizlik kontrolü (mevcut ürün hariç)
-  const { data: existingProduct } = await supabase
-    .from("products")
-    .select("id, stock_code")
-    .eq("stock_code", productData.stock_code)
-    .neq("id", id)
-    .is("deleted_at", null)
-    .single()
-
-  if (existingProduct) {
-    return {
-      success: false,
-      error: "Bu stok kodu başka bir ürün tarafından kullanılmaktadır.",
-    }
+    category_id: Number.parseInt(formData.get("category_id") as string),
+    quantity_on_hand: Number.parseFloat(formData.get("quantity_on_hand") as string) || 0,
+    minimum_stock_level: Number.parseFloat(formData.get("minimum_stock_level") as string) || 0,
+    purchase_price: Number.parseFloat(formData.get("purchase_price") as string),
+    selling_price: Number.parseFloat(formData.get("selling_price") as string) || 0,
   }
 
   const { error } = await supabase.from("products").update(productData).eq("id", id)
 
   if (error) {
-    console.error("Error updating product:", error)
-    return {
-      success: false,
-      error: "Ürün güncellenirken bir hata oluştu.",
-    }
+    throw new Error(`Ürün güncellenirken hata: ${error.message}`)
   }
 
   revalidatePath("/products")
-  revalidatePath(`/products/${id}`)
-  return { success: true }
 }
 
 export async function deleteProduct(id: number) {
-  const supabase = getSupabaseServerClient()
+  const supabase = await createClient()
 
-  const { error } = await supabase.from("products").update({ deleted_at: new Date().toISOString() }).eq("id", id)
+  const { error } = await supabase.from("products").delete().eq("id", id)
 
   if (error) {
-    console.error("Error deleting product:", error)
-    return {
-      success: false,
-      error: "Ürün silinirken bir hata oluştu.",
-    }
+    throw new Error(`Ürün silinirken hata: ${error.message}`)
   }
 
   revalidatePath("/products")
-  return { success: true }
+}
+
+export async function getProducts() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(`
+      *,
+      categories (
+        id,
+        name
+      )
+    `)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    throw new Error(`Ürünler getirilirken hata: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function getProduct(id: number) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(`
+      *,
+      categories (
+        id,
+        name
+      )
+    `)
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    throw new Error(`Ürün getirilirken hata: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function getCategories() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.from("categories").select("*").order("name")
+
+  if (error) {
+    throw new Error(`Kategoriler getirilirken hata: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function updateProductStock(productId: number, newQuantity: number) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("products")
+    .update({
+      quantity_on_hand: newQuantity,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", productId)
+
+  if (error) {
+    throw new Error(`Stok güncellenirken hata: ${error.message}`)
+  }
+
+  revalidatePath("/products")
 }

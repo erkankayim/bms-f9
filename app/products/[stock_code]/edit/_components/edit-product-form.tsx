@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,12 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Upload, Trash2 } from "lucide-react"
+import { X, Plus, Upload, Trash2, ArrowLeft } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { createProduct } from "../_actions/products-actions"
+import { updateProduct } from "../_actions/update-product-action"
 import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 
-// Sabit kategoriler
 const CATEGORIES = [
   "Elektronik",
   "Bilgisayar & Teknoloji",
@@ -40,7 +40,6 @@ const CATEGORIES = [
   "Diğer",
 ]
 
-// Para birimleri
 const CURRENCIES = ["TRY", "USD", "EUR", "GBP"]
 
 interface Variant {
@@ -49,135 +48,102 @@ interface Variant {
   values: string[]
 }
 
-interface ProductFormData {
-  stock_code: string
-  name: string
-  description: string
-  category_name: string
-  purchase_price: string
-  purchase_price_currency: string
-  sale_price: string
-  sale_price_currency: string
-  stock_quantity: string
-  min_stock_level: string
-  supplier_id: string
-  variants: Variant[]
-  image_urls: string[]
+interface EditProductFormProps {
+  product: any
+  suppliers: any[]
 }
 
-export default function ProductForm() {
+export default function EditProductForm({ product, suppliers }: EditProductFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  const [images, setImages] = useState<File[]>([])
-  const [imageUrls, setImageUrls] = useState<string[]>([])
-  const [formData, setFormData] = useState<ProductFormData>({
-    stock_code: "",
-    name: "",
-    description: "",
-    category_name: "",
-    purchase_price: "",
-    purchase_price_currency: "TRY",
-    sale_price: "",
-    sale_price_currency: "TRY",
-    stock_quantity: "",
-    min_stock_level: "",
-    supplier_id: "",
-    variants: [],
-    image_urls: [],
+  const [imageUrls, setImageUrls] = useState<string[]>(product.image_urls || [])
+  const [formData, setFormData] = useState({
+    stock_code: product.stock_code,
+    name: product.name,
+    description: product.description || "",
+    category_name: product.category_name || "",
+    purchase_price: product.purchase_price?.toString() || "",
+    purchase_price_currency: product.purchase_price_currency || "TRY",
+    sale_price: product.sale_price?.toString() || "",
+    sale_price_currency: product.sale_price_currency || "TRY",
+    stock_quantity: product.stock_quantity?.toString() || "",
+    min_stock_level: product.min_stock_level?.toString() || "",
+    supplier_id: product.supplier_id?.toString() || "",
+    variants: product.variants || [],
+    image_urls: product.image_urls || [],
   })
 
   const [newVariant, setNewVariant] = useState({ name: "", value: "" })
 
-  // Tedarikçileri yükleme
-  useState(() => {
-    const loadSuppliers = async () => {
-      const supabase = createClient()
-      const { data } = await supabase.from("suppliers").select("id, name")
-      if (data) setSuppliers(data)
-    }
-    loadSuppliers()
-  })
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files) return
 
-  // Resim yükleme
-  const handleImageUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || [])
-      if (files.length === 0) return
+    const supabase = createClient()
+    const newImageUrls: string[] = []
 
-      const supabase = createClient()
-      const newImageUrls: string[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`
+      const filePath = `products/${fileName}`
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const fileExt = file.name.split(".").pop()
-        const fileName = `${Date.now()}-${Math.random()}.${fileExt}`
-        const filePath = `products/${fileName}`
+      const { error: uploadError } = await supabase.storage.from("product-images").upload(filePath, file)
 
-        const { error: uploadError } = await supabase.storage.from("product-images").upload(filePath, file)
-
-        if (uploadError) {
-          toast({
-            title: "Hata",
-            description: `Resim yüklenirken hata oluştu: ${uploadError.message}`,
-            variant: "destructive",
-          })
-          continue
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("product-images").getPublicUrl(filePath)
-
-        newImageUrls.push(publicUrl)
+      if (uploadError) {
+        toast({
+          title: "Hata",
+          description: `Resim yüklenirken hata oluştu: ${uploadError.message}`,
+          variant: "destructive",
+        })
+        continue
       }
 
-      setImageUrls((prev) => [...prev, ...newImageUrls])
-      setFormData((prev) => ({
-        ...prev,
-        image_urls: [...prev.image_urls, ...newImageUrls],
-      }))
-    },
-    [toast],
-  )
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("product-images").getPublicUrl(filePath)
 
-  // Resim silme
-  const removeImage = useCallback(
-    async (index: number) => {
-      const imageUrl = imageUrls[index]
-      const supabase = createClient()
+      newImageUrls.push(publicUrl)
+    }
 
-      // Dosya yolunu URL'den çıkarma
-      const urlParts = imageUrl.split("/")
-      const filePath = `products/${urlParts[urlParts.length - 1]}`
+    setImageUrls((prev) => [...prev, ...newImageUrls])
+    setFormData((prev) => ({
+      ...prev,
+      image_urls: [...prev.image_urls, ...newImageUrls],
+    }))
+  }
 
-      await supabase.storage.from("product-images").remove([filePath])
+  const removeImage = async (index: number) => {
+    const imageUrl = imageUrls[index]
+    const supabase = createClient()
 
-      const newImageUrls = imageUrls.filter((_, i) => i !== index)
-      setImageUrls(newImageUrls)
-      setFormData((prev) => ({
-        ...prev,
-        image_urls: newImageUrls,
-      }))
-    },
-    [imageUrls],
-  )
+    // Extract file path from URL
+    const urlParts = imageUrl.split("/")
+    const filePath = `products/${urlParts[urlParts.length - 1]}`
 
-  // Varyant ekleme
-  const addVariant = useCallback(() => {
+    await supabase.storage.from("product-images").remove([filePath])
+
+    const newImageUrls = imageUrls.filter((_, i) => i !== index)
+    setImageUrls(newImageUrls)
+    setFormData((prev) => ({
+      ...prev,
+      image_urls: newImageUrls,
+    }))
+  }
+
+  const addVariant = () => {
     if (!newVariant.name || !newVariant.value) return
 
-    const existingVariantIndex = formData.variants.findIndex((v) => v.name === newVariant.name)
+    const existingVariantIndex = formData.variants.findIndex((v: Variant) => v.name === newVariant.name)
 
     if (existingVariantIndex >= 0) {
-      // Mevcut varyant tipine değer ekle
+      // Add value to existing variant
       const updatedVariants = [...formData.variants]
       if (!updatedVariants[existingVariantIndex].values.includes(newVariant.value)) {
         updatedVariants[existingVariantIndex].values.push(newVariant.value)
         setFormData((prev) => ({ ...prev, variants: updatedVariants }))
       }
     } else {
-      // Yeni varyant tipi oluştur
+      // Create new variant
       const newVariantObj: Variant = {
         id: Date.now().toString(),
         name: newVariant.name,
@@ -190,78 +156,80 @@ export default function ProductForm() {
     }
 
     setNewVariant({ name: "", value: "" })
-  }, [formData.variants, newVariant])
+  }
 
-  // Varyant tipi silme
-  const removeVariant = useCallback((variantId: string) => {
+  const removeVariant = (variantId: string) => {
     setFormData((prev) => ({
       ...prev,
-      variants: prev.variants.filter((v) => v.id !== variantId),
+      variants: prev.variants.filter((v: Variant) => v.id !== variantId),
     }))
-  }, [])
+  }
 
-  // Varyant değeri silme
-  const removeVariantValue = useCallback((variantId: string, value: string) => {
+  const removeVariantValue = (variantId: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
       variants: prev.variants
-        .map((v) => (v.id === variantId ? { ...v, values: v.values.filter((val) => val !== value) } : v))
-        .filter((v) => v.values.length > 0),
+        .map((v: Variant) => (v.id === variantId ? { ...v, values: v.values.filter((val) => val !== value) } : v))
+        .filter((v: Variant) => v.values.length > 0),
     }))
-  }, [])
+  }
 
-  // Form gönderme
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      setIsLoading(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
 
-      try {
-        const result = await createProduct({
-          ...formData,
-          purchase_price: Number.parseFloat(formData.purchase_price) || 0,
-          sale_price: Number.parseFloat(formData.sale_price) || 0,
-          stock_quantity: Number.parseInt(formData.stock_quantity) || 0,
-          min_stock_level: Number.parseInt(formData.min_stock_level) || 0,
-          supplier_id: formData.supplier_id || null,
+    try {
+      const result = await updateProduct(product.id, {
+        ...formData,
+        purchase_price: Number.parseFloat(formData.purchase_price) || 0,
+        sale_price: Number.parseFloat(formData.sale_price) || 0,
+        stock_quantity: Number.parseInt(formData.stock_quantity) || 0,
+        min_stock_level: Number.parseInt(formData.min_stock_level) || 0,
+        supplier_id: formData.supplier_id || null,
+      })
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: "Ürün başarıyla güncellendi",
         })
-
-        if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: "Ürün başarıyla eklendi",
-          })
-          router.push("/products")
-        } else {
-          toast({
-            title: "Hata",
-            description: result.error || "Ürün eklenirken hata oluştu",
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        console.error("Form submission error:", error)
+        router.push(`/products/${product.stock_code}`)
+      } else {
         toast({
           title: "Hata",
-          description: "Beklenmeyen bir hata oluştu",
+          description: result.error || "Ürün güncellenirken hata oluştu",
           variant: "destructive",
         })
-      } finally {
-        setIsLoading(false)
       }
-    },
-    [formData, router, toast],
-  )
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Beklenmeyen bir hata oluştu",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="container mx-auto py-6">
+      <div className="flex items-center gap-4 mb-6">
+        <Link href={`/products/${product.stock_code}`}>
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <h1 className="text-3xl font-bold">Ürün Düzenle</h1>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Yeni Ürün Ekle</CardTitle>
+          <CardTitle>{product.name} - Düzenle</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Temel Bilgiler */}
+            {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="stock_code">Stok Kodu *</Label>
@@ -313,7 +281,7 @@ export default function ProductForm() {
               </Select>
             </div>
 
-            {/* Fiyat Bilgileri */}
+            {/* Pricing */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Alış Fiyatı</Label>
@@ -372,7 +340,7 @@ export default function ProductForm() {
               </div>
             </div>
 
-            {/* Stok Bilgileri */}
+            {/* Stock Information */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="stock_quantity">Stok Miktarı</Label>
@@ -412,7 +380,7 @@ export default function ProductForm() {
               </div>
             </div>
 
-            {/* Ürün Resimleri */}
+            {/* Product Images */}
             <div>
               <Label>Ürün Resimleri</Label>
               <div className="mt-2">
@@ -420,7 +388,7 @@ export default function ProductForm() {
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={handleImageUpload}
+                  onChange={(e) => handleImageUpload(e.target.files)}
                   className="hidden"
                   id="image-upload"
                 />
@@ -459,7 +427,7 @@ export default function ProductForm() {
               )}
             </div>
 
-            {/* Ürün Varyantları */}
+            {/* Product Variants */}
             <div>
               <Label>Ürün Varyantları</Label>
               <div className="mt-2 space-y-4">
@@ -479,7 +447,7 @@ export default function ProductForm() {
                   </Button>
                 </div>
 
-                {formData.variants.map((variant) => (
+                {formData.variants.map((variant: Variant) => (
                   <div key={variant.id} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium">{variant.name}</h4>
@@ -502,11 +470,13 @@ export default function ProductForm() {
 
             <div className="flex gap-4">
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Ekleniyor..." : "Ürün Ekle"}
+                {isLoading ? "Güncelleniyor..." : "Ürünü Güncelle"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => router.push("/products")}>
-                İptal
-              </Button>
+              <Link href={`/products/${product.stock_code}`}>
+                <Button type="button" variant="outline">
+                  İptal
+                </Button>
+              </Link>
             </div>
           </form>
         </CardContent>

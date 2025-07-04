@@ -1,235 +1,237 @@
-import type React from "react"
 import { createClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
-import Image from "next/image"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Edit, ArrowLeft, Package, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react"
 import Link from "next/link"
-import { ArrowLeft, Edit, ImageOff, PackageSearch, Tags } from "lucide-react"
-import BarcodeDisplay from "@/components/barcode-display"
-import { DeleteProductDialog } from "./_components/delete-product-dialog"
+import { notFound } from "next/navigation"
+import { PrintLabelDialog } from "@/components/print-label-dialog"
+import { ProductMovementsModal } from "@/app/inventory/_components/product-movements-modal"
 
-type ProductDetail = {
-  stock_code: string
-  name: string
-  description: string | null
-  quantity_on_hand: number | null
-  purchase_price: number | null
-  purchase_price_currency: string | null // Yeni alan
-  sale_price: number | null
-  sale_price_currency: string | null // Yeni alan
-  vat_rate: number | null
-  barcode: string | null
-  tags: string | null
-  image_urls: { url: string }[] | null
-  variants: { type: string; values: { value: string }[] }[] | null
-  created_at: string
-  updated_at: string
-  category_id: number | null
-  categories: { name: string } | null
+interface ProductPageProps {
+  params: {
+    stock_code: string
+  }
 }
 
-function InfoItem({
-  label,
-  value,
-  currency,
-  children,
-}: {
-  label: string
-  value?: string | number | null
-  currency?: string | null
-  children?: React.ReactNode
-}) {
-  return (
-    <div>
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      {children ? (
-        <div className="text-lg">{children}</div>
-      ) : (
-        <p className="text-lg">
-          {value !== null && value !== undefined ? (
-            <>
-              {typeof value === "number" ? value.toFixed(2) : value}
-              {currency && <span className="ml-1 text-xs text-muted-foreground">{currency}</span>}
-            </>
-          ) : (
-            "-"
-          )}
-        </p>
-      )}
-    </div>
-  )
-}
-
-export default async function ProductDetailPage({ params }: { params: { stock_code: string } }) {
-  const supabase = createClient()
-  const { stock_code } = params
+export default async function ProductPage({ params }: ProductPageProps) {
+  const supabase = await createClient()
 
   const { data: product, error } = await supabase
     .from("products")
-    .select("*, categories ( name )") // purchase_price_currency ve sale_price_currency otomatik olarak gelir
-    .eq("stock_code", stock_code)
-    .is("deleted_at", null)
+    .select(`
+      *,
+      suppliers (
+        id,
+        name,
+        contact_person,
+        phone,
+        email
+      )
+    `)
+    .eq("stock_code", params.stock_code)
     .single()
 
   if (error || !product) {
-    console.error("Error fetching product details, product not found, or product is soft-deleted:", error?.message)
     notFound()
   }
 
-  const typedProduct = product as ProductDetail
+  // Calculate profit margin
+  const profitMargin =
+    product.purchase_price > 0
+      ? (((product.sale_price - product.purchase_price) / product.purchase_price) * 100).toFixed(1)
+      : 0
+
+  const isLowStock = product.stock_quantity <= product.min_stock_level
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="container mx-auto py-6">
+      <div className="flex items-center gap-4 mb-6">
         <Link href="/products">
           <Button variant="outline" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Ürünlere Geri Dön
+            <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold">{product.name}</h1>
+          <p className="text-muted-foreground">Stok Kodu: {product.stock_code}</p>
+        </div>
         <div className="flex gap-2">
-          <Link href={`/products/${typedProduct.stock_code}/edit`}>
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" /> Düzenle
+          <Link href={`/products/${product.stock_code}/edit`}>
+            <Button variant="outline">
+              <Edit className="mr-2 h-4 w-4" />
+              Düzenle
             </Button>
           </Link>
-          <DeleteProductDialog productId={typedProduct.stock_code} productName={typedProduct.name} />
+          <PrintLabelDialog product={product} />
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-muted/50 p-6">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
-              <CardTitle className="text-3xl font-bold">{typedProduct.name}</CardTitle>
-              <CardDescription className="text-md">Stok Kodu: {typedProduct.stock_code}</CardDescription>
-              {typedProduct.categories?.name && (
-                <Badge variant="outline" className="mt-1 text-sm">
-                  <Tags className="mr-1 h-3 w-3" />
-                  {typedProduct.categories.name}
-                </Badge>
-              )}
-            </div>
-            {typedProduct.quantity_on_hand !== null && (
-              <Badge
-                variant={typedProduct.quantity_on_hand > 0 ? "default" : "destructive"}
-                className="text-sm whitespace-nowrap"
-              >
-                Stok: {typedProduct.quantity_on_hand} adet
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-6 space-y-8">
-          {typedProduct.image_urls && typedProduct.image_urls.length > 0 ? (
-            <div>
-              <h3 className="text-xl font-semibold mb-3">Ürün Resimleri</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {typedProduct.image_urls.map((img, index) => (
-                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden border">
-                    <Image
-                      src={img.url || "/placeholder.svg"}
-                      alt={`${typedProduct.name} - Resim ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                    />
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Product Images */}
+        {product.image_urls && product.image_urls.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Ürün Resimleri</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {product.image_urls.map((url: string, index: number) => (
+                  <img
+                    key={index}
+                    src={url || "/placeholder.svg"}
+                    alt={`${product.name} ${index + 1}`}
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-6 border rounded-lg bg-muted/30">
-              <ImageOff className="w-12 h-12 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">Bu ürün için resim bulunmamaktadır.</p>
-            </div>
-          )}
+            </CardContent>
+          </Card>
+        )}
 
-          {typedProduct.description && (
+        {/* Product Info */}
+        <Card className={product.image_urls && product.image_urls.length > 0 ? "" : "lg:col-span-3"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Ürün Bilgileri
+              {isLowStock && (
+                <Badge variant="destructive" className="ml-2">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Düşük Stok
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div>
-              <h3 className="text-xl font-semibold mb-2">Açıklama</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{typedProduct.description}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold border-t pt-6">Detaylar</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-              <InfoItem
-                label="Satış Fiyatı"
-                value={typedProduct.sale_price}
-                currency={typedProduct.sale_price_currency}
-              />
-              <InfoItem
-                label="Alış Fiyatı"
-                value={typedProduct.purchase_price}
-                currency={typedProduct.purchase_price_currency}
-              />
-              <InfoItem
-                label="KDV Oranı"
-                value={typedProduct.vat_rate !== null ? `%${(typedProduct.vat_rate * 100).toFixed(0)}` : "-"}
-              />
-              <InfoItem label="Kategori" value={typedProduct.categories?.name || "-"} />
-              <InfoItem label="Barkod">
-                {typedProduct.barcode ? (
-                  <BarcodeDisplay value={typedProduct.barcode} className="max-w-[200px] h-auto" />
-                ) : (
-                  "-"
-                )}
-              </InfoItem>
-              <InfoItem label="Etiketler">
-                {typedProduct.tags ? (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {typedProduct.tags.split(",").map((tag) => (
-                      <Badge key={tag.trim()} variant="secondary">
-                        {tag.trim()}
-                      </Badge>
-                    ))}
+              <h3 className="font-semibold mb-2">Genel Bilgiler</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Kategori:</span>
+                  <Badge variant="outline">{product.category_name || "Belirtilmemiş"}</Badge>
+                </div>
+                {product.description && (
+                  <div>
+                    <span className="text-muted-foreground">Açıklama:</span>
+                    <p className="mt-1">{product.description}</p>
                   </div>
-                ) : (
-                  "-"
                 )}
-              </InfoItem>
+              </div>
             </div>
-          </div>
 
-          {typedProduct.variants && typedProduct.variants.length > 0 && (
+            <Separator />
+
             <div>
-              <h3 className="text-xl font-semibold border-t pt-6 mb-3">Ürün Varyantları</h3>
-              <div className="space-y-3">
-                {typedProduct.variants.map((variant, vIndex) => (
-                  <div key={vIndex} className="p-3 border rounded-md bg-muted/20">
-                    <p className="font-medium text-md mb-1">{variant.type}:</p>
+              <h3 className="font-semibold mb-2">Fiyat Bilgileri</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Satış Fiyatı:</span>
+                  <span className="font-semibold text-green-600">
+                    {product.sale_price} {product.sale_price_currency}
+                  </span>
+                </div>
+                {product.purchase_price > 0 && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Alış Fiyatı:</span>
+                      <span>
+                        {product.purchase_price} {product.purchase_price_currency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Kar Marjı:</span>
+                      <span
+                        className={`flex items-center gap-1 ${Number.parseFloat(profitMargin) > 0 ? "text-green-600" : "text-red-600"}`}
+                      >
+                        {Number.parseFloat(profitMargin) > 0 ? (
+                          <TrendingUp className="h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3" />
+                        )}
+                        %{profitMargin}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-semibold mb-2">Stok Bilgileri</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Mevcut Stok:</span>
+                  <span className={isLowStock ? "text-red-600 font-semibold" : ""}>{product.stock_quantity}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Minimum Seviye:</span>
+                  <span>{product.min_stock_level}</span>
+                </div>
+              </div>
+            </div>
+
+            {product.suppliers && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="font-semibold mb-2">Tedarikçi Bilgileri</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Firma:</span>
+                      <span>{product.suppliers.name}</span>
+                    </div>
+                    {product.suppliers.contact_person && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">İletişim:</span>
+                        <span>{product.suppliers.contact_person}</span>
+                      </div>
+                    )}
+                    {product.suppliers.phone && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Telefon:</span>
+                        <span>{product.suppliers.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="pt-4">
+              <ProductMovementsModal productId={product.id} productName={product.name} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Product Variants */}
+        {product.variants && product.variants.length > 0 && (
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle>Ürün Varyantları</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {product.variants.map((variant: any) => (
+                  <div key={variant.id} className="border rounded-lg p-4">
+                    <h4 className="font-semibold mb-2">{variant.name}</h4>
                     <div className="flex flex-wrap gap-2">
-                      {variant.values.map((val, valIndex) => (
-                        <Badge key={valIndex} variant="outline">
-                          {val.value}
+                      {variant.values.map((value: string) => (
+                        <Badge key={value} variant="secondary">
+                          {value}
                         </Badge>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-          {!typedProduct.variants ||
-            (typedProduct.variants.length === 0 && (
-              <div className="flex flex-col items-center justify-center p-6 border rounded-lg bg-muted/30 mt-6">
-                <PackageSearch className="w-12 h-12 text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">Bu ürün için tanımlanmış varyant bulunmamaktadır.</p>
-              </div>
-            ))}
-
-          <div className="border-t pt-6 mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
-              <p>Oluşturulma: {new Date(typedProduct.created_at).toLocaleString("tr-TR")}</p>
-              <p>Son Güncelleme: {new Date(typedProduct.updated_at).toLocaleString("tr-TR")}</p>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="p-6 bg-muted/50 border-t">{/* Footer için boş bırakıldı */}</CardFooter>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

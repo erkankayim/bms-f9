@@ -661,7 +661,7 @@ INSERT INTO invoices (
   ),
 (
     'GIB2021000000026', 
-    'Ulaşım İç ve Dış Tic. A.Ş._İstanbul__34127', 
+    'Ulaşım İç ve D��ş Tic. A.Ş._İstanbul__34127', 
     '2021-05-20', 
     885, 
     'Fatura', 
@@ -3325,7 +3325,7 @@ INSERT INTO invoices (
   ),
 (
     '51', 
-    'ARMA Global Dış Tic. A.Ş._İstanbul_Alper Bey_34323', 
+    'ARMA Global Dı�� Tic. A.Ş._İstanbul_Alper Bey_34323', 
     '2022-04-27', 
     0, 
     'Tahsilat Makbuzu', 

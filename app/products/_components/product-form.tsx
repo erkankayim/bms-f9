@@ -10,25 +10,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { createProduct, updateProduct } from "../actions"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
-type Category = {
+interface Category {
   id: number
   name: string
 }
 
-type Product = {
+interface Product {
   id: number
   stock_code: string
   name: string
   description: string | null
-  category_id: number | null
-  quantity_on_hand: number | null
-  minimum_stock_level: number | null
-  purchase_price: number | null
-  selling_price: number | null
-  created_at: string
-  updated_at: string
+  category_id: number
+  quantity_on_hand: number
+  minimum_stock_level: number
+  purchase_price: number
+  selling_price: number
 }
 
 interface ProductFormProps {
@@ -38,203 +36,183 @@ interface ProductFormProps {
 
 export function ProductForm({ product, categories }: ProductFormProps) {
   const router = useRouter()
-  const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (formData: FormData) => {
-    setIsSubmitting(true)
+  async function onSubmit(formData: FormData) {
+    setIsLoading(true)
 
     try {
       if (product) {
-        const result = await updateProduct(product.id, formData)
-        if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: "Ürün başarıyla güncellendi.",
-          })
-          router.push("/products")
-        } else {
-          toast({
-            title: "Hata",
-            description: result.error || "Ürün güncellenirken bir hata oluştu.",
-            variant: "destructive",
-          })
-        }
+        await updateProduct(product.id, formData)
+        toast.success("Ürün başarıyla güncellendi")
       } else {
-        const result = await createProduct(formData)
-        if (result.success) {
-          toast({
-            title: "Başarılı",
-            description: "Ürün başarıyla oluşturuldu.",
-          })
-          router.push("/products")
-        } else {
-          toast({
-            title: "Hata",
-            description: result.error || "Ürün oluşturulurken bir hata oluştu.",
-            variant: "destructive",
-          })
-        }
+        await createProduct(formData)
+        toast.success("Ürün başarıyla oluşturuldu")
       }
+      router.push("/products")
+      router.refresh()
     } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Beklenmeyen bir hata oluştu.",
-        variant: "destructive",
-      })
+      toast.error("Bir hata oluştu")
+      console.error(error)
     } finally {
-      setIsSubmitting(false)
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-4xl">
+    <form action={onSubmit} className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{product ? "Ürün Düzenle" : "Yeni Ürün Ekle"}</CardTitle>
-          <CardDescription>
-            {product ? "Mevcut ürün bilgilerini güncelleyin." : "Yeni bir ürün eklemek için aşağıdaki formu doldurun."}
-          </CardDescription>
+          <CardTitle>Temel Bilgiler</CardTitle>
+          <CardDescription>Ürünün temel bilgilerini girin</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form action={handleSubmit} className="space-y-6">
-            {/* Temel Bilgiler */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Temel Bilgiler</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="stock_code">Stok Kodu *</Label>
-                  <Input
-                    id="stock_code"
-                    name="stock_code"
-                    defaultValue={product?.stock_code || ""}
-                    placeholder="Örn: PRD-001"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category_id">Kategori</Label>
-                  <Select name="category_id" defaultValue={product?.category_id?.toString() || ""}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Kategori seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Ürün Adı *</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={product?.name || ""}
-                  placeholder="Ürün adını girin"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Açıklama</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  defaultValue={product?.description || ""}
-                  placeholder="Ürün açıklaması (isteğe bağlı)"
-                  rows={3}
-                />
-              </div>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="stock_code">Stok Kodu *</Label>
+              <Input
+                id="stock_code"
+                name="stock_code"
+                defaultValue={product?.stock_code}
+                placeholder="Örn: ELC-001"
+                required
+              />
             </div>
-
-            <Separator />
-
-            {/* Stok Bilgileri */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Stok Bilgileri</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="quantity_on_hand">Mevcut Stok</Label>
-                  <Input
-                    id="quantity_on_hand"
-                    name="quantity_on_hand"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={product?.quantity_on_hand?.toString() || "0"}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="minimum_stock_level">Minimum Stok Seviyesi</Label>
-                  <Input
-                    id="minimum_stock_level"
-                    name="minimum_stock_level"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={product?.minimum_stock_level?.toString() || "0"}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="category_id">Kategori *</Label>
+              <Select name="category_id" defaultValue={product?.category_id?.toString()} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kategori seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id.toString()}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="name">Ürün Adı *</Label>
+            <Input id="name" name="name" defaultValue={product?.name} placeholder="Ürün adını girin" required />
+          </div>
 
-            {/* Fiyat Bilgileri */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Fiyat Bilgileri</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="purchase_price">Alış Fiyatı (₺) *</Label>
-                  <Input
-                    id="purchase_price"
-                    name="purchase_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={product?.purchase_price?.toString() || ""}
-                    placeholder="0.00"
-                    required
-                  />
-                  <p className="text-sm text-gray-500">KDV hariç alış fiyatı</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="selling_price">Satış Fiyatı (₺)</Label>
-                  <Input
-                    id="selling_price"
-                    name="selling_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={product?.selling_price?.toString() || ""}
-                    placeholder="0.00"
-                  />
-                  <p className="text-sm text-gray-500">KDV dahil satış fiyatı</p>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Form Butonları */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              <Button type="submit" disabled={isSubmitting} className="flex-1 sm:flex-none">
-                {isSubmitting ? "Kaydediliyor..." : product ? "Güncelle" : "Oluştur"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1 sm:flex-none">
-                İptal
-              </Button>
-            </div>
-          </form>
+          <div className="space-y-2">
+            <Label htmlFor="description">Açıklama</Label>
+            <Textarea
+              id="description"
+              name="description"
+              defaultValue={product?.description || ""}
+              placeholder="Ürün açıklaması (isteğe bağlı)"
+              rows={3}
+            />
+          </div>
         </CardContent>
       </Card>
-    </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Stok Bilgileri</CardTitle>
+          <CardDescription>Ürünün stok durumu ve minimum stok seviyesi</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity_on_hand">Mevcut Stok</Label>
+              <Input
+                id="quantity_on_hand"
+                name="quantity_on_hand"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={product?.quantity_on_hand || 0}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="minimum_stock_level">Minimum Stok Seviyesi</Label>
+              <Input
+                id="minimum_stock_level"
+                name="minimum_stock_level"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={product?.minimum_stock_level || 0}
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Fiyat Bilgileri</CardTitle>
+          <CardDescription>Alış ve satış fiyatları (KDV dahil değildir)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="purchase_price">Alış Fiyatı (₺) *</Label>
+              <Input
+                id="purchase_price"
+                name="purchase_price"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={product?.purchase_price || ""}
+                placeholder="0.00"
+                required
+              />
+              <p className="text-xs text-muted-foreground">KDV hariç alış fiyatı</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="selling_price">Satış Fiyatı (₺)</Label>
+              <Input
+                id="selling_price"
+                name="selling_price"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={product?.selling_price || ""}
+                placeholder="0.00"
+              />
+              <p className="text-xs text-muted-foreground">KDV hariç satış fiyatı</p>
+            </div>
+          </div>
+
+          {product?.purchase_price && product?.selling_price && product.purchase_price > 0 && (
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="text-sm">
+                <div className="flex justify-between">
+                  <span>Kar Marjı:</span>
+                  <span className="font-medium">
+                    {(((product.selling_price - product.purchase_price) / product.purchase_price) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Birim Kar:</span>
+                  <span className="font-medium">₺{(product.selling_price - product.purchase_price).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Separator />
+
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
+          İptal
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? "Kaydediliyor..." : product ? "Güncelle" : "Oluştur"}
+        </Button>
+      </div>
+    </form>
   )
 }
