@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 /* ----------------------------------------------------------------
  * Türler
  * ----------------------------------------------------------------*/
-export interface ExpenseEntry {
+interface ExpenseEntry {
   id: string
   entry_date: string
   expense_title: string

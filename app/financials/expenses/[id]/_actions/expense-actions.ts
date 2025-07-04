@@ -1,3 +1,3 @@
 export async function deleteExpense(id: string) {
-  // … Supabase delete
+  /* Supabase silme işlemi eklenecek */
 }
