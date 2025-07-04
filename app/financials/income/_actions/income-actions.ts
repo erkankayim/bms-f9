@@ -68,3 +68,6 @@ export async function deleteIncome(id: string) {
   }
   revalidatePath("/financials/income")
 }
+
+// ----- Ortak yardımcıları yeniden dışa aktar -----
+export { getFinancialCategories, getCustomersForDropdown } from "../../_actions/financial-entries-actions"
