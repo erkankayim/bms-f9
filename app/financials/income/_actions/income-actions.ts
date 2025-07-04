@@ -1,73 +1,125 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
 
-const incomeEntrySchema = z.object({
-  incoming_amount: z.coerce
-    .number({ required_error: "Gelen tutar zorunludur." })
-    .positive("Gelen tutar pozitif olmalıdır."),
-  entry_date: z.string().min(1, "Tarih gereklidir."),
-  category_id: z.coerce.number().int().positive("Kategori seçimi gereklidir."),
-  customer_id: z.string().optional().nullable(),
-  source: z.string().min(1, "Gelir kaynağı gereklidir."),
-  description: z.string().min(1, "Açıklama gereklidir."),
-  invoice_number: z.string().optional().nullable(),
-  payment_method: z.string().min(1, "Ödeme şekli gereklidir."),
-  notes: z.string().optional().nullable(),
+const incomeSchema = z.object({
+  description: z.string().min(1, "Açıklama gereklidir"),
+  amount: z.number().positive("Tutar pozitif olmalıdır"),
+  category: z.string().min(1, "Kategori seçimi gereklidir"),
+  date: z.string().min(1, "Tarih gereklidir"),
+  notes: z.string().optional(),
 })
 
-export async function getIncomeEntries() {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from("income_entries")
-    .select(`*, financial_categories(name), customers(contact_name)`)
-    .order("entry_date", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching income entries:", error)
-    throw new Error("Gelir kayıtları alınamadı.")
-  }
-  return data
-}
-
-export async function createIncomeEntryAction(prevState: any, formData: FormData) {
+export async function createIncome(formData: FormData) {
   const supabase = createClient()
 
-  const rawData = {
-    ...Object.fromEntries(formData.entries()),
-    customer_id: formData.get("customer_id") === "no-customer" ? null : formData.get("customer_id"),
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    throw new Error("Kullanıcı yetkilendirmesi başarısız")
   }
 
-  const validatedFields = incomeEntrySchema.safeParse(rawData)
+  const validatedFields = incomeSchema.safeParse({
+    description: formData.get("description"),
+    amount: Number(formData.get("amount")),
+    category: formData.get("category"),
+    date: formData.get("date"),
+    notes: formData.get("notes"),
+  })
 
   if (!validatedFields.success) {
-    return {
-      success: false,
-      message: "Form verileri geçersiz.",
-      errors: validatedFields.error.flatten().fieldErrors,
-    }
+    throw new Error("Form verileri geçersiz")
   }
 
-  const { error } = await supabase.from("income_entries").insert(validatedFields.data)
+  const { description, amount, category, date, notes } = validatedFields.data
+
+  const { error } = await supabase.from("financial_entries").insert({
+    type: "income",
+    description,
+    amount,
+    category,
+    date,
+    notes,
+    user_id: user.id,
+  })
 
   if (error) {
-    return { success: false, message: `Veritabanı hatası: ${error.message}`, errors: null }
+    throw new Error("Gelir kaydı oluşturulamadı")
   }
 
   revalidatePath("/financials/income")
-  return { success: true, message: "Gelir başarıyla eklendi." }
+  redirect("/financials/income")
+}
+
+export async function updateIncome(id: string, formData: FormData) {
+  const supabase = createClient()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    throw new Error("Kullanıcı yetkilendirmesi başarısız")
+  }
+
+  const validatedFields = incomeSchema.safeParse({
+    description: formData.get("description"),
+    amount: Number(formData.get("amount")),
+    category: formData.get("category"),
+    date: formData.get("date"),
+    notes: formData.get("notes"),
+  })
+
+  if (!validatedFields.success) {
+    throw new Error("Form verileri geçersiz")
+  }
+
+  const { description, amount, category, date, notes } = validatedFields.data
+
+  const { error } = await supabase
+    .from("financial_entries")
+    .update({
+      description,
+      amount,
+      category,
+      date,
+      notes,
+    })
+    .eq("id", id)
+    .eq("user_id", user.id)
+
+  if (error) {
+    throw new Error("Gelir kaydı güncellenemedi")
+  }
+
+  revalidatePath("/financials/income")
+  redirect("/financials/income")
 }
 
 export async function deleteIncome(id: string) {
   const supabase = createClient()
-  const { error } = await supabase.from("income_entries").delete().eq("id", id)
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    throw new Error("Kullanıcı yetkilendirmesi başarısız")
+  }
+
+  const { error } = await supabase.from("financial_entries").delete().eq("id", id).eq("user_id", user.id)
+
   if (error) {
     throw new Error("Gelir kaydı silinemedi")
   }
+
   revalidatePath("/financials/income")
 }
-
-// ----- Ortak yardımcıları yeniden dışa aktar -----
-export { getFinancialCategories, getCustomersForDropdown } from "../../_actions/financial-entries-actions"

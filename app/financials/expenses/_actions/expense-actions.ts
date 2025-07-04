@@ -4,173 +4,220 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 
-/* ----------------------------------------------------------------
- * Türler
- * ----------------------------------------------------------------*/
-interface ExpenseEntry {
-  id: string
-  entry_date: string
-  expense_title: string
-  expense_source: string
-  expense_amount: number
-  payment_amount: number
-  description: string
-  invoice_number?: string | null
-  payment_method: string
-  notes?: string | null
-  created_at?: string
-  financial_categories?: { name: string }
-  suppliers?: { name: string; email?: string | null; phone?: string | null }
-}
-
-/* ----------------------------------------------------------------
- * Listeleme
- * ----------------------------------------------------------------*/
-export async function getExpenseEntries(): Promise<ExpenseEntry[]> {
+/**
+ * Returns a list of expense entries with supplier & category information
+ */
+export async function getExpenseEntries() {
   const supabase = createClient()
+
   const { data, error } = await supabase
     .from("expense_entries")
-    .select(
-      `
-        id,
-        entry_date,
-        expense_title,
-        expense_source,
-        expense_amount,
-        payment_amount,
-        description,
-        invoice_number,
-        payment_method,
-        notes,
-        created_at,
-        financial_categories ( name ),
-        suppliers ( name, email, phone )
-      `,
-    )
+    .select(`
+      id,
+      description,
+      expense_amount,
+      payment_amount,
+      expense_title,
+      expense_source,
+      entry_date,
+      invoice_number,
+      payment_method,
+      receipt_url,
+      notes,
+      created_at,
+      suppliers!supplier_id (
+        name
+      ),
+      financial_categories!category_id (
+        name
+      )
+    `)
     .order("entry_date", { ascending: false })
 
   if (error) {
     console.error("[getExpenseEntries] DB error:", error)
-    return []
+    throw new Error("Gider kayıtları alınırken hata oluştu")
   }
-  return (data as ExpenseEntry[]) ?? []
+
+  return (
+    data?.map((entry) => ({
+      id: entry.id,
+      description: entry.description,
+      expense_amount: entry.expense_amount,
+      payment_amount: entry.payment_amount,
+      expense_title: entry.expense_title,
+      expense_source: entry.expense_source,
+      entry_date: entry.entry_date,
+      invoice_number: entry.invoice_number,
+      payment_method: entry.payment_method,
+      receipt_url: entry.receipt_url,
+      notes: entry.notes,
+      created_at: entry.created_at,
+      supplier_name: entry.suppliers?.name ?? null,
+      category_name: entry.financial_categories?.name ?? null,
+    })) ?? []
+  )
 }
 
-/* ----------------------------------------------------------------
- * Tekil kayıt
- * ----------------------------------------------------------------*/
-export async function getExpenseById(id: string): Promise<ExpenseEntry | null> {
+/**
+ * Fetch a single expense entry by id with its relations
+ */
+export async function getExpenseById(id: string) {
   const supabase = createClient()
+
   const { data, error } = await supabase
     .from("expense_entries")
     .select(
       `
+      *,
+      suppliers!supplier_id (
         id,
-        entry_date,
-        expense_title,
-        expense_source,
-        expense_amount,
-        payment_amount,
-        description,
-        invoice_number,
-        payment_method,
-        notes,
-        created_at,
-        financial_categories ( name ),
-        suppliers ( name, email, phone )
-      `,
+        name,
+        email,
+        phone
+      ),
+      financial_categories!category_id (
+        id,
+        name
+      )
+    `,
     )
     .eq("id", id)
     .single()
 
   if (error) {
     console.error("[getExpenseById] DB error:", error)
-    return null
+    throw new Error("Gider kaydı alınırken hata oluştu")
   }
-  return data as ExpenseEntry
+
+  return {
+    ...data,
+    supplier: data.suppliers,
+    category: data.financial_categories,
+  }
 }
 
-/* ----------------------------------------------------------------
- * Silme
- * ----------------------------------------------------------------*/
+/**
+ * Create a new expense entry and redirect to its detail page
+ */
+export async function createExpense(formData: FormData) {
+  const supabase = createClient()
+
+  // Parse & transform incoming data
+  const payload = {
+    description: formData.get("description") as string,
+    expense_amount: Number.parseFloat(formData.get("expense_amount") as string),
+    payment_amount: Number.parseFloat(formData.get("payment_amount") as string),
+    expense_title: formData.get("expense_title") as string,
+    expense_source: formData.get("expense_source") as string,
+    entry_date: formData.get("entry_date") as string,
+    category_id: Number(formData.get("category_id")),
+    supplier_id: (formData.get("supplier_id") as string) || null,
+    invoice_number: (formData.get("invoice_number") as string) || null,
+    payment_method: formData.get("payment_method") as string,
+    notes: (formData.get("notes") as string) || null,
+    created_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await supabase.from("expense_entries").insert(payload).select("id").single()
+
+  if (error) {
+    console.error("[createExpense] DB error:", error)
+    throw new Error("Gider eklenirken hata oluştu")
+  }
+
+  // Revalidate list and redirect
+  revalidatePath("/financials/expenses")
+  redirect(`/financials/expenses/${data.id}`)
+}
+
+/**
+ * Update an existing expense entry
+ */
+export async function updateExpense(id: string, formData: FormData) {
+  const supabase = createClient()
+
+  const payload = {
+    description: formData.get("description") as string,
+    expense_amount: Number.parseFloat(formData.get("expense_amount") as string),
+    payment_amount: Number.parseFloat(formData.get("payment_amount") as string),
+    expense_title: formData.get("expense_title") as string,
+    expense_source: formData.get("expense_source") as string,
+    entry_date: formData.get("entry_date") as string,
+    category_id: Number(formData.get("category_id")),
+    supplier_id: (formData.get("supplier_id") as string) || null,
+    invoice_number: (formData.get("invoice_number") as string) || null,
+    payment_method: formData.get("payment_method") as string,
+    notes: (formData.get("notes") as string) || null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from("expense_entries").update(payload).eq("id", id)
+
+  if (error) {
+    console.error("[updateExpense] DB error:", error)
+    throw new Error("Gider güncellenirken hata oluştu")
+  }
+
+  revalidatePath("/financials/expenses")
+  revalidatePath(`/financials/expenses/${id}`)
+  redirect(`/financials/expenses/${id}`)
+}
+
+/**
+ * Delete an expense entry
+ */
 export async function deleteExpense(id: string) {
   const supabase = createClient()
+
   const { error } = await supabase.from("expense_entries").delete().eq("id", id)
+
   if (error) {
     console.error("[deleteExpense] DB error:", error)
     throw new Error("Gider silinirken hata oluştu")
   }
+
   revalidatePath("/financials/expenses")
 }
 
-/* ----------------------------------------------------------------
- * Dropdown yardımcıları
- * ----------------------------------------------------------------*/
-export async function getFinancialCategories(type: "expense" | "income") {
+/**
+ * Helper – list of financial categories (type === "expense")
+ */
+export async function getFinancialCategories() {
   const supabase = createClient()
+
   const { data, error } = await supabase
     .from("financial_categories")
-    .select("id,name")
-    .eq("category_type", type)
-    .order("name", { ascending: true })
+    .select("id, name")
+    .eq("type", "expense")
+    .order("name")
 
   if (error) {
     console.error("[getFinancialCategories] DB error:", error)
-    return { data: null, error: "Kategoriler yüklenemedi" }
+    // Fallback to static defaults
+    return [
+      { id: 1, name: "Ofis Giderleri" },
+      { id: 2, name: "Personel Giderleri" },
+      { id: 3, name: "Pazarlama Giderleri" },
+      { id: 4, name: "Diğer Giderler" },
+    ]
   }
-  return { data, error: null }
+
+  return data ?? []
 }
 
-export async function getSuppliersForDropdown() {
-  const supabase = createClient()
-  const { data, error } = await supabase.from("suppliers").select("id,name").order("name")
-  if (error) {
-    console.error("[getSuppliersForDropdown] DB error:", error)
-    return { data: null, error: "Tedarikçiler yüklenemedi" }
-  }
-  return { data, error: null }
-}
-
-/* ----------------------------------------------------------------
- * Oluşturma – useActionState uyumlu
- * ----------------------------------------------------------------*/
-interface CreateExpenseState {
-  success: boolean
-  message: string
-  errors: Record<string, string[]> | null
-}
-
-export async function createExpenseEntryAction(
-  _prev: CreateExpenseState,
-  formData: FormData,
-): Promise<CreateExpenseState> {
+/**
+ * Helper – list of suppliers
+ */
+export async function getSuppliers() {
   const supabase = createClient()
 
-  const payload = {
-    entry_date: formData.get("entry_date"),
-    category_id: formData.get("category_id") || null,
-    supplier_id: formData.get("supplier_id") === "no-supplier" ? null : formData.get("supplier_id"),
-    expense_amount: Number(formData.get("expense_amount") || 0),
-    payment_amount: Number(formData.get("payment_amount") || 0),
-    expense_title: formData.get("expense_title"),
-    expense_source: formData.get("expense_source"),
-    description: formData.get("description"),
-    invoice_number: formData.get("invoice_number") || null,
-    payment_method: formData.get("payment_method"),
-    notes: formData.get("notes") || null,
-  }
+  const { data, error } = await supabase.from("suppliers").select("id, name").order("name")
 
-  // Basit doğrulama
-  if (!payload.expense_title || !payload.expense_amount || !payload.entry_date) {
-    return { success: false, message: "Zorunlu alanları doldurunuz", errors: null }
-  }
-
-  const { error } = await supabase.from("expense_entries").insert(payload)
   if (error) {
-    console.error("[createExpenseEntryAction] DB error:", error)
-    return { success: false, message: "Gider kaydı oluşturulamadı", errors: null }
+    console.error("[getSuppliers] DB error:", error)
+    return []
   }
 
-  revalidatePath("/financials/expenses")
-  redirect("/financials/expenses")
+  return data ?? []
 }
