@@ -1,6 +1,8 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 export async function getIncomeEntries() {
   const supabase = createClient()
@@ -49,6 +51,52 @@ export async function getIncomeEntries() {
     console.error("Income entries fetch error:", error)
     return {
       error: error instanceof Error ? error.message : "Gelir kayıtları alınırken hata oluştu",
+    }
+  }
+}
+
+export async function createIncome(formData: FormData) {
+  "use server"
+
+  const supabase = createClient()
+
+  try {
+    const description = formData.get("description") as string
+    const incoming_amount = Number.parseFloat(formData.get("incoming_amount") as string)
+    const source = formData.get("source") as string
+    const entry_date = formData.get("entry_date") as string
+    const invoice_number = (formData.get("invoice_number") as string) || null
+    const payment_method = formData.get("payment_method") as string
+    const notes = (formData.get("notes") as string) || null
+    const category_id = Number.parseInt(formData.get("category_id") as string)
+    const customer_id = (formData.get("customer_id") as string) || null
+
+    const { data, error } = await supabase
+      .from("income_entries")
+      .insert({
+        description,
+        incoming_amount,
+        source,
+        entry_date,
+        invoice_number,
+        payment_method,
+        notes,
+        category_id,
+        customer_id,
+        created_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single()
+
+    if (error) throw error
+
+    // Revalidate list & redirect to detail page
+    revalidatePath("/financials/income")
+    redirect(`/financials/income/${data.id}`)
+  } catch (error) {
+    console.error("Income create error:", error)
+    return {
+      error: error instanceof Error ? error.message : "Gelir eklenirken hata oluştu",
     }
   }
 }

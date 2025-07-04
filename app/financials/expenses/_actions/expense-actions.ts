@@ -126,6 +126,56 @@ export async function getExpenseById(id: string) {
   }
 }
 
+export async function createExpense(formData: FormData) {
+  "use server"
+
+  const supabase = createClient()
+
+  try {
+    const description = formData.get("description") as string
+    const expense_amount = Number.parseFloat(formData.get("expense_amount") as string)
+    const payment_amount = Number.parseFloat(formData.get("payment_amount") as string)
+    const expense_title = formData.get("expense_title") as string
+    const expense_source = formData.get("expense_source") as string
+    const entry_date = formData.get("entry_date") as string
+    const category_id = Number.parseInt(formData.get("category_id") as string)
+    const supplier_id = (formData.get("supplier_id") as string) || null
+    const invoice_number = (formData.get("invoice_number") as string) || null
+    const payment_method = formData.get("payment_method") as string
+    const notes = (formData.get("notes") as string) || null
+
+    const { data, error } = await supabase
+      .from("expense_entries")
+      .insert({
+        description,
+        expense_amount,
+        payment_amount,
+        expense_title,
+        expense_source,
+        entry_date,
+        category_id,
+        supplier_id,
+        invoice_number,
+        payment_method,
+        notes,
+        created_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single()
+
+    if (error) throw error
+
+    // Revalidate list & redirect to detail page
+    revalidatePath("/financials/expenses")
+    redirect(`/financials/expenses/${data.id}`)
+  } catch (error) {
+    console.error("Expense create error:", error)
+    return {
+      error: error instanceof Error ? error.message : "Gider eklenirken hata oluştu",
+    }
+  }
+}
+
 export async function updateExpense(id: string, formData: FormData) {
   const supabase = createClient()
 
