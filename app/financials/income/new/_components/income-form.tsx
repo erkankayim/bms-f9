@@ -1,38 +1,102 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon, TrendingUp } from "lucide-react"
+import { format } from "date-fns"
+import { tr } from "date-fns/locale"
 import { createIncome } from "../_actions/income-actions"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function IncomeForm() {
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false)
+  const [date, setDate] = useState<Date>(new Date())
+  const [customers, setCustomers] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
 
-  async function handleSubmit(formData: FormData) {
+  const [formData, setFormData] = useState({
+    description: "",
+    incoming_amount: "",
+    income_source: "",
+    category_id: "",
+    customer_mid: "",
+    payment_method: "cash",
+    invoice_number: "",
+    notes: "",
+  })
+
+  useEffect(() => {
+    // Müşterileri ve kategorileri yükle
+    async function fetchData() {
+      // Bu fonksiyonlar gerçek implementasyonda Supabase'den veri çekecek
+      // Şimdilik boş array döndürüyoruz
+      setCustomers([])
+      setCategories([])
+    }
+    fetchData()
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.description || !formData.incoming_amount) {
+      toast({
+        title: "Hata",
+        description: "Açıklama ve tutar alanları zorunludur.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      await createIncome(formData)
-      toast({
-        title: "Başarılı",
-        description: "Gelir kaydı başarıyla oluşturuldu",
-        duration: 1500,
-      })
+      const incomeData = {
+        ...formData,
+        incoming_amount: Number.parseFloat(formData.incoming_amount),
+        entry_date: date.toISOString(),
+      }
+
+      const result = await createIncome(incomeData)
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: "Gelir kaydı başarıyla oluşturuldu.",
+        })
+        router.push("/financials/income")
+      } else {
+        toast({
+          title: "Hata",
+          description: result.error || "Gelir kaydı oluşturulurken bir hata oluştu.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
+      console.error("Error creating income:", error)
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Beklenmeyen bir hata oluştu",
+        description: "Gelir kaydı oluşturulurken bir hata oluştu.",
         variant: "destructive",
-        duration: 1500,
       })
     } finally {
       setIsLoading(false)
@@ -40,69 +104,166 @@ export default function IncomeForm() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Yeni Gelir</CardTitle>
-        <CardDescription>Yeni bir gelir kaydı oluşturun</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form action={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">Açıklama</Label>
-            <Input id="description" name="description" placeholder="Gelir açıklaması" required disabled={isLoading} />
-          </div>
+    <div className="container mx-auto py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Yeni Gelir Kaydı
+          </CardTitle>
+          <CardDescription>Yeni bir gelir kaydı oluşturun</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="description">Açıklama *</Label>
+                <Input
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  placeholder="Gelir açıklaması"
+                  required
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount">Tutar</Label>
-            <Input
-              id="amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              required
-              disabled={isLoading}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="incoming_amount">Tutar *</Label>
+                <Input
+                  id="incoming_amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.incoming_amount}
+                  onChange={(e) => handleInputChange("incoming_amount", e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Kategori</Label>
-            <Select name="category" disabled={isLoading}>
-              <SelectTrigger>
-                <SelectValue placeholder="Kategori seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sales">Satış</SelectItem>
-                <SelectItem value="service">Hizmet</SelectItem>
-                <SelectItem value="consulting">Danışmanlık</SelectItem>
-                <SelectItem value="investment">Yatırım</SelectItem>
-                <SelectItem value="other">Diğer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="income_source">Gelir Kaynağı</Label>
+                <Input
+                  id="income_source"
+                  value={formData.income_source}
+                  onChange={(e) => handleInputChange("income_source", e.target.value)}
+                  placeholder="Gelir kaynağı"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="date">Tarih</Label>
-            <Input id="date" name="date" type="date" required disabled={isLoading} />
-          </div>
+              <div className="space-y-2">
+                <Label>Tarih</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP", { locale: tr }) : "Tarih seçin"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={date} onSelect={(date) => date && setDate(date)} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notlar</Label>
-            <Textarea id="notes" name="notes" placeholder="Ek notlar (opsiyonel)" disabled={isLoading} />
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer_mid">Müşteri</Label>
+                <Select
+                  value={formData.customer_mid}
+                  onValueChange={(value) => handleInputChange("customer_mid", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Müşteri seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_customer">Müşteri Yok</SelectItem>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.mid} value={customer.mid}>
+                        {customer.contact_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? "Kaydediliyor..." : "Gelir Oluştur"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
-              İptal
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+              <div className="space-y-2">
+                <Label htmlFor="payment_method">Ödeme Yöntemi</Label>
+                <Select
+                  value={formData.payment_method}
+                  onValueChange={(value) => handleInputChange("payment_method", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Nakit</SelectItem>
+                    <SelectItem value="credit_card">Kredi Kartı</SelectItem>
+                    <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
+                    <SelectItem value="check">Çek</SelectItem>
+                    <SelectItem value="other">Diğer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category_id">Kategori</Label>
+                <Select value={formData.category_id} onValueChange={(value) => handleInputChange("category_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Kategori seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_category">Kategori Yok</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="invoice_number">Fatura Numarası</Label>
+                <Input
+                  id="invoice_number"
+                  value={formData.invoice_number}
+                  onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                  placeholder="Fatura numarası"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notlar</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleInputChange("notes", e.target.value)}
+                placeholder="Ek notlar..."
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Kaydediliyor..." : "Gelir Kaydını Oluştur"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => router.push("/financials/income")}>
+                İptal
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

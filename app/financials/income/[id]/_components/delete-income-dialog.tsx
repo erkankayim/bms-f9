@@ -15,15 +15,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
-import { deleteExpense } from "../_actions/expense-actions"
+import { deleteIncome } from "../_actions/income-actions"
 import { toast } from "@/hooks/use-toast"
 
-interface DeleteExpenseDialogProps {
-  expenseId: string
-  expenseTitle: string
+interface DeleteIncomeDialogProps {
+  entryId: number
+  entryDescription: string
 }
 
-export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDialogProps) {
+export function DeleteIncomeDialog({ entryId, entryDescription }: DeleteIncomeDialogProps) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -31,26 +31,26 @@ export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDi
     setIsDeleting(true)
 
     try {
-      const result = await deleteExpense(Number.parseInt(expenseId))
+      const result = await deleteIncome(entryId)
 
       if (result.success) {
         toast({
           title: "Başarılı",
-          description: "Gider kaydı başarıyla silindi.",
+          description: "Gelir kaydı başarıyla silindi.",
         })
-        router.push("/financials/expenses")
+        router.push("/financials/income")
       } else {
         toast({
           title: "Hata",
-          description: result.error || "Gider kaydı silinirken bir hata oluştu.",
+          description: result.error || "Gelir kaydı silinirken bir hata oluştu.",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error deleting expense:", error)
+      console.error("Error deleting income:", error)
       toast({
         title: "Hata",
-        description: "Gider kaydı silinirken bir hata oluştu.",
+        description: "Gelir kaydı silinirken bir hata oluştu.",
         variant: "destructive",
       })
     } finally {
@@ -67,9 +67,9 @@ export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDi
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Gider Kaydını Sil</AlertDialogTitle>
+          <AlertDialogTitle>Gelir Kaydını Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            "{expenseTitle}" gider kaydını silmek istediğinizden emin misiniz?
+            "{entryDescription}" gelir kaydını silmek istediğinizden emin misiniz?
             <br />
             Bu işlem geri alınamaz.
           </AlertDialogDescription>
