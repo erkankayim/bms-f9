@@ -36,10 +36,20 @@ export function DeleteCustomerDialog({
 
   const handleAction = async () => {
     console.log("handleAction called with:", { customerId, customerName, isDeleted })
+    console.log("deleteAction:", deleteAction)
+    console.log("restoreAction:", restoreAction)
 
     if (!customerId || typeof customerId !== "string") {
       const errorMsg = "Geçersiz müşteri ID"
       console.error("Invalid customer ID:", customerId)
+      setError(errorMsg)
+      toast.error(errorMsg)
+      return
+    }
+
+    if (!deleteAction || !restoreAction) {
+      const errorMsg = "Action fonksiyonları bulunamadı"
+      console.error("Missing action functions:", { deleteAction, restoreAction })
       setError(errorMsg)
       toast.error(errorMsg)
       return
@@ -52,7 +62,11 @@ export function DeleteCustomerDialog({
       console.log(`Attempting ${isDeleted ? "restore" : "delete"} for customer:`, customerId)
 
       const actionToCall = isDeleted ? restoreAction : deleteAction
-      console.log("Action function:", actionToCall)
+      console.log("Action function to call:", actionToCall)
+
+      if (typeof actionToCall !== "function") {
+        throw new Error("Action is not a function")
+      }
 
       const result = await actionToCall(customerId)
       console.log("Action result:", result)
@@ -79,13 +93,14 @@ export function DeleteCustomerDialog({
     }
   }
 
-  // ID kontrolü
+  // ID ve action kontrolü
   const isValidId = customerId && typeof customerId === "string" && customerId.trim().length > 0
+  const hasValidActions = typeof deleteAction === "function" && typeof restoreAction === "function"
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isDeleted ? "outline" : "destructive"} size="sm" disabled={!isValidId}>
+        <Button variant={isDeleted ? "outline" : "destructive"} size="sm" disabled={!isValidId || !hasValidActions}>
           {isDeleted ? (
             <>
               <RotateCcw className="mr-2 h-4 w-4" />
@@ -134,7 +149,7 @@ export function DeleteCustomerDialog({
           <Button
             variant={isDeleted ? "default" : "destructive"}
             onClick={handleAction}
-            disabled={loading || !isValidId}
+            disabled={loading || !isValidId || !hasValidActions}
           >
             {loading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
           </Button>
