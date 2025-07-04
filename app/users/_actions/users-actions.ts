@@ -6,16 +6,35 @@ import type { UserRole, UserWithAuth } from "@/app/lib/types"
 
 // Get current user's role for authorization
 export async function getCurrentUserRole(): Promise<UserRole | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-  if (!user) return null
+    if (userError || !user) {
+      console.log("No user found or error:", userError)
+      return null
+    }
 
-  const { data: profile } = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single()
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single()
 
-  return profile?.role || null
+    if (profileError) {
+      console.log("Profile error:", profileError)
+      return null
+    }
+
+    console.log("User role:", profile?.role)
+    return profile?.role || null
+  } catch (error) {
+    console.error("Error getting user role:", error)
+    return null
+  }
 }
 
 // Check if user is admin
@@ -254,14 +273,62 @@ export async function deleteUser(userId: string) {
 }
 
 export async function getCurrentUserProfile() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-  if (!user) return null
+    if (userError || !user) {
+      console.log("No user found:", userError)
+      return null
+    }
 
-  const { data: profile } = await supabase.from("user_profiles").select("*").eq("user_id", user.id).single()
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .single()
 
-  return profile
+    if (profileError) {
+      console.log("Profile error:", profileError)
+      return null
+    }
+
+    return profile
+  } catch (error) {
+    console.error("Error getting user profile:", error)
+    return null
+  }
+}
+
+// Debug function to check user status
+export async function debugUserStatus() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    console.log("Auth user:", user)
+    console.log("Auth error:", userError)
+
+    if (user) {
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single()
+
+      console.log("Profile:", profile)
+      console.log("Profile error:", profileError)
+    }
+
+    return { user, userError }
+  } catch (error) {
+    console.error("Debug error:", error)
+    return { error }
+  }
 }

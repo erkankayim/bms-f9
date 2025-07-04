@@ -1,5 +1,5 @@
-import { UserForm } from "../_components/user-form"
 import { getCurrentUserRole } from "../_actions/users-actions"
+import { UserForm } from "../_components/user-form"
 import { redirect } from "next/navigation"
 
 export default async function NewUserPage() {

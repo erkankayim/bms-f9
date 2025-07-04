@@ -1,17 +1,33 @@
 import { Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Users } from "lucide-react"
+import { Plus, Users, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { UsersList } from "./_components/users-list"
-import { getCurrentUserRole } from "./_actions/users-actions"
-import { redirect } from "next/navigation"
+import { getCurrentUserRole, debugUserStatus } from "./_actions/users-actions"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default async function UsersPage() {
+  // Debug user status
+  const debugInfo = await debugUserStatus()
+  console.log("Debug info:", debugInfo)
+
   const userRole = await getCurrentUserRole()
+  console.log("Current user role:", userRole)
 
   if (userRole !== "admin") {
-    redirect("/")
+    return (
+      <div className="container mx-auto py-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Bu sayfaya erişim için yönetici yetkisi gereklidir. Mevcut rol: {userRole || "Bilinmiyor"}
+            <br />
+            Debug bilgisi: {JSON.stringify(debugInfo, null, 2)}
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
   }
 
   return (
