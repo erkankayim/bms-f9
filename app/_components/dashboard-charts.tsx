@@ -1,8 +1,6 @@
 "use client"
 
 import {
-  Line,
-  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,6 +10,8 @@ import {
   Pie,
   PieChart,
   Cell,
+  Area,
+  AreaChart,
 } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -35,43 +35,63 @@ export default function DashboardCharts({
   topProducts,
 }: DashboardChartsProps) {
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-      {/* Sales Trend */}
-      <Card className="shadow-sm">
+    <div className="grid gap-6 md:grid-cols-2">
+      {/* Satış Trendi - Area Chart */}
+      <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardHeader>
-          <CardTitle>Satış Trendi</CardTitle>
-          <CardDescription>Son 6 ayın satış performansı</CardDescription>
+          <CardTitle className="flex items-center gap-2">📈 Satış Trendi</CardTitle>
+          <CardDescription>Son 6 ayın satış performansı ve gelir analizi</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
             config={{
               sales: { label: "Satış Adedi", color: "hsl(var(--chart-1))" },
+              revenue: { label: "Gelir (TL)", color: "hsl(var(--chart-2))" },
             }}
             className="h-[300px]"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesTrendData}>
+              <AreaChart data={salesTrendData}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-sales)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-sales)" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} />
-              </LineChart>
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  formatter={(value, name) => [
+                    name === "revenue" ? `₺${Number(value).toLocaleString("tr-TR")}` : value,
+                    name === "sales" ? "Satış Adedi" : "Gelir",
+                  ]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="var(--color-sales)"
+                  fillOpacity={0.6}
+                  fill="url(#colorSales)"
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </ChartContainer>
         </CardContent>
       </Card>
 
-      {/* Customer Growth */}
-      <Card className="shadow-sm">
+      {/* Müşteri Büyümesi */}
+      <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardHeader>
-          <CardTitle>Müşteri Büyümesi</CardTitle>
-          <CardDescription>Aylık yeni müşteri kazanımı</CardDescription>
+          <CardTitle className="flex items-center gap-2">👥 Müşteri Büyümesi</CardTitle>
+          <CardDescription>Aylık yeni müşteri kazanımı ve toplam müşteri sayısı</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer
             config={{
               newCustomers: { label: "Yeni Müşteriler", color: "hsl(var(--chart-3))" },
+              totalCustomers: { label: "Toplam Müşteri", color: "hsl(var(--chart-4))" },
             }}
             className="h-[300px]"
           >
@@ -81,18 +101,18 @@ export default function DashboardCharts({
                 <XAxis dataKey="month" />
                 <YAxis />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="newCustomers" fill="var(--color-newCustomers)" />
+                <Bar dataKey="newCustomers" fill="var(--color-newCustomers)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
         </CardContent>
       </Card>
 
-      {/* Revenue by Category */}
-      <Card className="shadow-sm">
+      {/* Kategoriye Göre Gelir */}
+      <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardHeader>
-          <CardTitle>Kategoriye Göre Gelir</CardTitle>
-          <CardDescription>Gelir dağılımı analizi</CardDescription>
+          <CardTitle className="flex items-center gap-2">🎯 Gelir Dağılımı</CardTitle>
+          <CardDescription>Kategorilere göre gelir analizi</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={{ value: { label: "Gelir", color: "hsl(var(--chart-4))" } }} className="h-[300px]">
@@ -110,17 +130,20 @@ export default function DashboardCharts({
                     <Cell key={idx} fill={entry.color} />
                   ))}
                 </Pie>
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  formatter={(value) => [`₺${Number(value).toLocaleString("tr-TR")}`, "Gelir"]}
+                />
               </PieChart>
             </ResponsiveContainer>
           </ChartContainer>
         </CardContent>
       </Card>
 
-      {/* Top Products */}
-      <Card className="shadow-sm">
+      {/* En Çok Satan Ürünler */}
+      <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardHeader>
-          <CardTitle>En Çok Satan Ürünler</CardTitle>
+          <CardTitle className="flex items-center gap-2">🏆 En Çok Satan Ürünler</CardTitle>
           <CardDescription>Satış performansına göre sıralama</CardDescription>
         </CardHeader>
         <CardContent>
@@ -130,8 +153,11 @@ export default function DashboardCharts({
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={120} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="sales" fill="var(--color-sales)" />
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  formatter={(value, name) => [`${value} adet`, "Satış Miktarı"]}
+                />
+                <Bar dataKey="sales" fill="var(--color-sales)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
