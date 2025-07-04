@@ -34,24 +34,9 @@ export function DeleteCustomerDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleAction = async () => {
-    console.log("handleAction called with:", { customerId, customerName, isDeleted })
-    console.log("deleteAction:", deleteAction)
-    console.log("restoreAction:", restoreAction)
-
-    if (!customerId || typeof customerId !== "string") {
-      const errorMsg = "Geçersiz müşteri ID"
-      console.error("Invalid customer ID:", customerId)
-      setError(errorMsg)
-      toast.error(errorMsg)
-      return
-    }
-
-    if (!deleteAction || !restoreAction) {
-      const errorMsg = "Action fonksiyonları bulunamadı"
-      console.error("Missing action functions:", { deleteAction, restoreAction })
-      setError(errorMsg)
-      toast.error(errorMsg)
+  const handleDelete = async () => {
+    if (!customerId) {
+      toast.error("Müşteri ID bulunamadı")
       return
     }
 
@@ -59,33 +44,19 @@ export function DeleteCustomerDialog({
     setError(null)
 
     try {
-      console.log(`Attempting ${isDeleted ? "restore" : "delete"} for customer:`, customerId)
+      const result = await deleteAction(customerId)
 
-      const actionToCall = isDeleted ? restoreAction : deleteAction
-      console.log("Action function to call:", actionToCall)
-
-      if (typeof actionToCall !== "function") {
-        throw new Error("Action is not a function")
-      }
-
-      const result = await actionToCall(customerId)
-      console.log("Action result:", result)
-
-      if (result && result.success) {
-        toast.success(result.message || "İşlem başarılı")
+      if (result.success) {
+        toast.success(result.message)
         setOpen(false)
-        // Sayfayı yenile
-        setTimeout(() => {
-          window.location.reload()
-        }, 500)
+        window.location.reload()
       } else {
-        const errorMsg = result?.message || "İşlem başarısız oldu"
-        setError(errorMsg)
-        toast.error(errorMsg)
+        setError(result.message)
+        toast.error(result.message)
       }
     } catch (err) {
-      console.error("Customer action error:", err)
-      const errorMessage = "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin."
+      console.error("Delete error:", err)
+      const errorMessage = "Silme işlemi başarısız oldu"
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -93,14 +64,40 @@ export function DeleteCustomerDialog({
     }
   }
 
-  // ID ve action kontrolü
-  const isValidId = customerId && typeof customerId === "string" && customerId.trim().length > 0
-  const hasValidActions = typeof deleteAction === "function" && typeof restoreAction === "function"
+  const handleRestore = async () => {
+    if (!customerId) {
+      toast.error("Müşteri ID bulunamadı")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const result = await restoreAction(customerId)
+
+      if (result.success) {
+        toast.success(result.message)
+        setOpen(false)
+        window.location.reload()
+      } else {
+        setError(result.message)
+        toast.error(result.message)
+      }
+    } catch (err) {
+      console.error("Restore error:", err)
+      const errorMessage = "Geri yükleme işlemi başarısız oldu"
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isDeleted ? "outline" : "destructive"} size="sm" disabled={!isValidId || !hasValidActions}>
+        <Button variant={isDeleted ? "outline" : "destructive"} size="sm">
           {isDeleted ? (
             <>
               <RotateCcw className="mr-2 h-4 w-4" />
@@ -109,7 +106,7 @@ export function DeleteCustomerDialog({
           ) : (
             <>
               <Trash2 className="mr-2 h-4 w-4" />
-              Arşivle
+              Sil
             </>
           )}
         </Button>
@@ -118,18 +115,16 @@ export function DeleteCustomerDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            {isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Arşivle"}
+            {isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Sil"}
           </DialogTitle>
           <DialogDescription>
             {isDeleted ? (
               <>
-                <strong>{customerName}</strong> müşterisini geri yüklemek istediğinizden emin misiniz? Bu işlem
-                müşteriyi aktif duruma getirecektir.
+                <strong>{customerName}</strong> müşterisini geri yüklemek istediğinizden emin misiniz?
               </>
             ) : (
               <>
-                <strong>{customerName}</strong> müşterisini arşivlemek istediğinizden emin misiniz? Bu işlem müşteriyi
-                gizleyecek ancak veriler korunacaktır.
+                <strong>{customerName}</strong> müşterisini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
               </>
             )}
           </DialogDescription>
@@ -148,10 +143,10 @@ export function DeleteCustomerDialog({
           </Button>
           <Button
             variant={isDeleted ? "default" : "destructive"}
-            onClick={handleAction}
-            disabled={loading || !isValidId || !hasValidActions}
+            onClick={isDeleted ? handleRestore : handleDelete}
+            disabled={loading}
           >
-            {loading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
+            {loading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Sil"}
           </Button>
         </DialogFooter>
       </DialogContent>
