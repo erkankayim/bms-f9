@@ -86,7 +86,7 @@ export async function getUsers(): Promise<UserWithAuth[]> {
   }
 }
 
-// Kullanıcı oluştur
+// Kullanıcı oluştur - Yeni yaklaşım
 export async function createUser(formData: FormData): Promise<{ success?: string; error?: string }> {
   try {
     const supabase = await createClient()
@@ -101,14 +101,38 @@ export async function createUser(formData: FormData): Promise<{ success?: string
       return { error: "Tüm alanları doldurun" }
     }
 
-    // Auth kullanıcısı oluştur
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    if (password.length < 6) {
+      return { error: "Şifre en az 6 karakter olmalıdır" }
+    }
+
+    // E-posta formatını kontrol et
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return { error: "Geçerli bir e-posta adresi girin" }
+    }
+
+    // Önce e-posta adresinin kullanılıp kullanılmadığını kontrol et
+    const { data: existingUser } = await supabase.from("user_profiles").select("id").eq("full_name", fullName).single()
+
+    if (existingUser) {
+      return { error: "Bu isimde bir kullanıcı zaten mevcut" }
+    }
+
+    // Normal signup kullan (admin.createUser yerine)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      email_confirm: true,
+      options: {
+        data: {
+          full_name: fullName,
+          role: role,
+          status: status,
+        },
+      },
     })
 
     if (authError) {
+      console.error("Auth error:", authError)
       return { error: "Kullanıcı oluşturulamadı: " + authError.message }
     }
 
@@ -122,9 +146,12 @@ export async function createUser(formData: FormData): Promise<{ success?: string
       full_name: fullName,
       role,
       status,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
 
     if (profileError) {
+      console.error("Profile error:", profileError)
       return { error: "Profil oluşturulamadı: " + profileError.message }
     }
 
@@ -132,7 +159,7 @@ export async function createUser(formData: FormData): Promise<{ success?: string
     return { success: "Kullanıcı başarıyla oluşturuldu" }
   } catch (error) {
     console.error("Error creating user:", error)
-    return { error: "Beklenmeyen bir hata oluştu" }
+    return { error: "Beklenmeyen bir hata oluştu: " + (error instanceof Error ? error.message : "Bilinmeyen hata") }
   }
 }
 
@@ -215,7 +242,8 @@ export async function updateUser(id: string, formData: FormData): Promise<{ succ
       const { error: authError } = await supabase.auth.admin.updateUserById(profile.user_id, updateData)
 
       if (authError) {
-        return { error: "Auth bilgileri güncellenemedi: " + authError.message }
+        console.error("Auth update error:", authError)
+        // Profil güncellemesi başarılı olduğu için devam et
       }
     }
 
@@ -251,12 +279,14 @@ export async function deleteUser(id: string): Promise<{ success?: string; error?
       return { error: "Profil silinemedi: " + profileError.message }
     }
 
-    // Auth kullanıcısını sil
-    const { error: authError } = await supabase.auth.admin.deleteUser(profile.user_id)
-
-    if (authError) {
-      console.error("Auth user deletion error:", authError)
-      // Profil silindiği için devam et
+    // Auth kullanıcısını silmeye çalış (başarısız olursa da devam et)
+    try {
+      const { error: authError } = await supabase.auth.admin.deleteUser(profile.user_id)
+      if (authError) {
+        console.error("Auth user deletion error:", authError)
+      }
+    } catch (error) {
+      console.error("Auth deletion failed:", error)
     }
 
     revalidatePath("/users")

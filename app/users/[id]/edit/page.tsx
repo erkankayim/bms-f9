@@ -1,48 +1,40 @@
-import { notFound } from "next/navigation"
-import { getUser, updateUser, getCurrentUserRole } from "@/app/users/_actions/user-actions"
+import { getCurrentUserRole, getUser, updateUser } from "@/app/users/_actions/user-actions"
 import { UserForm } from "@/app/users/_components/user-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { redirect, notFound } from "next/navigation"
 
 interface EditUserPageProps {
-  params: Promise<{ id: string }>
+  params: {
+    id: string
+  }
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
-  const { id } = await params
   const currentRole = await getCurrentUserRole()
 
   if (currentRole !== "admin") {
-    return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Erişim Reddedildi</CardTitle>
-            <CardDescription>Bu sayfaya erişim için yönetici yetkisi gereklidir.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    )
+    redirect("/users")
   }
 
-  const user = await getUser(id)
+  const user = await getUser(params.id)
 
   if (!user) {
     notFound()
   }
 
-  async function handleUpdateUser(formData: FormData) {
+  const updateUserWithId = async (formData: FormData) => {
     "use server"
-    return await updateUser(id, formData)
+    return await updateUser(params.id, formData)
   }
 
   return (
     <div className="container mx-auto py-8">
       <div className="flex items-center gap-4 mb-8">
         <Button variant="outline" size="sm" asChild>
-          <Link href={`/users/${id}`}>
+          <Link href="/users">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Geri
           </Link>
@@ -61,7 +53,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <UserForm user={user} action={handleUpdateUser} submitText="Değişiklikleri Kaydet" />
+          <UserForm user={user} action={updateUserWithId} submitText="Kullanıcıyı Güncelle" />
         </CardContent>
       </Card>
     </div>
