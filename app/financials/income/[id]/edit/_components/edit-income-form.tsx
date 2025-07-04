@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -112,26 +111,25 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
-            Gelir Kaydını Düzenle
+            Edit Income
           </CardTitle>
-          <CardDescription>Gelir kaydı bilgilerini güncelleyin</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="description">Açıklama *</Label>
+                <Label htmlFor="description">Description *</Label>
                 <Input
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Gelir açıklaması"
+                  placeholder="Income description"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="incoming_amount">Tutar *</Label>
+                <Label htmlFor="incoming_amount">Amount *</Label>
                 <Input
                   id="incoming_amount"
                   type="number"
@@ -147,17 +145,17 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="income_source">Gelir Kaynağı</Label>
+                <Label htmlFor="income_source">Income Source</Label>
                 <Input
                   id="income_source"
                   value={formData.income_source}
                   onChange={(e) => handleInputChange("income_source", e.target.value)}
-                  placeholder="Gelir kaynağı"
+                  placeholder="Income source"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Tarih</Label>
+                <Label>Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -165,7 +163,7 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
                       className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP", { locale: tr }) : "Tarih seçin"}
+                      {date ? format(date, "PPP", { locale: tr }) : "Select date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -177,16 +175,16 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="customer_mid">Müşteri</Label>
+                <Label htmlFor="customer_mid">Customer</Label>
                 <Select
                   value={formData.customer_mid}
                   onValueChange={(value) => handleInputChange("customer_mid", value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Müşteri seçin" />
+                    <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_customer">Müşteri Yok</SelectItem>
+                    <SelectItem value="default_customer">No Customer</SelectItem>
                     {customers.map((customer) => (
                       <SelectItem key={customer.mid} value={customer.mid}>
                         {customer.contact_name}
@@ -197,7 +195,7 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="payment_method">Ödeme Yöntemi</Label>
+                <Label htmlFor="payment_method">Payment Method</Label>
                 <Select
                   value={formData.payment_method}
                   onValueChange={(value) => handleInputChange("payment_method", value)}
@@ -206,11 +204,11 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Nakit</SelectItem>
-                    <SelectItem value="credit_card">Kredi Kartı</SelectItem>
-                    <SelectItem value="bank_transfer">Banka Havalesi</SelectItem>
-                    <SelectItem value="check">Çek</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -218,13 +216,13 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="category_id">Kategori</Label>
+                <Label htmlFor="category_id">Category</Label>
                 <Select value={formData.category_id} onValueChange={(value) => handleInputChange("category_id", value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Kategori seçin" />
+                    <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_category">Kategori Yok</SelectItem>
+                    <SelectItem value="default_category">No Category</SelectItem>
                     {categories.map((category) => (
                       <SelectItem key={category.id} value={category.id.toString()}>
                         {category.name}
@@ -235,37 +233,37 @@ export function EditIncomeForm({ incomeEntry }: EditIncomeFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="invoice_number">Fatura Numarası</Label>
+                <Label htmlFor="invoice_number">Invoice Number</Label>
                 <Input
                   id="invoice_number"
                   value={formData.invoice_number}
                   onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                  placeholder="Fatura numarası"
+                  placeholder="Invoice number"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
+              <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Ek notlar..."
+                placeholder="Additional notes..."
                 rows={3}
               />
             </div>
 
             <div className="flex gap-4">
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Güncelleniyor..." : "Gelir Kaydını Güncelle"}
+                {isLoading ? "Updating..." : "Update Income"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.push(`/financials/income/${incomeEntry.id}`)}
               >
-                İptal
+                Cancel
               </Button>
             </div>
           </form>
