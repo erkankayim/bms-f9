@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createUser, updateUser } from "../_actions/users-actions"
 import type { UserWithAuth } from "@/app/lib/types"
 
@@ -15,7 +16,7 @@ interface UserFormProps {
 }
 
 export function UserForm({ user, mode }: UserFormProps) {
-  const action = mode === "create" ? createUser : updateUser.bind(null, user?.id || "")
+  const action = mode === "create" ? createUser : updateUser.bind(null, user!.id)
   const [state, formAction, isPending] = useActionState(action, null)
 
   return (
@@ -30,13 +31,7 @@ export function UserForm({ user, mode }: UserFormProps) {
         <form action={formAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="fullName">Ad Soyad</Label>
-            <Input
-              id="fullName"
-              name="fullName"
-              defaultValue={user?.full_name || ""}
-              required
-              placeholder="Kullanıcının tam adı"
-            />
+            <Input id="fullName" name="fullName" defaultValue={user?.full_name} required disabled={isPending} />
           </div>
 
           <div className="space-y-2">
@@ -45,13 +40,11 @@ export function UserForm({ user, mode }: UserFormProps) {
               id="email"
               name="email"
               type="email"
-              defaultValue={mode === "edit" ? "" : ""}
+              defaultValue={user?.email}
               required={mode === "create"}
-              placeholder="kullanici@example.com"
+              disabled={isPending}
+              placeholder={mode === "edit" ? "Değiştirmek için yeni e-posta girin" : ""}
             />
-            {mode === "edit" && (
-              <p className="text-sm text-muted-foreground">E-posta değiştirmek için yeni e-posta adresini girin</p>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -61,18 +54,16 @@ export function UserForm({ user, mode }: UserFormProps) {
               name="password"
               type="password"
               required={mode === "create"}
-              placeholder={mode === "create" ? "En az 6 karakter" : "Değiştirmek için yeni şifre girin"}
+              disabled={isPending}
+              placeholder={mode === "edit" ? "Değiştirmek için yeni şifre girin" : ""}
             />
-            {mode === "edit" && (
-              <p className="text-sm text-muted-foreground">Şifreyi değiştirmek istemiyorsanız boş bırakın</p>
-            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="role">Rol</Label>
-            <Select name="role" defaultValue={user?.role || "tech"}>
+            <Select name="role" defaultValue={user?.role || "tech"} disabled={isPending}>
               <SelectTrigger>
-                <SelectValue placeholder="Kullanıcı rolü seçin" />
+                <SelectValue placeholder="Rol seçin" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Yönetici</SelectItem>
@@ -84,9 +75,9 @@ export function UserForm({ user, mode }: UserFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="status">Durum</Label>
-            <Select name="status" defaultValue={user?.status || "active"}>
+            <Select name="status" defaultValue={user?.status || "active"} disabled={isPending}>
               <SelectTrigger>
-                <SelectValue placeholder="Kullanıcı durumu seçin" />
+                <SelectValue placeholder="Durum seçin" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Aktif</SelectItem>
@@ -95,16 +86,16 @@ export function UserForm({ user, mode }: UserFormProps) {
             </Select>
           </div>
 
-          {state && (
-            <div
-              className={`p-3 rounded-md text-sm ${
-                state.success
-                  ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
-              }`}
-            >
-              {state.message}
-            </div>
+          {state && !state.success && (
+            <Alert variant="destructive">
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
+          )}
+
+          {state && state.success && (
+            <Alert>
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
           )}
 
           <div className="flex gap-2">

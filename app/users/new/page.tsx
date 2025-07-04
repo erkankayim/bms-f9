@@ -6,7 +6,7 @@ export default async function NewUserPage() {
   const userRole = await getCurrentUserRole()
 
   if (userRole !== "admin") {
-    redirect("/users")
+    redirect("/")
   }
 
   return (

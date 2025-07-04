@@ -16,7 +16,7 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
   const userRole = await getCurrentUserRole()
 
   if (userRole !== "admin") {
-    redirect("/users")
+    redirect("/")
   }
 
   const user = await getUserById(params.id)
@@ -31,7 +31,7 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
         <Button asChild variant="outline">
           <Link href="/users">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Geri
+            Geri Dön
           </Link>
         </Button>
       </div>
@@ -54,13 +54,13 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h3 className="font-semibold text-sm text-muted-foreground">Rol</h3>
+              <h3 className="font-semibold mb-2">Rol</h3>
               <Badge variant={user.role === "admin" ? "default" : user.role === "acc" ? "secondary" : "outline"}>
                 {user.role === "admin" ? "Yönetici" : user.role === "acc" ? "Muhasebe" : "Teknisyen"}
               </Badge>
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-muted-foreground">Durum</h3>
+              <h3 className="font-semibold mb-2">Durum</h3>
               <Badge variant={user.status === "active" ? "default" : "destructive"}>
                 {user.status === "active" ? "Aktif" : "Pasif"}
               </Badge>
@@ -69,12 +69,28 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <h3 className="font-semibold text-sm text-muted-foreground">Oluşturulma Tarihi</h3>
-              <p className="text-sm">{new Date(user.created_at).toLocaleDateString("tr-TR")}</p>
+              <h3 className="font-semibold mb-2">Oluşturulma Tarihi</h3>
+              <p className="text-sm text-muted-foreground">
+                {new Date(user.created_at).toLocaleDateString("tr-TR", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-muted-foreground">Son Güncelleme</h3>
-              <p className="text-sm">{new Date(user.updated_at).toLocaleDateString("tr-TR")}</p>
+              <h3 className="font-semibold mb-2">Son Güncelleme</h3>
+              <p className="text-sm text-muted-foreground">
+                {new Date(user.updated_at).toLocaleDateString("tr-TR", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
             </div>
           </div>
         </CardContent>

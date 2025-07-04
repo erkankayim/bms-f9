@@ -362,7 +362,7 @@ export async function fixAdminProfile() {
 
     if (error) {
       console.error("Profile upsert error:", error)
-      return { success: false, message: "Profil oluşturulamadı" }
+      return { success: false, message: "Profil oluşturulamadı: " + error.message }
     }
 
     revalidatePath("/users")

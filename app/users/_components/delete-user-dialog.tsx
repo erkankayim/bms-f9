@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
 import { deleteUser } from "../_actions/users-actions"
-import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 
 interface DeleteUserDialogProps {
@@ -25,21 +24,19 @@ interface DeleteUserDialogProps {
 
 export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const router = useRouter()
 
-  const handleDelete = async () => {
+  async function handleDelete() {
+    setIsDeleting(true)
     try {
-      setIsDeleting(true)
-      await deleteUser(userId)
+      const result = await deleteUser(userId)
       toast({
         title: "Başarılı",
-        description: "Kullanıcı başarıyla silindi",
+        description: result.message,
       })
-      router.refresh()
     } catch (error) {
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Kullanıcı silinirken hata oluştu",
+        description: error instanceof Error ? error.message : "Kullanıcı silinemedi",
         variant: "destructive",
       })
     } finally {
@@ -63,8 +60,8 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogCancel disabled={isDeleting}>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
             {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>

@@ -14,7 +14,7 @@ export async function UsersList() {
       return (
         <Card>
           <CardContent className="p-6">
-            <p className="text-center text-muted-foreground">Henüz kullanıcı bulunmuyor.</p>
+            <div className="text-center text-muted-foreground">Henüz kullanıcı bulunmuyor.</div>
           </CardContent>
         </Card>
       )
@@ -41,20 +41,25 @@ export async function UsersList() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/users/${user.id}`}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    Görüntüle
-                  </Link>
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/users/${user.id}/edit`}>
-                    <Edit className="h-4 w-4 mr-1" />
-                    Düzenle
-                  </Link>
-                </Button>
-                <DeleteUserDialog userId={user.id} userName={user.full_name} />
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Oluşturulma: {new Date(user.created_at).toLocaleDateString("tr-TR")}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/users/${user.id}`}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      Görüntüle
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/users/${user.id}/edit`}>
+                      <Edit className="h-4 w-4 mr-1" />
+                      Düzenle
+                    </Link>
+                  </Button>
+                  <DeleteUserDialog userId={user.id} userName={user.full_name} />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -65,7 +70,9 @@ export async function UsersList() {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-center text-red-500">Kullanıcılar yüklenirken hata oluştu: {String(error)}</p>
+          <div className="text-center text-destructive">
+            Kullanıcılar yüklenirken hata oluştu: {error instanceof Error ? error.message : "Bilinmeyen hata"}
+          </div>
         </CardContent>
       </Card>
     )

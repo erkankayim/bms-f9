@@ -12,7 +12,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   const userRole = await getCurrentUserRole()
 
   if (userRole !== "admin") {
-    redirect("/users")
+    redirect("/")
   }
 
   const user = await getUserById(params.id)
