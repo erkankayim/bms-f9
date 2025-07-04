@@ -1,35 +1,46 @@
 "use client"
 
-import { useState } from "react"
-import { signUp } from "../_actions/auth-actions"
+import { useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
-import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { registerAction } from "../actions"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function RegisterPage() {
-  const [message, setMessage] = useState("")
-  const [isError, setIsError] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+  const { toast } = useToast()
 
   async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
-    setMessage("")
+    startTransition(async () => {
+      try {
+        const result = await registerAction(null, formData)
 
-    const result = await signUp(formData)
-
-    if (result?.error) {
-      setMessage(result.error)
-      setIsError(true)
-    } else if (result?.success) {
-      setMessage(result.success)
-      setIsError(false)
-    }
-
-    setIsLoading(false)
+        if (result.success) {
+          toast({
+            title: "Başarılı",
+            description: result.message || "Kayıt başarılı!",
+            variant: "default",
+          })
+          router.push("/auth/login")
+        } else {
+          toast({
+            title: "Hata",
+            description: result.message || "Kayıt başarısız",
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        toast({
+          title: "Hata",
+          description: "Beklenmeyen bir hata oluştu",
+          variant: "destructive",
+        })
+      }
+    })
   }
 
   return (
@@ -37,48 +48,29 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Kayıt Ol</CardTitle>
-          <CardDescription>Yeni hesap oluşturun</CardDescription>
+          <CardDescription>Yeni bir hesap oluşturmak için bilgilerinizi girin</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Ad Soyad</Label>
-              <Input id="fullName" name="fullName" type="text" required placeholder="Adınız Soyadınız" />
+              <Label htmlFor="name">Ad Soyad</Label>
+              <Input id="name" name="name" type="text" required disabled={isPending} />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input id="email" name="email" type="email" required placeholder="ornek@email.com" />
+              <Input id="email" name="email" type="email" required disabled={isPending} />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                minLength={6}
-                placeholder="En az 6 karakter"
-              />
+              <Input id="password" name="password" type="password" required disabled={isPending} minLength={6} />
             </div>
-            {message && (
-              <Alert variant={isError ? "destructive" : "default"}>
-                {isError ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            )}
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Kayıt yapılıyor..." : "Kayıt Ol"}
+
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Kayıt olunuyor..." : "Kayıt Ol"}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Zaten hesabınız var mı?{" "}
-              <Link href="/auth/login" className="text-primary hover:underline">
-                Giriş yapın
-              </Link>
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>

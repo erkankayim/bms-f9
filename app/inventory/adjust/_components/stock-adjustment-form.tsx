@@ -1,261 +1,176 @@
 "use client"
 
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { useActionState, useEffect, useState, useTransition } from "react"
+import React from "react"
+
+import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { adjustStockQuantityAction, searchProductsForAdjustment } from "../../../_actions/inventory-actions"
+import type { ProductSearchResult, StockAdjustmentFormState } from "../../../_actions/inventory-actions"
+import { useDebounce } from "@/hooks/use-debounce"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  adjustStockQuantityAction,
-  searchProductsForAdjustment,
-  type ProductSearchResult,
-} from "../../_actions/inventory-actions"
-
-const stockAdjustmentFormSchema = z.object({
-  productId: z.string().min(1, { message: "Ürün seçimi zorunludur." }),
-  productName: z.string().optional(), // Sadece UI'da göstermek için
-  quantity: z.coerce
-    .number({ invalid_type_error: "Miktar sayı olmalıdır." })
-    .refine((val) => val !== 0, { message: "Miktar 0 olamaz." }),
-  notes: z.string().optional(),
-})
-
-type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentFormSchema>
-
-const initialState = {
-  message: "",
-  errors: null as Record<string, string[] | undefined> | null | undefined,
-  success: false,
-}
 
 export function StockAdjustmentForm() {
-  const { toast } = useToast()
-  const [state, formAction, isPending] = useActionState(adjustStockQuantityAction, initialState)
-
-  const [isSearching, startSearchTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
   const [searchTerm, setSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null)
-  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const { toast } = useToast()
 
-  const form = useForm<StockAdjustmentFormValues>({
-    resolver: zodResolver(stockAdjustmentFormSchema),
-    defaultValues: {
-      productId: "",
-      productName: "",
-      quantity: 0, // Burası düzeltildi: "" as unknown as number yerine 0
-      notes: "",
-    },
-  })
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  useEffect(() => {
-    if (state?.success) {
-      toast({
-        title: "Başarılı!",
-        description: state.message || "Stok ayarlaması başarıyla kaydedildi.",
-      })
-      form.reset({
-        // Reset with proper default values
-        productId: "",
-        productName: "",
-        quantity: 0, // Burası da düzeltildi
-        notes: "",
-      })
-      setSelectedProduct(null)
-      setSearchTerm("")
+  // Ürün arama
+  React.useEffect(() => {
+    if (debouncedSearchTerm.length >= 2) {
+      setIsSearching(true)
+      searchProductsForAdjustment(debouncedSearchTerm)
+        .then((result) => {
+          if (result.success && result.data) {
+            setSearchResults(result.data)
+          } else {
+            setSearchResults([])
+          }
+        })
+        .catch(() => setSearchResults([]))
+        .finally(() => setIsSearching(false))
+    } else {
       setSearchResults([])
-    } else if (state?.message && !state.success && state.errors) {
+    }
+  }, [debouncedSearchTerm])
+
+  async function handleSubmit(formData: FormData) {
+    if (!selectedProduct) {
       toast({
-        title: "Hata!",
-        description: state.message,
+        title: "Hata",
+        description: "Lütfen bir ürün seçin",
         variant: "destructive",
       })
+      return
     }
-    if (state?.errors) {
-      Object.entries(state.errors).forEach(([key, value]) => {
-        if (value && value.length > 0) {
-          form.setError(key as keyof StockAdjustmentFormValues, { type: "manual", message: value.join(", ") })
-        }
-      })
-    }
-  }, [state, toast, form])
 
-  useEffect(() => {
-    console.log("[FORM] useEffect for searchTerm triggered. Current searchTerm:", searchTerm)
-    if (searchTerm.length > 1) {
-      startSearchTransition(async () => {
-        console.log("[FORM] Calling searchProductsForAdjustment with term:", searchTerm)
-        const result = await searchProductsForAdjustment(searchTerm)
-        console.log("[FORM] Received result from searchProductsForAdjustment:", result)
-        if (result.success && result.data) {
-          setSearchResults(result.data)
-          console.log("[FORM] Set searchResults in state:", result.data)
-        } else {
+    const initialState: StockAdjustmentFormState = {
+      success: false,
+      message: "",
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await adjustStockQuantityAction(initialState, formData)
+
+        if (result.success) {
+          toast({
+            title: "Başarılı",
+            description: result.message,
+            variant: "default",
+          })
+          // Formu temizle
+          setSelectedProduct(null)
+          setSearchTerm("")
           setSearchResults([])
-          console.log("[FORM] Cleared searchResults due to no data or error from action.")
-          if (result.error) {
-            toast({ title: "Arama Hatası", description: result.error, variant: "destructive" })
-          }
+          // Form elementlerini temizle
+          const form = document.querySelector("form") as HTMLFormElement
+          if (form) form.reset()
+        } else {
+          toast({
+            title: "Hata",
+            description: result.message,
+            variant: "destructive",
+          })
         }
-      })
-    } else {
-      if (searchTerm.length <= 1 && searchResults.length > 0) {
-        setSearchResults([])
-        console.log("[FORM] Cleared searchResults because searchTerm is too short.")
+      } catch (error) {
+        toast({
+          title: "Hata",
+          description: "Beklenmeyen bir hata oluştu",
+          variant: "destructive",
+        })
       }
-    }
-  }, [searchTerm, toast])
-
-  const handleProductSelect = (product: ProductSearchResult) => {
-    setSelectedProduct(product)
-    form.setValue("productId", product.id)
-    form.setValue("productName", `${product.name} (${product.stock_code})`)
-    form.clearErrors("productId")
-    setPopoverOpen(false)
-    setSearchTerm("")
-    setSearchResults([])
-  }
-
-  const handleFormSubmit = (data: StockAdjustmentFormValues) => {
-    console.log("[FORM] Submitting form with data:", data)
-    const formData = new FormData()
-    formData.append("productId", data.productId)
-    formData.append("quantity", String(data.quantity))
-    if (data.notes) {
-      formData.append("notes", data.notes)
-    }
-    formAction(formData)
+    })
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleFormSubmit)}
-        className="space-y-6 p-6 border rounded-lg shadow-sm bg-card text-card-foreground"
-      >
-        <FormField
-          control={form.control}
-          name="productId"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Ürün Seçin</FormLabel>
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={popoverOpen}
-                      className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                    >
-                      {selectedProduct
-                        ? `${selectedProduct.name} (${selectedProduct.stock_code}) - Mevcut Stok: ${selectedProduct.current_stock}`
-                        : "Ürün seçin veya arayın..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Ürün adı veya stok kodu ile ara..."
-                      value={searchTerm}
-                      onValueChange={setSearchTerm}
-                      disabled={isSearching}
-                      className="h-9"
-                    />
-                    <CommandList>
-                      {isSearching && (
-                        <div className="p-2 flex items-center justify-center">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="ml-2">Aranıyor...</span>
-                        </div>
-                      )}
-                      {!isSearching && searchResults.length === 0 && searchTerm.length > 1 && (
-                        <CommandEmpty>Ürün bulunamadı.</CommandEmpty>
-                      )}
-                      <CommandGroup>
-                        {searchResults.map((product) => (
-                          <CommandItem
-                            value={`${product.name} ${product.stock_code} ${product.id}`}
-                            key={product.id}
-                            onSelect={() => handleProductSelect(product)}
-                          >
-                            {product.name} ({product.stock_code})
-                            <Check
-                              className={cn(
-                                "ml-auto h-4 w-4",
-                                selectedProduct?.id === product.id ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Stok Ayarlama</CardTitle>
+        <CardDescription>Ürün stoklarını artırın veya azaltın</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="product-search">Ürün Ara</Label>
+            <Input
+              id="product-search"
+              type="text"
+              placeholder="Ürün adı veya stok kodu ile arayın..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isPending}
+            />
 
-        <FormField
-          control={form.control}
-          name="quantity"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Değişim Miktarı</FormLabel>
-              <FormControl>
-                {/* Ensure field.value is never undefined for controlled input */}
-                <Input type="number" placeholder="Örn: 10 veya -5" {...field} value={field.value ?? ""} />
-              </FormControl>
-              <FormDescription>
-                Stok artışı için pozitif (örn: 10), azalışı için negatif (örn: -5) bir değer girin.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            {isSearching && <p className="text-sm text-muted-foreground">Aranıyor...</p>}
 
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notlar (Opsiyonel)</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Ayarlama nedeni (örn: Yıl sonu sayım farkı)"
-                  className="resize-none"
-                  {...field}
-                  value={field.value ?? ""} // Ensure controlled
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            {searchResults.length > 0 && (
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                {searchResults.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0"
+                    onClick={() => {
+                      setSelectedProduct(product)
+                      setSearchTerm(product.name)
+                      setSearchResults([])
+                    }}
+                  >
+                    <div className="font-medium">{product.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Stok Kodu: {product.stock_code} | Mevcut: {product.current_stock}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-        <Button type="submit" disabled={isPending} className="w-full">
-          {isPending ? (
+          {selectedProduct && (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Kaydediliyor...
+              <input type="hidden" name="productId" value={selectedProduct.stock_code} />
+
+              <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium">{selectedProduct.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  Stok Kodu: {selectedProduct.stock_code} | Mevcut Stok: {selectedProduct.current_stock}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Değişim Miktarı</Label>
+                <Input
+                  id="quantity"
+                  name="quantity"
+                  type="number"
+                  placeholder="Pozitif: artır, Negatif: azalt"
+                  required
+                  disabled={isPending}
+                />
+                <p className="text-sm text-muted-foreground">Örnek: +10 (10 adet ekle), -5 (5 adet çıkar)</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notlar</Label>
+                <Textarea id="notes" name="notes" placeholder="Stok ayarlama sebebi..." disabled={isPending} />
+              </div>
+
+              <Button type="submit" disabled={isPending} className="w-full">
+                {isPending ? "Ayarlanıyor..." : "Stok Ayarla"}
+              </Button>
             </>
-          ) : (
-            "Stok Ayarlamasını Kaydet"
           )}
-        </Button>
-      </form>
-    </Form>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

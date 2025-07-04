@@ -1,10 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-import { Trash2, RotateCw, Loader2 } from "lucide-react"
-
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,68 +13,75 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Trash2, RotateCcw } from "lucide-react"
+import { deleteCustomer, restoreCustomer } from "../_actions/actions"
+import { useToast } from "@/components/ui/use-toast"
 
 interface DeleteCustomerDialogProps {
   customerId: string
   customerName: string
-  isDeleted: boolean
-  deleteAction: (customerId: string) => Promise<{ success: boolean; message: string }>
-  restoreAction: (customerId: string) => Promise<{ success: boolean; message: string }>
+  isDeleted?: boolean
 }
 
-export function DeleteCustomerDialog({
-  customerId,
-  customerName,
-  isDeleted,
-  deleteAction,
-  restoreAction,
-}: DeleteCustomerDialogProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
+export function DeleteCustomerDialog({ customerId, customerName, isDeleted = false }: DeleteCustomerDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const { toast } = useToast()
 
-  const action = isDeleted ? restoreAction : deleteAction
-  const actionText = isDeleted ? "Geri Yükle" : "Arşivle"
-  const title = isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Arşivle"
-  const description = isDeleted
-    ? `"${customerName}" adlı müşteriyi geri yüklemek istediğinizden emin misiniz? Müşteri tekrar aktif hale gelecektir.`
-    : `"${customerName}" adlı müşteriyi arşivlemek istediğinizden emin misiniz? Bu işlem müşteriyi silmez, sadece arşivler.`
+  async function handleAction() {
+    setIsLoading(true)
 
-  const handleSubmit = () => {
-    startTransition(async () => {
-      const result = await action(customerId)
+    try {
+      const result = isDeleted ? await restoreCustomer(customerId) : await deleteCustomer(customerId)
+
       if (result.success) {
-        toast.success(result.message)
-        setIsOpen(false)
-        router.refresh()
+        toast({
+          title: "Başarılı",
+          description: result.message,
+          variant: "default",
+        })
+        setOpen(false)
       } else {
-        toast.error(result.message)
+        toast({
+          title: "Hata",
+          description: result.message,
+          variant: "destructive",
+        })
       }
-    })
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "İşlem sırasında bir hata oluştu",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant={isDeleted ? "outline" : "destructive"} size="sm">
-          {isDeleted ? <RotateCw className="mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
-          {actionText}
+        <Button variant="outline" size="sm">
+          {isDeleted ? <RotateCcw className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle>{isDeleted ? "Müşteriyi Geri Yükle" : "Müşteriyi Arşivle"}</AlertDialogTitle>
+          <AlertDialogDescription>
+            <strong>{customerName}</strong> adlı müşteriyi {isDeleted ? "geri yüklemek" : "arşivlemek"} istediğinizden
+            emin misiniz?
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>İptal</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>İptal</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleSubmit}
-            disabled={isPending}
-            className={!isDeleted ? "bg-destructive hover:bg-destructive/90" : ""}
+            onClick={handleAction}
+            disabled={isLoading}
+            className={isDeleted ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
           >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {actionText}
+            {isLoading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

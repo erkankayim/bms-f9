@@ -143,7 +143,7 @@ export async function createUser(formData: FormData): Promise<{ success?: string
     console.log("Created profile:", profileData)
 
     revalidatePath("/users")
-    return { success: "Kullanıcı başarıyla oluşturuldu" }
+    return { success: `${fullName} adlı kullanıcı başarıyla oluşturuldu` }
   } catch (error) {
     console.error("Error creating user:", error)
     return { error: "Beklenmeyen bir hata oluştu: " + (error instanceof Error ? error.message : "Bilinmeyen hata") }
@@ -232,7 +232,7 @@ export async function updateUser(id: string, formData: FormData): Promise<{ succ
 
     revalidatePath("/users")
     revalidatePath(`/users/${id}`)
-    return { success: "Kullanıcı başarıyla güncellendi" }
+    return { success: `${fullName} adlı kullanıcının bilgileri başarıyla güncellendi` }
   } catch (error) {
     console.error("Error updating user:", error)
     return { error: "Beklenmeyen bir hata oluştu" }
@@ -244,15 +244,18 @@ export async function deleteUser(id: string): Promise<{ success?: string; error?
   try {
     const supabase = await createClient()
 
+    // Önce kullanıcı adını al
+    const { data: profile } = await supabase.from("user_profiles").select("full_name").eq("id", id).single()
+
     // Profili sil
     const { error: profileError } = await supabase.from("user_profiles").delete().eq("id", id)
 
     if (profileError) {
-      return { error: "Profil silinemedi: " + profileError.message }
+      return { error: "Kullanıcı silinemedi: " + profileError.message }
     }
 
     revalidatePath("/users")
-    return { success: "Kullanıcı başarıyla silindi" }
+    return { success: `${profile?.full_name || "Kullanıcı"} başarıyla silindi` }
   } catch (error) {
     console.error("Error deleting user:", error)
     return { error: "Beklenmeyen bir hata oluştu" }

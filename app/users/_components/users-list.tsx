@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Edit, Trash2, Eye, Plus } from "lucide-react"
 import { DeleteUserDialog } from "./delete-user-dialog"
+import { useToast } from "@/hooks/use-toast"
 import type { UserWithAuth } from "@/lib/auth"
 
 interface UsersListProps {
@@ -18,6 +19,7 @@ interface UsersListProps {
 export function UsersList({ users, deleteUser }: UsersListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<UserWithAuth | null>(null)
+  const { toast } = useToast()
 
   const handleDeleteClick = (user: UserWithAuth) => {
     setUserToDelete(user)
@@ -26,7 +28,21 @@ export function UsersList({ users, deleteUser }: UsersListProps) {
 
   const handleDeleteConfirm = async () => {
     if (userToDelete) {
-      await deleteUser(userToDelete.id.toString())
+      const result = await deleteUser(userToDelete.id.toString())
+
+      if (result.success) {
+        toast({
+          title: "Başarılı",
+          description: result.success,
+        })
+      } else if (result.error) {
+        toast({
+          title: "Hata",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+
       setDeleteDialogOpen(false)
       setUserToDelete(null)
     }
