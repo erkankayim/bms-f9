@@ -35,8 +35,13 @@ export function DeleteCustomerDialog({
   const [error, setError] = useState<string | null>(null)
 
   const handleAction = async () => {
-    if (!customerId) {
-      setError("Müşteri ID bulunamadı")
+    console.log("handleAction called with:", { customerId, customerName, isDeleted })
+
+    if (!customerId || typeof customerId !== "string") {
+      const errorMsg = "Geçersiz müşteri ID"
+      console.error("Invalid customer ID:", customerId)
+      setError(errorMsg)
+      toast.error(errorMsg)
       return
     }
 
@@ -46,20 +51,23 @@ export function DeleteCustomerDialog({
     try {
       console.log(`Attempting ${isDeleted ? "restore" : "delete"} for customer:`, customerId)
 
-      const result = isDeleted ? await restoreAction(customerId) : await deleteAction(customerId)
+      const actionToCall = isDeleted ? restoreAction : deleteAction
+      console.log("Action function:", actionToCall)
 
+      const result = await actionToCall(customerId)
       console.log("Action result:", result)
 
-      if (result.success) {
-        toast.success(result.message)
+      if (result && result.success) {
+        toast.success(result.message || "İşlem başarılı")
         setOpen(false)
         // Sayfayı yenile
         setTimeout(() => {
           window.location.reload()
         }, 500)
       } else {
-        setError(result.message || "İşlem başarısız oldu")
-        toast.error(result.message || "İşlem başarısız oldu")
+        const errorMsg = result?.message || "İşlem başarısız oldu"
+        setError(errorMsg)
+        toast.error(errorMsg)
       }
     } catch (err) {
       console.error("Customer action error:", err)
@@ -71,10 +79,13 @@ export function DeleteCustomerDialog({
     }
   }
 
+  // ID kontrolü
+  const isValidId = customerId && typeof customerId === "string" && customerId.trim().length > 0
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isDeleted ? "outline" : "destructive"} size="sm" disabled={!customerId}>
+        <Button variant={isDeleted ? "outline" : "destructive"} size="sm" disabled={!isValidId}>
           {isDeleted ? (
             <>
               <RotateCcw className="mr-2 h-4 w-4" />
@@ -123,7 +134,7 @@ export function DeleteCustomerDialog({
           <Button
             variant={isDeleted ? "default" : "destructive"}
             onClick={handleAction}
-            disabled={loading || !customerId}
+            disabled={loading || !isValidId}
           >
             {loading ? "İşleniyor..." : isDeleted ? "Geri Yükle" : "Arşivle"}
           </Button>
