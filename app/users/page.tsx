@@ -4,7 +4,9 @@ import { UsersList } from "./_components/users-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Plus } from "lucide-react"
+import Link from "next/link"
+import { redirect } from "next/navigation"
 
 async function DebugInfo() {
   const debugInfo = await debugUserStatus()
@@ -23,6 +25,7 @@ async function FixAdminButton() {
     "use server"
     const result = await fixAdminProfile()
     console.log("Fix admin result:", result)
+    redirect("/users")
   }
 
   return (
@@ -74,6 +77,12 @@ export default async function UsersPage() {
           <h1 className="text-3xl font-bold">Kullanıcı Yönetimi</h1>
           <p className="text-muted-foreground">Sistem kullanıcılarını yönetin</p>
         </div>
+        <Button asChild>
+          <Link href="/users/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Yeni Kullanıcı
+          </Link>
+        </Button>
       </div>
 
       <Suspense fallback={<div>Kullanıcılar yükleniyor...</div>}>

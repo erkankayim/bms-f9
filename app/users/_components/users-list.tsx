@@ -1,9 +1,9 @@
 import { getUsers } from "../_actions/users-actions"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Eye } from "lucide-react"
+import { Edit, Eye } from "lucide-react"
 import Link from "next/link"
 import { DeleteUserDialog } from "./delete-user-dialog"
 
@@ -11,21 +11,22 @@ export async function UsersList() {
   try {
     const users = await getUsers()
 
+    if (users.length === 0) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Kullanıcı Bulunamadı</CardTitle>
+            <CardDescription>Henüz hiç kullanıcı eklenmemiş.</CardDescription>
+          </CardHeader>
+        </Card>
+      )
+    }
+
     return (
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Kullanıcılar</CardTitle>
-              <CardDescription>Toplam {users.length} kullanıcı</CardDescription>
-            </div>
-            <Button asChild>
-              <Link href="/users/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Yeni Kullanıcı
-              </Link>
-            </Button>
-          </div>
+          <CardTitle>Kullanıcılar ({users.length})</CardTitle>
+          <CardDescription>Sistemdeki tüm kullanıcıları görüntüleyin ve yönetin</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -56,7 +57,7 @@ export async function UsersList() {
                   </TableCell>
                   <TableCell>{new Date(user.created_at).toLocaleDateString("tr-TR")}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/users/${user.id}`}>
                           <Eye className="h-4 w-4" />
@@ -78,14 +79,15 @@ export async function UsersList() {
       </Card>
     )
   } catch (error) {
+    console.error("Error loading users:", error)
     return (
       <Card>
         <CardHeader>
           <CardTitle>Hata</CardTitle>
-          <CardDescription>Kullanıcılar yüklenirken bir hata oluştu</CardDescription>
+          <CardDescription>Kullanıcılar yüklenirken bir hata oluştu.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-red-500">{error instanceof Error ? error.message : "Bilinmeyen hata"}</p>
+          <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Bilinmeyen hata"}</p>
         </CardContent>
       </Card>
     )

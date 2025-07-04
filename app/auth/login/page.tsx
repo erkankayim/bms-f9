@@ -9,14 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -32,13 +32,14 @@ export default function LoginPage() {
       })
 
       if (error) {
-        setError("Giriş başarısız: " + error.message)
-      } else {
-        router.push("/")
-        router.refresh()
+        setError("E-posta veya şifre hatalı")
+        return
       }
+
+      router.push("/")
+      router.refresh()
     } catch (error) {
-      setError("Bir hata oluştu")
+      setError("Giriş yapılırken bir hata oluştu")
     } finally {
       setIsLoading(false)
     }
@@ -64,7 +65,6 @@ export default function LoginPage() {
                 placeholder="admin@example.com"
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
               <Input
@@ -76,20 +76,17 @@ export default function LoginPage() {
                 placeholder="admin123"
               />
             </div>
-
             {error && (
               <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Giriş Yap
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
             </Button>
           </form>
-
-          <div className="mt-4 text-sm text-center text-muted-foreground">
+          <div className="mt-4 text-sm text-muted-foreground">
             <p>Test hesabı:</p>
             <p>E-posta: admin@example.com</p>
             <p>Şifre: admin123</p>

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { deleteUser } from "../_actions/users-actions"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -14,7 +13,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Loader2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
+import { deleteUser } from "../_actions/users-actions"
 import { toast } from "@/hooks/use-toast"
 
 interface DeleteUserDialogProps {
@@ -36,7 +36,7 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
     } catch (error) {
       toast({
         title: "Hata",
-        description: error instanceof Error ? error.message : "Kullanıcı silinemedi",
+        description: error instanceof Error ? error.message : "Kullanıcı silinirken bir hata oluştu",
         variant: "destructive",
       })
     } finally {
@@ -55,14 +55,17 @@ export function DeleteUserDialog({ userId, userName }: DeleteUserDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
           <AlertDialogDescription>
-            <strong>{userName}</strong> kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            <strong>{userName}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>İptal</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sil
+          <AlertDialogAction
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting ? "Siliniyor..." : "Sil"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

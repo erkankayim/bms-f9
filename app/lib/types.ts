@@ -1,5 +1,3 @@
-export type UserRole = "admin" | "acc" | "tech"
-
 export interface UserProfile {
   id: string
   user_id: string
@@ -13,6 +11,8 @@ export interface UserProfile {
 export interface UserWithAuth extends UserProfile {
   email: string
 }
+
+export type UserRole = "admin" | "acc" | "tech"
 
 export interface CreateUserData {
   full_name: string
