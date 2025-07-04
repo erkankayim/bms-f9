@@ -1,58 +1,44 @@
-"use server"
-
-/**
- * Bu dosya, gelir-gider ortak sunucu-aksiyonlarını barındırır.
- * Şu anda minimal/stub uygulamaları içerir; dilediğiniz zaman
- * Supabase sorgularıyla zenginleştirebilirsiniz.
- */
-
+;/ ""eeerrssuv
 import { revalidatePath } from "next/cache"
 
-/* ---------- Ortak yardımcılar ---------- */
-
-/**
- * Finansal kategori listesini döner.
- * type: "income" | "expense"
- */
-export async function getFinancialCategories(type: "income" | "expense" = "income") {
-  // Gerçek uygulamada Supabase sorgusu yapabilirsiniz
-  return {
-    data:
-      type === "income"
-        ? [{ id: 1, name: "Genel Gelir", type: "income", description: "Varsayılan gelir kategorisi" }]
-        : [{ id: 2, name: "Genel Gider", type: "expense", description: "Varsayılan gider kategorisi" }],
-  }
+interface IncomeActionResult {
+  success: boolean
+  message: string
+}
+interface ExpenseActionResult {
+  success: boolean
+  message: string
 }
 
-/**
- * Müşterileri dropdown için döner.
- */
+export async function getFinancialCategories(type: "expense" | "income") {
+  // Supabase select query eklenebilir
+  return [{ value: "category1", label: "Category 1" }]
+}
+
 export async function getCustomersForDropdown() {
-  return { data: [] } // Supabase sorgusu ekleyin
+  // Supabase select query eklenebilir
+  return [{ value: "customer1", label: "Customer 1" }]
 }
-
-/* ---------- Gelir (Income) ---------- */
 
 export async function getIncomeEntryById(id: string) {
-  return { data: null } // Supabase sorgusu ekleyin
+  // Supabase select query eklenebilir
+  return { id: id, amount: 100 }
 }
 
-export async function updateIncomeEntryAction(id: string, _prev: any, _formData: FormData) {
-  // … doğrulama ve DB güncellemesi
+export async function updateIncomeEntryAction(id: string, prev: any, formData: FormData) {
+  // Supabase update query eklenebilir
   revalidatePath("/financials/income")
-  return { success: true }
+  return { success: true, message: "Income entry updated successfully" }
 }
 
 export async function deleteIncomeEntry(id: string) {
-  // … Supabase delete
+  // Supabase delete query eklenebilir
   revalidatePath("/financials/income")
-  return { success: true }
+  return { success: true, message: "Income entry deleted successfully" }
 }
 
-/* ---------- Gider (Expense) ---------- */
-
-export async function updateExpenseEntry(id: string, _prev: any, _formData: FormData) {
-  // … doğrulama ve DB güncellemesi
+export async function updateExpenseEntry(id: string, prev: any, formData: FormData) {
+  // Supabase update query eklenebilir
   revalidatePath("/financials/expenses")
-  return { success: true }
+  return { success: true, message: "Expense entry updated successfully" }
 }
