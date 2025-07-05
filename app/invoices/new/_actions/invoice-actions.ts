@@ -11,15 +11,15 @@ const invoiceSchema = z.object({
   invoice_type: z.enum(["incoming", "outgoing"], {
     required_error: "Fatura türü seçimi zorunludur",
   }),
-  document_type: z.enum(["invoice", "receipt", "credit_note", "debit_note", "proforma", "other"]),
+  document_type: z.enum(["invoice", "receipt", "credit_note", "debit_note", "proforma", "other"]).default("invoice"),
   document_number: z.string().optional(),
   issue_date: z.string().min(1, "Düzenleme tarihi zorunludur"),
   due_date: z.string().optional(),
   customer_id: z.string().optional(),
   supplier_id: z.string().optional(),
-  total_amount: z.number().min(0, "Toplam tutar 0 veya daha büyük olmalıdır"),
-  tax_amount: z.number().min(0, "Vergi tutarı 0 veya daha büyük olmalıdır").default(0),
-  discount_amount: z.number().min(0, "İndirim tutarı 0 veya daha büyük olmalıdır").default(0),
+  total_amount: z.coerce.number().min(0, "Toplam tutar 0 veya daha büyük olmalıdır"),
+  tax_amount: z.coerce.number().min(0, "Vergi tutarı 0 veya daha büyük olmalıdır").default(0),
+  discount_amount: z.coerce.number().min(0, "İndirim tutarı 0 veya daha büyük olmalıdır").default(0),
   notes: z.string().optional(),
 })
 
