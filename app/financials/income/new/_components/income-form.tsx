@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useActionState } from "react"
+import { useRouter } from "next/navigation"
 import {
   createIncomeEntryAction,
   getFinancialCategories,
@@ -28,6 +29,7 @@ const initialState = {
 
 export default function IncomeForm() {
   const { toast } = useToast()
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(createIncomeEntryAction, initialState)
   const [categories, setCategories] = useState<FinancialCategory[]>([])
   const [customers, setCustomers] = useState<CustomerForDropdown[]>([])
@@ -82,7 +84,7 @@ export default function IncomeForm() {
     fetchData()
   }, [])
 
-  // Form sadece başarılı olduğunda sıfırlansın
+  // Form başarılı olduğunda yönlendir ve sıfırla
   useEffect(() => {
     if (state.success) {
       setFormKey(Date.now())
@@ -91,6 +93,8 @@ export default function IncomeForm() {
         description: state.message,
         variant: "default",
       })
+      // Başarılı işlem sonrası gelir listesine yönlendir
+      router.push("/financials/income")
     } else if (state.message && !state.success) {
       toast({
         title: "Hata",
@@ -98,7 +102,7 @@ export default function IncomeForm() {
         variant: "destructive",
       })
     }
-  }, [state.success, state.message, toast])
+  }, [state.success, state.message, toast, router])
 
   const getError = (field: string) => {
     if (!state.errors || !Array.isArray(state.errors)) return undefined
@@ -244,8 +248,8 @@ export default function IncomeForm() {
               {getError("category_id") && <p className="text-sm text-destructive">{getError("category_id")}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="mid">Müşteri (Opsiyonel)</Label>
-              <Select name="mid">
+              <Label htmlFor="customer_id">Müşteri (Opsiyonel)</Label>
+              <Select name="customer_id">
                 <SelectTrigger>
                   <SelectValue placeholder="Bir müşteri seçin (varsa)" />
                 </SelectTrigger>
@@ -270,7 +274,7 @@ export default function IncomeForm() {
                   )}
                 </SelectContent>
               </Select>
-              {getError("mid") && <p className="text-sm text-destructive">{getError("mid")}</p>}
+              {getError("customer_id") && <p className="text-sm text-destructive">{getError("customer_id")}</p>}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="h-3 w-3" />
                 <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>

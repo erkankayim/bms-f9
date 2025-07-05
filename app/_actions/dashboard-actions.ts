@@ -27,15 +27,16 @@ export type RecentCustomer = {
   created_at: string
 }
 
-export type MonthlyRevenue = {
+export type SalesGrowthData = {
   month: string
-  revenue: number
+  sales: number
+  customers: number
 }
 
-export type TopProduct = {
-  name: string
-  totalSold: number
-  revenue: number
+export type CustomerGrowthData = {
+  month: string
+  newCustomers: number
+  totalCustomers: number
 }
 
 // Helper function to construct customer name
@@ -232,7 +233,7 @@ export async function getRecentCustomers(limit = 3): Promise<{ data?: RecentCust
   }
 }
 
-export async function getMonthlyRevenue(): Promise<{ data?: MonthlyRevenue[]; error?: string }> {
+export async function getSalesGrowthData(): Promise<{ data?: SalesGrowthData[]; error?: string }> {
   noStore()
   const supabase = createClient()
 
@@ -242,7 +243,7 @@ export async function getMonthlyRevenue(): Promise<{ data?: MonthlyRevenue[]; er
 
     const { data: salesData, error } = await supabase
       .from("sales")
-      .select("sale_date, final_amount")
+      .select("sale_date, customer_mid")
       .gte("sale_date", sixMonthsAgo.toISOString())
       .not("status", "in", '("cancelled", "refunded")')
       .is("deleted_at", null)
@@ -251,84 +252,102 @@ export async function getMonthlyRevenue(): Promise<{ data?: MonthlyRevenue[]; er
     if (error) throw error
 
     // Aylık verileri grupla
-    const monthlyData = new Map<string, number>()
+    const monthlyData = new Map<string, { sales: number; customers: Set<string> }>()
 
     salesData?.forEach((sale) => {
       const date = new Date(sale.sale_date)
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-      const monthName = date.toLocaleDateString("tr-TR", { month: "short", year: "2-digit" })
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
 
       if (!monthlyData.has(monthName)) {
-        monthlyData.set(monthName, 0)
+        monthlyData.set(monthName, { sales: 0, customers: new Set() })
       }
-      monthlyData.set(monthName, monthlyData.get(monthName)! + (sale.final_amount || 0))
+
+      const current = monthlyData.get(monthName)!
+      current.sales += 1
+      if (sale.customer_mid) {
+        current.customers.add(sale.customer_mid)
+      }
     })
 
     // Son 6 ayı sırala ve formatla
-    const result: MonthlyRevenue[] = []
+    const result: SalesGrowthData[] = []
     for (let i = 5; i >= 0; i--) {
       const date = new Date()
       date.setMonth(date.getMonth() - i)
-      const monthName = date.toLocaleDateString("tr-TR", { month: "short", year: "2-digit" })
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
 
-      const revenue = monthlyData.get(monthName) || 0
+      const data = monthlyData.get(monthName) || { sales: 0, customers: new Set() }
       result.push({
         month: monthName,
-        revenue: revenue,
+        sales: data.sales,
+        customers: data.customers.size,
       })
     }
 
     return { data: result }
   } catch (error: any) {
-    console.error("Aylık gelir verileri alınırken hata:", error)
-    return { error: `Aylık gelir verileri alınırken hata: ${error.message}` }
+    console.error("Satış büyüme verileri alınırken hata:", error)
+    return { error: `Satış büyüme verileri alınırken hata: ${error.message}` }
   }
 }
 
-export async function getTopProducts(): Promise<{ data?: TopProduct[]; error?: string }> {
+export async function getCustomerGrowthData(): Promise<{ data?: CustomerGrowthData[]; error?: string }> {
   noStore()
   const supabase = createClient()
 
   try {
-    // Satış detaylarından en çok satan ürünleri al
-    const { data: salesItems, error } = await supabase
-      .from("sale_items")
-      .select(`
-        product_stock_code,
-        quantity,
-        unit_price,
-        products!inner(name, stock_code)
-      `)
-      .not("products.deleted_at", "is", null)
+    // Son 6 ayın verilerini al
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+    const { data: customersData, error } = await supabase
+      .from("customers")
+      .select("created_at")
+      .gte("created_at", sixMonthsAgo.toISOString())
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
 
     if (error) throw error
 
-    // Ürün bazında satış verilerini grupla
-    const productSales = new Map<string, { name: string; totalSold: number; revenue: number }>()
+    // Aylık yeni müşteri sayılarını hesapla
+    const monthlyNewCustomers = new Map<string, number>()
 
-    salesItems?.forEach((item: any) => {
-      const stockCode = item.product_stock_code
-      const productName = item.products?.name || `Ürün ${stockCode}`
-      const quantity = item.quantity || 0
-      const revenue = (item.quantity || 0) * (item.unit_price || 0)
+    customersData?.forEach((customer) => {
+      const date = new Date(customer.created_at)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
 
-      if (!productSales.has(stockCode)) {
-        productSales.set(stockCode, { name: productName, totalSold: 0, revenue: 0 })
-      }
-
-      const current = productSales.get(stockCode)!
-      current.totalSold += quantity
-      current.revenue += revenue
+      monthlyNewCustomers.set(monthName, (monthlyNewCustomers.get(monthName) || 0) + 1)
     })
 
-    // En çok satan 5 ürünü al
-    const result = Array.from(productSales.values())
-      .sort((a, b) => b.totalSold - a.totalSold)
-      .slice(0, 5)
+    // Toplam müşteri sayısını al
+    const { count: totalCustomersCount } = await supabase
+      .from("customers")
+      .select("mid", { count: "exact", head: true })
+      .is("deleted_at", null)
+
+    const result: CustomerGrowthData[] = []
+    let runningTotal = (totalCustomersCount || 0) - (customersData?.length || 0)
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date()
+      date.setMonth(date.getMonth() - i)
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
+
+      const newCustomers = monthlyNewCustomers.get(monthName) || 0
+      runningTotal += newCustomers
+
+      result.push({
+        month: monthName,
+        newCustomers,
+        totalCustomers: runningTotal,
+      })
+    }
 
     return { data: result }
   } catch (error: any) {
-    console.error("En çok satan ürünler alınırken hata:", error)
-    return { error: `En çok satan ürünler alınırken hata: ${error.message}` }
+    console.error("Müşteri büyüme verileri alınırken hata:", error)
+    return { error: `Müşteri büyüme verileri alınırken hata: ${error.message}` }
   }
 }

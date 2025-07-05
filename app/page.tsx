@@ -21,8 +21,8 @@ import {
   getDashboardStats,
   getRecentSales,
   getRecentCustomers,
-  getMonthlyRevenue,
-  getTopProducts,
+  getSalesGrowthData,
+  getCustomerGrowthData,
 } from "./_actions/dashboard-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrencyTR, formatSimpleDateTR, getSaleStatusBadgeVariant, formatSaleStatusTR } from "@/lib/utils"
@@ -31,20 +31,20 @@ import DashboardCharts from "./_components/dashboard-charts"
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
-  const [statsResult, recentSalesResult, recentCustomersResult, monthlyRevenueResult, topProductsResult] =
+  const [statsResult, recentSalesResult, recentCustomersResult, salesGrowthResult, customerGrowthResult] =
     await Promise.all([
       getDashboardStats(),
       getRecentSales(5),
       getRecentCustomers(3),
-      getMonthlyRevenue(),
-      getTopProducts(),
+      getSalesGrowthData(),
+      getCustomerGrowthData(),
     ])
 
   const stats = statsResult.data
   const recentSales = recentSalesResult.data
   const recentCustomers = recentCustomersResult.data
-  const monthlyRevenue = monthlyRevenueResult.data || []
-  const topProducts = topProductsResult.data || []
+  const salesGrowthData = salesGrowthResult.data || []
+  const customerGrowthData = customerGrowthResult.data || []
 
   if (statsResult.error || !stats) {
     return (
@@ -126,7 +126,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Grafikler */}
-        <DashboardCharts monthlyRevenue={monthlyRevenue} topProducts={topProducts} />
+        <DashboardCharts salesGrowthData={salesGrowthData} customerGrowthData={customerGrowthData} />
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
           {/* Recent Sales */}

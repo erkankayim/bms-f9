@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useActionState } from "react"
+import { useRouter } from "next/navigation"
 import {
   createExpenseEntryAction,
   getFinancialCategories,
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2, Receipt, Loader2, Info, Building2, User, Phone, Mail } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
 
 const initialState = {
   success: false,
@@ -26,6 +28,8 @@ const initialState = {
 }
 
 export default function ExpenseForm() {
+  const { toast } = useToast()
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(createExpenseEntryAction, initialState)
   const [categories, setCategories] = useState<FinancialCategory[]>([])
   const [suppliers, setSuppliers] = useState<SupplierForDropdown[]>([])
@@ -69,12 +73,25 @@ export default function ExpenseForm() {
     fetchData()
   }, [])
 
-  // Form sadece başarılı olduğunda sıfırlansın
+  // Form başarılı olduğunda yönlendir ve sıfırla
   useEffect(() => {
     if (state.success) {
       setFormKey(Date.now())
+      toast({
+        title: "Başarılı",
+        description: state.message,
+        variant: "default",
+      })
+      // Başarılı işlem sonrası gider listesine yönlendir
+      router.push("/financials/expenses")
+    } else if (state.message && !state.success) {
+      toast({
+        title: "Hata",
+        description: state.message,
+        variant: "destructive",
+      })
     }
-  }, [state.success])
+  }, [state.success, state.message, toast, router])
 
   const getError = (field: string) => {
     if (!state.errors || !Array.isArray(state.errors)) return undefined
