@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -8,7 +9,26 @@ import { Eye, ShoppingCart } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import type { Sale } from "./helpers"
 
-export default function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
+async function getCustomerSales(customerId: string): Promise<Sale[]> {
+  const supabase = createClient()
+
+  const { data: sales, error } = await supabase
+    .from("sales")
+    .select("id, sale_date, total_amount, status")
+    .eq("customer_id", customerId)
+    .order("sale_date", { ascending: false })
+
+  if (error) {
+    console.error("Error fetching sales:", error?.message)
+    return []
+  }
+
+  return sales as Sale[]
+}
+
+export default async function CustomerSalesHistory({ customerId }: { customerId: string }) {
+  const sales = await getCustomerSales(customerId)
+
   if (!sales || sales.length === 0) {
     return (
       <Alert>
@@ -39,7 +59,6 @@ export default function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
           <TableBody>
             {sales.map((sale) => (
               <TableRow key={sale.id}>
-                {/* FIX: Removed className from this TableCell to isolate the error */}
                 <TableCell>{sale.id || "-"}</TableCell>
                 <TableCell>{formatDate(sale.sale_date)}</TableCell>
                 <TableCell>
