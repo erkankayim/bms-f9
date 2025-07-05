@@ -22,12 +22,11 @@ import {
   FileText,
   BarChart2,
   DollarSign,
+  AlertCircle,
 } from "lucide-react"
-import { format } from "date-fns"
-import { formatDate, formatCurrency, formatSaleStatusTR, getSaleStatusBadgeVariant } from "@/lib/utils"
 import DeleteCustomerDialog from "./_components/delete-customer-dialog"
 
-// --- TYPE DEFINITIONS ---
+// Type definitions
 interface Customer {
   mid: string
   contact_name: string | null
@@ -64,32 +63,108 @@ interface Invoice {
   status: string | null
 }
 
-interface PurchaseInsights {
-  total_spending: number
-  total_orders: number
-  first_purchase_date: string | null
-  last_purchase_date: string | null
+// Utility functions
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+  }).format(amount)
 }
 
-// --- INLINE COMPONENTS ---
+function formatDate(dateString: string): string {
+  try {
+    return new Date(dateString).toLocaleDateString("tr-TR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  } catch {
+    return "Geçersiz tarih"
+  }
+}
+
+function formatDateTime(dateString: string): string {
+  try {
+    return new Date(dateString).toLocaleString("tr-TR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return "Geçersiz tarih"
+  }
+}
+
+function getStatusBadgeVariant(status: string | null): "default" | "secondary" | "destructive" | "outline" {
+  if (!status) return "secondary"
+
+  switch (status.toLowerCase()) {
+    case "completed":
+    case "paid":
+    case "tamamlandı":
+    case "ödendi":
+      return "default"
+    case "pending":
+    case "beklemede":
+      return "secondary"
+    case "cancelled":
+    case "iptal":
+      return "destructive"
+    default:
+      return "outline"
+  }
+}
+
+function formatStatus(status: string | null): string {
+  if (!status) return "Bilinmiyor"
+
+  const statusMap: Record<string, string> = {
+    completed: "Tamamlandı",
+    pending: "Beklemede",
+    cancelled: "İptal Edildi",
+    paid: "Ödendi",
+    unpaid: "Ödenmedi",
+    draft: "Taslak",
+  }
+
+  return statusMap[status.toLowerCase()] || status
+}
 
 // Helper component for displaying info items
-function InfoItem({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
+function InfoItem({
+  label,
+  value,
+  children,
+}: {
+  label: string
+  value?: string | null
+  children?: React.ReactNode
+}) {
   return (
-    <div>
+    <div className="space-y-1">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm">{children || value || "-"}</div>
+      <div className="text-sm">{children || value || <span className="text-muted-foreground">Girilmemiş</span>}</div>
     </div>
   )
 }
 
 // Insight card component
-function InsightCard({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) {
+function InsightCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string
+  value: string | number
+  icon: React.ReactNode
+}) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon}
+        <div className="text-muted-foreground">{icon}</div>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
@@ -98,332 +173,371 @@ function InsightCard({ title, value, icon }: { title: string; value: string | nu
   )
 }
 
-// Sales History Component
-function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
-  if (!sales || sales.length === 0) {
-    return (
-      <Alert>
-        <ShoppingCart className="h-4 w-4" />
-        <AlertTitle>Satış Geçmişi Yok</AlertTitle>
-        <AlertDescription>Bu müşteri için henüz bir satış kaydedilmemiş.</AlertDescription>
-      </Alert>
-    )
-  }
+export default async function CustomerDetailPage({
+  params,
+}: {
+  params: { mid: string }
+}) {
+  try {
+    const supabase = createClient()
+    const customerId = params.mid
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Satış Geçmişi</CardTitle>
-        <CardDescription>Bu müşteriye yapılan tüm satışların listesi.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Satış ID</TableHead>
-              <TableHead>Tarih</TableHead>
-              <TableHead>Durum</TableHead>
-              <TableHead className="text-right">Tutar</TableHead>
-              <TableHead className="text-center">İncele</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sales.map((sale) => (
-              <TableRow key={sale.id}>
-                <TableCell className="font-mono text-xs">{sale.id || "-"}</TableCell>
-                <TableCell>{formatDate(sale.sale_date)}</TableCell>
-                <TableCell>
-                  <Badge variant={getSaleStatusBadgeVariant(sale.status)} className="capitalize">
-                    {formatSaleStatusTR(sale.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">{formatCurrency(sale.total_amount ?? 0)}</TableCell>
-                <TableCell className="text-center">
-                  <Button asChild variant="outline" size="icon" disabled={!sale.id}>
-                    <Link href={`/sales/${sale.id}`}>
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
+    // Check authentication
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-// Invoice History Component
-function CustomerInvoiceHistory({ invoices }: { invoices: Invoice[] }) {
-  if (!invoices || invoices.length === 0) {
-    return (
-      <Alert>
-        <FileText className="h-4 w-4" />
-        <AlertTitle>Fatura Geçmişi Yok</AlertTitle>
-        <AlertDescription>Bu müşteri için henüz bir fatura oluşturulmamış.</AlertDescription>
-      </Alert>
-    )
-  }
+    if (authError || !user) {
+      redirect("/auth/login")
+    }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Fatura Geçmişi</CardTitle>
-        <CardDescription>Bu müşteriye kesilen tüm faturaların listesi.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Fatura No</TableHead>
-              <TableHead>Tarih</TableHead>
-              <TableHead>Durum</TableHead>
-              <TableHead className="text-right">Tutar</TableHead>
-              <TableHead className="text-center">İncele</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invoices.map((invoice) => (
-              <TableRow key={invoice.id}>
-                <TableCell className="font-medium">{invoice.invoice_number || "-"}</TableCell>
-                <TableCell>{formatDate(invoice.issue_date)}</TableCell>
-                <TableCell>
-                  <Badge variant={getSaleStatusBadgeVariant(invoice.status)} className="capitalize">
-                    {formatSaleStatusTR(invoice.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">{formatCurrency(invoice.total_amount ?? 0)}</TableCell>
-                <TableCell className="text-center">
-                  <Button asChild variant="outline" size="icon" disabled={!invoice.id}>
-                    <Link href={`/invoices/${invoice.id}`}>
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
-}
+    // Fetch customer data
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("mid", customerId)
+      .single()
 
-// Purchase Insights Component
-function CustomerPurchaseInsights({ insights }: { insights: PurchaseInsights | null }) {
-  if (!insights) {
-    return (
-      <Alert>
-        <BarChart2 className="h-4 w-4" />
-        <AlertTitle>Öngörü Verisi Yok</AlertTitle>
-        <AlertDescription>
-          Bu müşteri için satın alma öngörüleri oluşturulacak yeterli veri bulunmuyor.
-        </AlertDescription>
-      </Alert>
-    )
-  }
+    if (customerError || !customer) {
+      console.error("Customer fetch error:", customerError?.message)
+      notFound()
+    }
 
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <InsightCard
-        title="Toplam Harcama"
-        value={formatCurrency(insights.total_spending)}
-        icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-      />
-      <InsightCard
-        title="Toplam Sipariş"
-        value={insights.total_orders}
-        icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />}
-      />
-      <InsightCard
-        title="İlk Alışveriş"
-        value={insights.first_purchase_date ? formatDate(insights.first_purchase_date) : "-"}
-        icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
-      />
-      <InsightCard
-        title="Son Alışveriş"
-        value={insights.last_purchase_date ? formatDate(insights.last_purchase_date) : "-"}
-        icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
-      />
-    </div>
-  )
-}
+    const typedCustomer = customer as Customer
+    const isDeleted = !!typedCustomer.deleted_at
 
-// --- MAIN PAGE COMPONENT ---
-export default async function CustomerDetailPage({ params }: { params: { mid: string } }) {
-  const supabase = createClient()
-  const customerId = params.mid
-
-  // 1. Check authentication
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return redirect("/auth/login")
-  }
-
-  // 2. Fetch all data in parallel
-  const [customerResult, salesResult, invoicesResult] = await Promise.all([
-    supabase.from("customers").select("*").eq("mid", customerId).single(),
-    supabase
+    // Fetch sales data
+    const { data: salesData, error: salesError } = await supabase
       .from("sales")
       .select("id, sale_date, total_amount, status")
       .eq("customer_mid", customerId)
-      .order("sale_date", { ascending: false }),
-    supabase
+      .order("sale_date", { ascending: false })
+
+    const sales: Sale[] = salesData || []
+
+    // Fetch invoices data
+    const { data: invoicesData, error: invoicesError } = await supabase
       .from("invoices")
       .select("id, invoice_number, issue_date, total_amount, status")
       .eq("customer_mid", customerId)
-      .order("issue_date", { ascending: false }),
-  ])
+      .order("issue_date", { ascending: false })
 
-  // 3. Handle customer not found
-  if (customerResult.error || !customerResult.data) {
-    console.error("Müşteri bulunamadı:", customerResult.error?.message)
-    notFound()
-  }
+    const invoices: Invoice[] = invoicesData || []
 
-  const customer: Customer = customerResult.data
-  const sales: Sale[] = salesResult.data || []
-  const invoices: Invoice[] = invoicesResult.data || []
-  const isDeleted = !!customer.deleted_at
+    // Calculate insights
+    const totalSpending = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0)
+    const totalOrders = sales.length
+    const firstPurchaseDate = sales.length > 0 ? sales[sales.length - 1]?.sale_date : null
+    const lastPurchaseDate = sales.length > 0 ? sales[0]?.sale_date : null
 
-  // 4. Calculate insights
-  const insights: PurchaseInsights | null =
-    sales.length > 0
-      ? {
-          total_spending: sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0),
-          total_orders: sales.length,
-          first_purchase_date: sales[sales.length - 1]?.sale_date || null,
-          last_purchase_date: sales[0]?.sale_date || null,
-        }
-      : null
+    return (
+      <div className="container mx-auto py-6 px-4">
+        {/* Header */}
+        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <Link href="/customers">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Müşterilere Geri Dön
+            </Button>
+          </Link>
 
-  return (
-    <div className="container mx-auto py-10 px-4 sm:px-6 lg:px-8">
-      <header className="mb-6 flex flex-wrap justify-between items-center gap-4">
-        <Link href="/customers" className="flex items-center">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Müşterilere Geri Dön
-          </Button>
-        </Link>
-        <div className="flex items-center gap-2">
-          {!isDeleted && (
-            <Link href={`/customers/${customer.mid}/edit`}>
-              <Button variant="outline" size="sm">
-                <Edit className="mr-2 h-4 w-4" /> Düzenle
-              </Button>
-            </Link>
-          )}
-          <DeleteCustomerDialog
-            customerId={customer.mid}
-            customerName={customer.contact_name || customer.company_name || "Bilinmeyen"}
-            isDeleted={isDeleted}
-          />
+          <div className="flex items-center gap-2">
+            {!isDeleted && (
+              <Link href={`/customers/${typedCustomer.mid}/edit`}>
+                <Button variant="outline" size="sm">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Düzenle
+                </Button>
+              </Link>
+            )}
+            <DeleteCustomerDialog
+              customerId={typedCustomer.mid}
+              customerName={typedCustomer.contact_name || typedCustomer.company_name || "Bilinmeyen"}
+              isDeleted={isDeleted}
+            />
+          </div>
         </div>
-      </header>
 
-      <main>
-        <Card className="mb-8">
-          <CardHeader className="bg-muted/50 p-6">
+        {/* Customer Info Card */}
+        <Card className="mb-6">
+          <CardHeader className="bg-muted/50">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div>
-                <CardTitle className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
-                  <User className="h-7 w-7 lg:h-8 lg:w-8 text-primary" />
-                  {customer.contact_name || customer.company_name || "İsimsiz Müşteri"}
+                <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                  <User className="h-6 w-6" />
+                  {typedCustomer.contact_name || typedCustomer.company_name || "İsimsiz Müşteri"}
                 </CardTitle>
-                <CardDescription className="text-md flex items-center mt-2 text-muted-foreground">
-                  <Calendar className="mr-1.5 h-4 w-4" />
-                  Kayıt Tarihi:{" "}
-                  {format(new Date(customer.created_at), "dd MMMM yyyy, HH:mm", {
-                    locale: require("date-fns/locale/tr"),
-                  })}
+                <CardDescription className="flex items-center mt-2">
+                  <Calendar className="mr-1 h-4 w-4" />
+                  Kayıt Tarihi: {formatDate(typedCustomer.created_at)}
                 </CardDescription>
               </div>
-              <div className="flex flex-col items-start md:items-end gap-2">
-                <Badge variant="secondary" className="text-sm">
-                  ID: {customer.mid}
-                </Badge>
-                {isDeleted && (
-                  <Badge variant="destructive" className="text-sm font-semibold">
-                    ARŞİVLENMİŞ
-                  </Badge>
-                )}
+              <div className="flex flex-col gap-2">
+                <Badge variant="outline">ID: {typedCustomer.mid}</Badge>
+                {isDeleted && <Badge variant="destructive">Arşivlenmiş</Badge>}
               </div>
             </div>
           </CardHeader>
+
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Contact Information */}
               <InfoItem label="İletişim Bilgileri">
                 <div className="space-y-2">
-                  {customer.email && (
-                    <a href={`mailto:${customer.email}`} className="flex items-center hover:text-primary">
-                      <Mail className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.email}
-                    </a>
+                  {typedCustomer.email && (
+                    <div className="flex items-center">
+                      <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <a href={`mailto:${typedCustomer.email}`} className="hover:underline text-blue-600">
+                        {typedCustomer.email}
+                      </a>
+                    </div>
                   )}
-                  {customer.phone && (
-                    <a href={`tel:${customer.phone}`} className="flex items-center hover:text-primary">
-                      <Phone className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.phone}
-                    </a>
+                  {typedCustomer.phone && (
+                    <div className="flex items-center">
+                      <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <a href={`tel:${typedCustomer.phone}`} className="hover:underline text-blue-600">
+                        {typedCustomer.phone}
+                      </a>
+                    </div>
                   )}
-                  {!customer.email && !customer.phone && <p className="text-muted-foreground">Girilmemiş</p>}
+                  {!typedCustomer.email && !typedCustomer.phone && (
+                    <span className="text-muted-foreground">İletişim bilgisi yok</span>
+                  )}
                 </div>
               </InfoItem>
+
+              {/* Company Information */}
               <InfoItem label="Şirket Bilgileri">
                 <div className="space-y-2">
-                  {customer.company_name && (
-                    <p className="flex items-center">
-                      <Building className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.company_name}
-                    </p>
+                  {typedCustomer.company_name && (
+                    <div className="flex items-center">
+                      <Building className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {typedCustomer.company_name}
+                    </div>
                   )}
-                  {customer.tax_number && <p>Vergi No: {customer.tax_number}</p>}
-                  {!customer.company_name && !customer.tax_number && (
-                    <p className="text-muted-foreground">Girilmemiş</p>
+                  {typedCustomer.tax_number && <div>Vergi No: {typedCustomer.tax_number}</div>}
+                  {typedCustomer.customer_group && <Badge variant="secondary">{typedCustomer.customer_group}</Badge>}
+                  {!typedCustomer.company_name && !typedCustomer.tax_number && (
+                    <span className="text-muted-foreground">Şirket bilgisi yok</span>
                   )}
                 </div>
               </InfoItem>
-              <InfoItem label="Adres">
-                {customer.address ? (
-                  <p className="flex items-start">
-                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                    <span>
-                      {customer.address}, {customer.city} {customer.postal_code}, {customer.country}
-                    </span>
-                  </p>
+
+              {/* Address Information */}
+              <InfoItem label="Adres Bilgileri">
+                {typedCustomer.address ? (
+                  <div className="flex items-start">
+                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div>{typedCustomer.address}</div>
+                      {typedCustomer.city && (
+                        <div>
+                          {typedCustomer.city} {typedCustomer.postal_code}
+                        </div>
+                      )}
+                      {typedCustomer.country && <div>{typedCustomer.country}</div>}
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-muted-foreground">Girilmemiş</p>
+                  <span className="text-muted-foreground">Adres bilgisi yok</span>
                 )}
               </InfoItem>
             </div>
-            {customer.notes && (
+
+            {/* Additional Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t">
+              <InfoItem label="Hizmet/Abonelik" value={typedCustomer.service_name} />
+              <InfoItem label="Bakiye">
+                <span className={typedCustomer.balance && typedCustomer.balance < 0 ? "text-red-600" : ""}>
+                  {formatCurrency(typedCustomer.balance || 0)}
+                </span>
+              </InfoItem>
+            </div>
+
+            {/* Notes */}
+            {typedCustomer.notes && (
               <div className="mt-6 pt-6 border-t">
                 <h3 className="text-lg font-medium mb-2">Notlar</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap text-sm">{customer.notes}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap text-sm">{typedCustomer.notes}</p>
               </div>
             )}
+
+            {/* Timestamps */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
+              <InfoItem label="Oluşturulma Tarihi" value={formatDateTime(typedCustomer.created_at)} />
+              <InfoItem label="Son Güncelleme" value={formatDateTime(typedCustomer.updated_at)} />
+            </div>
           </CardContent>
         </Card>
 
+        {/* Tabs for additional information */}
         {!isDeleted && (
           <Tabs defaultValue="sales" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-              <TabsTrigger value="sales">Satış Geçmişi</TabsTrigger>
-              <TabsTrigger value="invoices">Fatura Geçmişi</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="sales">Satış Geçmişi ({sales.length})</TabsTrigger>
+              <TabsTrigger value="invoices">Fatura Geçmişi ({invoices.length})</TabsTrigger>
               <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
             </TabsList>
-            <TabsContent value="sales" className="mt-4">
-              <CustomerSalesHistory sales={sales} />
+
+            {/* Sales History Tab */}
+            <TabsContent value="sales" className="space-y-4">
+              {sales.length === 0 ? (
+                <Alert>
+                  <ShoppingCart className="h-4 w-4" />
+                  <AlertTitle>Satış Geçmişi Yok</AlertTitle>
+                  <AlertDescription>Bu müşteri için henüz bir satış kaydedilmemiş.</AlertDescription>
+                </Alert>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Satış Geçmişi</CardTitle>
+                    <CardDescription>Bu müşteriye yapılan tüm satışların listesi.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Satış ID</TableHead>
+                          <TableHead>Tarih</TableHead>
+                          <TableHead>Durum</TableHead>
+                          <TableHead className="text-right">Tutar</TableHead>
+                          <TableHead className="text-center">İşlemler</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sales.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell className="font-mono text-xs">{sale.id}</TableCell>
+                            <TableCell>{formatDate(sale.sale_date)}</TableCell>
+                            <TableCell>
+                              <Badge variant={getStatusBadgeVariant(sale.status)}>{formatStatus(sale.status)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(sale.total_amount || 0)}</TableCell>
+                            <TableCell className="text-center">
+                              <Button asChild variant="outline" size="sm">
+                                <Link href={`/sales/${sale.id}`}>
+                                  <Eye className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
-            <TabsContent value="invoices" className="mt-4">
-              <CustomerInvoiceHistory invoices={invoices} />
+
+            {/* Invoices History Tab */}
+            <TabsContent value="invoices" className="space-y-4">
+              {invoices.length === 0 ? (
+                <Alert>
+                  <FileText className="h-4 w-4" />
+                  <AlertTitle>Fatura Geçmişi Yok</AlertTitle>
+                  <AlertDescription>Bu müşteri için henüz bir fatura oluşturulmamış.</AlertDescription>
+                </Alert>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Fatura Geçmişi</CardTitle>
+                    <CardDescription>Bu müşteriye kesilen tüm faturaların listesi.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Fatura No</TableHead>
+                          <TableHead>Tarih</TableHead>
+                          <TableHead>Durum</TableHead>
+                          <TableHead className="text-right">Tutar</TableHead>
+                          <TableHead className="text-center">İşlemler</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invoices.map((invoice) => (
+                          <TableRow key={invoice.id}>
+                            <TableCell className="font-medium">{invoice.invoice_number || "-"}</TableCell>
+                            <TableCell>{formatDate(invoice.issue_date)}</TableCell>
+                            <TableCell>
+                              <Badge variant={getStatusBadgeVariant(invoice.status)}>
+                                {formatStatus(invoice.status)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(invoice.total_amount || 0)}</TableCell>
+                            <TableCell className="text-center">
+                              <Button asChild variant="outline" size="sm">
+                                <Link href={`/invoices/${invoice.id}`}>
+                                  <Eye className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
-            <TabsContent value="insights" className="mt-4">
-              <CustomerPurchaseInsights insights={insights} />
+
+            {/* Purchase Insights Tab */}
+            <TabsContent value="insights" className="space-y-4">
+              {sales.length === 0 ? (
+                <Alert>
+                  <BarChart2 className="h-4 w-4" />
+                  <AlertTitle>Öngörü Verisi Yok</AlertTitle>
+                  <AlertDescription>
+                    Bu müşteri için satın alma öngörüleri oluşturulacak yeterli veri bulunmuyor.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <InsightCard
+                    title="Toplam Harcama"
+                    value={formatCurrency(totalSpending)}
+                    icon={<DollarSign className="h-4 w-4" />}
+                  />
+                  <InsightCard title="Toplam Sipariş" value={totalOrders} icon={<ShoppingCart className="h-4 w-4" />} />
+                  <InsightCard
+                    title="İlk Alışveriş"
+                    value={firstPurchaseDate ? formatDate(firstPurchaseDate) : "-"}
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+                  <InsightCard
+                    title="Son Alışveriş"
+                    value={lastPurchaseDate ? formatDate(lastPurchaseDate) : "-"}
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}
-      </main>
-    </div>
-  )
+      </div>
+    )
+  } catch (error) {
+    console.error("Customer detail page error:", error)
+
+    return (
+      <div className="container mx-auto py-10 px-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Hata Oluştu</AlertTitle>
+          <AlertDescription>
+            Müşteri bilgileri yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.
+          </AlertDescription>
+        </Alert>
+        <div className="mt-4">
+          <Link href="/customers">
+            <Button variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Müşterilere Geri Dön
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
 }
