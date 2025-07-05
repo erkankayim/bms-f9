@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -12,26 +10,22 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Check, ChevronsUpDown, Loader2, X } from "lucide-react"
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import {
   adjustStockQuantityAction,
   searchProductsForAdjustment,
-  searchSuppliersForAdjustment,
   type ProductSearchResult,
-  type SupplierSearchResult,
 } from "../../_actions/inventory-actions"
 
 const stockAdjustmentFormSchema = z.object({
   productId: z.string().min(1, { message: "Ürün seçimi zorunludur." }),
-  productName: z.string().optional(),
+  productName: z.string().optional(), // Sadece UI'da göstermek için
   quantity: z.coerce
     .number({ invalid_type_error: "Miktar sayı olmalıdır." })
     .refine((val) => val !== 0, { message: "Miktar 0 olamaz." }),
   notes: z.string().optional(),
-  supplierId: z.string().optional(),
-  supplierName: z.string().optional(),
 })
 
 type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentFormSchema>
@@ -46,29 +40,19 @@ export function StockAdjustmentForm() {
   const { toast } = useToast()
   const [state, formAction, isPending] = useActionState(adjustStockQuantityAction, initialState)
 
-  // Product search states
-  const [isSearchingProducts, startProductSearchTransition] = useTransition()
-  const [productSearchTerm, setProductSearchTerm] = useState("")
-  const [productSearchResults, setProductSearchResults] = useState<ProductSearchResult[]>([])
+  const [isSearching, startSearchTransition] = useTransition()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null)
-  const [productPopoverOpen, setProductPopoverOpen] = useState(false)
-
-  // Supplier search states
-  const [isSearchingSuppliers, startSupplierSearchTransition] = useTransition()
-  const [supplierSearchTerm, setSupplierSearchTerm] = useState("")
-  const [supplierSearchResults, setSupplierSearchResults] = useState<SupplierSearchResult[]>([])
-  const [selectedSupplier, setSelectedSupplier] = useState<SupplierSearchResult | null>(null)
-  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
 
   const form = useForm<StockAdjustmentFormValues>({
     resolver: zodResolver(stockAdjustmentFormSchema),
     defaultValues: {
       productId: "",
       productName: "",
-      quantity: 0,
+      quantity: 0, // Burası düzeltildi: "" as unknown as number yerine 0
       notes: "",
-      supplierId: "",
-      supplierName: "",
     },
   })
 
@@ -79,19 +63,15 @@ export function StockAdjustmentForm() {
         description: state.message || "Stok ayarlaması başarıyla kaydedildi.",
       })
       form.reset({
+        // Reset with proper default values
         productId: "",
         productName: "",
-        quantity: 0,
+        quantity: 0, // Burası da düzeltildi
         notes: "",
-        supplierId: "",
-        supplierName: "",
       })
       setSelectedProduct(null)
-      setSelectedSupplier(null)
-      setProductSearchTerm("")
-      setSupplierSearchTerm("")
-      setProductSearchResults([])
-      setSupplierSearchResults([])
+      setSearchTerm("")
+      setSearchResults([])
     } else if (state?.message && !state.success && state.errors) {
       toast({
         title: "Hata!",
@@ -108,83 +88,49 @@ export function StockAdjustmentForm() {
     }
   }, [state, toast, form])
 
-  // Product search effect
   useEffect(() => {
-    if (!productPopoverOpen) {
-      setProductSearchResults([])
-      return
-    }
-    startProductSearchTransition(async () => {
-      const result = await searchProductsForAdjustment(productSearchTerm)
-      if (productPopoverOpen) {
+    console.log("[FORM] useEffect for searchTerm triggered. Current searchTerm:", searchTerm)
+    if (searchTerm.length > 1) {
+      startSearchTransition(async () => {
+        console.log("[FORM] Calling searchProductsForAdjustment with term:", searchTerm)
+        const result = await searchProductsForAdjustment(searchTerm)
+        console.log("[FORM] Received result from searchProductsForAdjustment:", result)
         if (result.success && result.data) {
-          setProductSearchResults(result.data)
+          setSearchResults(result.data)
+          console.log("[FORM] Set searchResults in state:", result.data)
         } else {
-          setProductSearchResults([])
+          setSearchResults([])
+          console.log("[FORM] Cleared searchResults due to no data or error from action.")
           if (result.error) {
-            toast({ title: "Ürün Arama Hatası", description: result.error, variant: "destructive" })
+            toast({ title: "Arama Hatası", description: result.error, variant: "destructive" })
           }
         }
+      })
+    } else {
+      if (searchTerm.length <= 1 && searchResults.length > 0) {
+        setSearchResults([])
+        console.log("[FORM] Cleared searchResults because searchTerm is too short.")
       }
-    })
-  }, [productPopoverOpen, productSearchTerm, toast])
-
-  // Supplier search effect
-  useEffect(() => {
-    if (!supplierPopoverOpen) {
-      setSupplierSearchResults([])
-      return
     }
-    startSupplierSearchTransition(async () => {
-      const result = await searchSuppliersForAdjustment(supplierSearchTerm)
-      if (supplierPopoverOpen) {
-        if (result.success && result.data) {
-          setSupplierSearchResults(result.data)
-        } else {
-          setSupplierSearchResults([])
-          if (result.error) {
-            toast({ title: "Tedarikçi Arama Hatası", description: result.error, variant: "destructive" })
-          }
-        }
-      }
-    })
-  }, [supplierPopoverOpen, supplierSearchTerm, toast])
+  }, [searchTerm, toast])
 
   const handleProductSelect = (product: ProductSearchResult) => {
     setSelectedProduct(product)
     form.setValue("productId", product.id)
     form.setValue("productName", `${product.name} (${product.stock_code})`)
     form.clearErrors("productId")
-    setProductPopoverOpen(false)
-    setProductSearchTerm("")
-  }
-
-  const handleSupplierSelect = (supplier: SupplierSearchResult) => {
-    setSelectedSupplier(supplier)
-    form.setValue("supplierId", supplier.id)
-    form.setValue("supplierName", `${supplier.name}${supplier.supplier_code ? ` (${supplier.supplier_code})` : ""}`)
-    form.clearErrors("supplierId")
-    setSupplierPopoverOpen(false)
-    setSupplierSearchTerm("")
-  }
-
-  const handleSupplierClear = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation()
-    setSelectedSupplier(null)
-    form.setValue("supplierId", "")
-    form.setValue("supplierName", "")
-    form.clearErrors("supplierId")
+    setPopoverOpen(false)
+    setSearchTerm("")
+    setSearchResults([])
   }
 
   const handleFormSubmit = (data: StockAdjustmentFormValues) => {
+    console.log("[FORM] Submitting form with data:", data)
     const formData = new FormData()
     formData.append("productId", data.productId)
     formData.append("quantity", String(data.quantity))
     if (data.notes) {
       formData.append("notes", data.notes)
-    }
-    if (data.supplierId) {
-      formData.append("supplierId", data.supplierId)
     }
     formAction(formData)
   }
@@ -201,13 +147,13 @@ export function StockAdjustmentForm() {
           render={({ field }) => (
             <FormItem className="flex flex-col">
               <FormLabel>Ürün Seçin</FormLabel>
-              <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
+              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button
                       variant="outline"
                       role="combobox"
-                      aria-expanded={productPopoverOpen}
+                      aria-expanded={popoverOpen}
                       className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                     >
                       {selectedProduct
@@ -221,23 +167,23 @@ export function StockAdjustmentForm() {
                   <Command shouldFilter={false}>
                     <CommandInput
                       placeholder="Ürün adı veya stok kodu ile ara..."
-                      value={productSearchTerm}
-                      onValueChange={setProductSearchTerm}
-                      disabled={isSearchingProducts}
+                      value={searchTerm}
+                      onValueChange={setSearchTerm}
+                      disabled={isSearching}
                       className="h-9"
                     />
                     <CommandList>
-                      {isSearchingProducts && (
+                      {isSearching && (
                         <div className="p-2 flex items-center justify-center">
                           <Loader2 className="h-4 w-4 animate-spin" />
                           <span className="ml-2">Aranıyor...</span>
                         </div>
                       )}
-                      {!isSearchingProducts && productSearchResults.length === 0 && (
+                      {!isSearching && searchResults.length === 0 && searchTerm.length > 1 && (
                         <CommandEmpty>Ürün bulunamadı.</CommandEmpty>
                       )}
                       <CommandGroup>
-                        {productSearchResults.map((product) => (
+                        {searchResults.map((product) => (
                           <CommandItem
                             value={`${product.name} ${product.stock_code} ${product.id}`}
                             key={product.id}
@@ -269,102 +215,11 @@ export function StockAdjustmentForm() {
             <FormItem>
               <FormLabel>Değişim Miktarı</FormLabel>
               <FormControl>
+                {/* Ensure field.value is never undefined for controlled input */}
                 <Input type="number" placeholder="Örn: 10 veya -5" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormDescription>
                 Stok artışı için pozitif (örn: 10), azalışı için negatif (örn: -5) bir değer girin.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="supplierId"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Tedarikçi (Opsiyonel)</FormLabel>
-              <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <div className="relative">
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={supplierPopoverOpen}
-                        className={cn("w-full justify-between pr-10", !field.value && "text-muted-foreground")}
-                      >
-                        {selectedSupplier
-                          ? `${selectedSupplier.name}${selectedSupplier.supplier_code ? ` (${selectedSupplier.supplier_code})` : ""}`
-                          : "Tedarikçi seçin veya arayın..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                      {selectedSupplier && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                          onClick={handleSupplierClear}
-                        >
-                          <X className="h-3 w-3" />
-                          <span className="sr-only">Tedarikçiyi Temizle</span>
-                        </Button>
-                      )}
-                    </div>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Tedarikçi adı veya kodu ile ara..."
-                      value={supplierSearchTerm}
-                      onValueChange={setSupplierSearchTerm}
-                      disabled={isSearchingSuppliers}
-                      className="h-9"
-                    />
-                    <CommandList>
-                      {isSearchingSuppliers && (
-                        <div className="p-2 flex items-center justify-center">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="ml-2">Aranıyor...</span>
-                        </div>
-                      )}
-                      {!isSearchingSuppliers && supplierSearchResults.length === 0 && (
-                        <CommandEmpty>Tedarikçi bulunamadı.</CommandEmpty>
-                      )}
-                      <CommandGroup>
-                        {supplierSearchResults.map((supplier) => (
-                          <CommandItem
-                            value={`${supplier.name} ${supplier.supplier_code || ""} ${supplier.id}`}
-                            key={supplier.id}
-                            onSelect={() => handleSupplierSelect(supplier)}
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{supplier.name}</span>
-                              {supplier.supplier_code && (
-                                <span className="text-sm text-muted-foreground">Kod: {supplier.supplier_code}</span>
-                              )}
-                              {supplier.contact_name && (
-                                <span className="text-sm text-muted-foreground">İletişim: {supplier.contact_name}</span>
-                              )}
-                            </div>
-                            <Check
-                              className={cn(
-                                "ml-auto h-4 w-4",
-                                selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormDescription>
-                Bu stok ayarlaması ile ilişkili tedarikçiyi seçebilirsiniz (isteğe bağlı).
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -382,7 +237,7 @@ export function StockAdjustmentForm() {
                   placeholder="Ayarlama nedeni (örn: Yıl sonu sayım farkı)"
                   className="resize-none"
                   {...field}
-                  value={field.value ?? ""}
+                  value={field.value ?? ""} // Ensure controlled
                 />
               </FormControl>
               <FormMessage />

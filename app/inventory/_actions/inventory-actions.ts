@@ -13,7 +13,6 @@ const stockAdjustmentSchema = z.object({
     .int("Miktar tam sayı olmalıdır.")
     .refine((val) => val !== 0, "Değişim miktarı 0 olamaz."),
   notes: z.string().max(500, "Notlar en fazla 500 karakter olabilir.").optional().nullable(),
-  supplierId: z.string().optional().nullable(), // Add supplier field
 })
 
 export type StockAdjustmentFormState = {
@@ -23,7 +22,6 @@ export type StockAdjustmentFormState = {
     productStockCode?: string[]
     changeQuantity?: string[]
     notes?: string[]
-    supplierId?: string[]
     general?: string[]
   }
 }
@@ -35,19 +33,16 @@ export type ProductSearchResult = {
   current_stock: number
 }
 
-export type SupplierSearchResult = {
-  id: string
-  name: string
-  supplier_code: string | null
-  contact_name: string | null
-}
-
 export async function adjustStockQuantityAction(
   prevState: StockAdjustmentFormState,
   formData: FormData,
 ): Promise<StockAdjustmentFormState> {
   const cookieStore = cookies()
+  // Simplified cookie logging for brevity
+  // console.log("[SERVER ACTION adjustStockQuantityAction] Cookies received:", cookieStore.getAll().map(c => c.name));
+
   const supabase = createClient()
+  // console.log("[SERVER ACTION adjustStockQuantityAction] Attempting to get user...")
 
   const {
     data: { user },
@@ -55,6 +50,7 @@ export async function adjustStockQuantityAction(
   } = await supabase.auth.getUser()
 
   if (authError || !user || !user.email) {
+    // Ensure user.email is available
     console.error("[SERVER ACTION adjustStockQuantityAction] Auth Error, no user, or no email:", authError, user)
     return {
       success: false,
@@ -62,15 +58,15 @@ export async function adjustStockQuantityAction(
       errors: { general: ["Lütfen giriş yapın ve tekrar deneyin."] },
     }
   }
+  // console.log("[SERVER ACTION adjustStockQuantityAction] User authenticated:", user.id, user.email)
 
   const userId = user.id
-  const userEmail = user.email
+  const userEmail = user.email // Get user email
 
   const validatedFields = stockAdjustmentSchema.safeParse({
     productStockCode: formData.get("productId"),
     changeQuantity: formData.get("quantity") ? Number(formData.get("quantity")) : undefined,
     notes: formData.get("notes"),
-    supplierId: formData.get("supplierId") || null,
   })
 
   if (!validatedFields.success) {
@@ -82,7 +78,7 @@ export async function adjustStockQuantityAction(
     }
   }
 
-  const { productStockCode, changeQuantity, notes, supplierId } = validatedFields.data
+  const { productStockCode, changeQuantity, notes } = validatedFields.data
   const movementType = changeQuantity > 0 ? "adjustment_positive" : "adjustment_negative"
 
   try {
@@ -98,24 +94,6 @@ export async function adjustStockQuantityAction(
         success: false,
         message: "Ürün bulunamadı.",
         errors: { productStockCode: ["Seçilen ürün (stok kodu ile) sistemde bulunamadı."] },
-      }
-    }
-
-    // Verify supplier if provided
-    if (supplierId) {
-      const { data: supplier, error: supplierError } = await supabase
-        .from("suppliers")
-        .select("id")
-        .eq("id", supplierId)
-        .is("deleted_at", null)
-        .single()
-
-      if (supplierError || !supplier) {
-        return {
-          success: false,
-          message: "Seçilen tedarikçi bulunamadı.",
-          errors: { supplierId: ["Seçilen tedarikçi sistemde bulunamadı."] },
-        }
       }
     }
 
@@ -148,8 +126,9 @@ export async function adjustStockQuantityAction(
       }
     }
 
-    // Check and manage low stock alert
+    // Düşük stok uyarısını kontrol et ve yönet
     if (product.stock_code) {
+      // Ensure product.stock_code is available
       const { data: productDetailsForAlert, error: productDetailsError } = await supabase
         .from("products")
         .select("min_stock_level")
@@ -160,6 +139,7 @@ export async function adjustStockQuantityAction(
         console.warn(
           `[adjustStockQuantityAction] Minimum stok seviyesi alınamadı (${product.stock_code}): ${productDetailsError.message}`,
         )
+        // Uyarı oluşturma adımını atla ama işleme devam et
       } else if (productDetailsForAlert) {
         const alertResult = await checkAndManageLowStockAlert(
           supabase,
@@ -171,12 +151,13 @@ export async function adjustStockQuantityAction(
           console.warn(
             `[adjustStockQuantityAction] Düşük stok uyarısı yönetilirken hata (${product.stock_code}): ${alertResult.error}`,
           )
+          // Bu bir uyarı, ana işlem başarısız olmamalı
         } else if (alertResult.alertCreated) {
           console.log(`[adjustStockQuantityAction] Düşük stok uyarısı oluşturuldu: ${product.stock_code}`)
-          revalidatePath("/inventory/alerts")
+          revalidatePath("/inventory/alerts") // Uyarılar sayfasını yenile (varsayımsal)
         } else if (alertResult.alertResolved) {
           console.log(`[adjustStockQuantityAction] Düşük stok uyarısı çözüldü: ${product.stock_code}`)
-          revalidatePath("/inventory/alerts")
+          revalidatePath("/inventory/alerts") // Uyarılar sayfasını yenile
         }
       }
     }
@@ -188,8 +169,7 @@ export async function adjustStockQuantityAction(
       quantity_after_movement: newQuantityOnHand,
       notes: notes,
       user_id: userId,
-      user_email: userEmail,
-      supplier_id: supplierId, // Add supplier_id to movement record
+      user_email: userEmail, // Add user_email here
     })
 
     if (movementError) {
@@ -215,19 +195,18 @@ export async function adjustStockQuantityAction(
 export async function searchProductsForAdjustment(
   searchTerm: string,
 ): Promise<{ success: boolean; data?: ProductSearchResult[]; error?: string }> {
+  // console.log("[SERVER ACTION searchProductsForAdjustment] called with searchTerm:", searchTerm)
+  if (!searchTerm.trim() || searchTerm.length < 2) {
+    return { success: true, data: [] }
+  }
   const supabase = createClient()
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("products")
     .select("name, stock_code, quantity_on_hand")
+    .or(`name.ilike.%${searchTerm}%,stock_code.ilike.%${searchTerm}%`)
     .is("deleted_at", null)
-    .order("name")
-
-  if (searchTerm.trim()) {
-    query = query.or(`name.ilike.%${searchTerm}%,stock_code.ilike.%${searchTerm}%`)
-  }
-
-  const { data, error } = await query.limit(10)
+    .limit(10)
 
   if (error) {
     console.error("[SERVER ACTION searchProductsForAdjustment] Error searching products in Supabase:", error)
@@ -243,43 +222,6 @@ export async function searchProductsForAdjustment(
     name: p.name,
     stock_code: p.stock_code,
     current_stock: p.quantity_on_hand || 0,
-  }))
-  return { success: true, data: results }
-}
-
-export async function searchSuppliersForAdjustment(
-  searchTerm: string,
-): Promise<{ success: boolean; data?: SupplierSearchResult[]; error?: string }> {
-  const supabase = createClient()
-
-  let query = supabase
-    .from("suppliers")
-    .select("id, name, supplier_code, contact_name")
-    .is("deleted_at", null)
-    .order("name")
-
-  if (searchTerm.trim()) {
-    query = query.or(
-      `name.ilike.%${searchTerm}%,supplier_code.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%`,
-    )
-  }
-
-  const { data, error } = await query.limit(10)
-
-  if (error) {
-    console.error("[SERVER ACTION searchSuppliersForAdjustment] Error searching suppliers in Supabase:", error)
-    return { success: false, error: error.message }
-  }
-
-  if (!data) {
-    return { success: true, data: [] }
-  }
-
-  const results: SupplierSearchResult[] = data.map((s) => ({
-    id: s.id,
-    name: s.name,
-    supplier_code: s.supplier_code,
-    contact_name: s.contact_name,
   }))
   return { success: true, data: results }
 }
