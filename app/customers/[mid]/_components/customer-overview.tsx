@@ -1,36 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime, formatCurrency } from "@/lib/utils"
 import type { Customer } from "./helpers"
 import { InfoItem } from "./helpers"
 
-async function getCustomerData(customerId: string): Promise<Customer | null> {
-  const supabase = createClient()
-
-  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
-
-  if (error || !customer) {
-    console.error("Error fetching customer:", error?.message)
-    return null
-  }
-
-  return customer as Customer
-}
-
-export default async function CustomerOverview({ customerId }: { customerId: string }) {
-  const customer = await getCustomerData(customerId)
-
-  if (!customer) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground">Müşteri bilgileri yüklenemedi.</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
+export default function CustomerOverview({ customer }: { customer: Customer }) {
   return (
     <Card>
       <CardHeader>

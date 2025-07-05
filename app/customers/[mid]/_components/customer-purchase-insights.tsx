@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server"
 import type React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -18,42 +17,7 @@ const InsightCard = ({ title, value, icon }: { title: string; value: string | nu
   </Card>
 )
 
-async function getCustomerInsights(customerId: string): Promise<PurchaseInsights | null> {
-  const supabase = createClient()
-
-  // Get sales data for insights
-  const { data: sales, error } = await supabase
-    .from("sales")
-    .select("total_amount, sale_date")
-    .eq("customer_id", customerId)
-    .not("total_amount", "is", null)
-
-  if (error) {
-    console.error("Error fetching sales for insights:", error?.message)
-    return null
-  }
-
-  if (!sales || sales.length === 0) {
-    return null
-  }
-
-  const totalSpending = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0)
-  const totalOrders = sales.length
-  const sortedDates = sales.map((s) => s.sale_date).sort()
-  const firstPurchaseDate = sortedDates[0] || null
-  const lastPurchaseDate = sortedDates[sortedDates.length - 1] || null
-
-  return {
-    total_spending: totalSpending,
-    total_orders: totalOrders,
-    first_purchase_date: firstPurchaseDate,
-    last_purchase_date: lastPurchaseDate,
-  }
-}
-
-export default async function CustomerPurchaseInsights({ customerId }: { customerId: string }) {
-  const insights = await getCustomerInsights(customerId)
-
+export default function CustomerPurchaseInsights({ insights }: { insights: PurchaseInsights | null }) {
   if (!insights) {
     return (
       <Alert>

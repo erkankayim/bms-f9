@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -9,26 +8,7 @@ import { Eye, FileText } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
 import type { Invoice } from "./helpers"
 
-async function getCustomerInvoices(customerId: string): Promise<Invoice[]> {
-  const supabase = createClient()
-
-  const { data: invoices, error } = await supabase
-    .from("invoices")
-    .select("id, invoice_number, issue_date, total_amount, status")
-    .eq("customer_id", customerId)
-    .order("issue_date", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching invoices:", error?.message)
-    return []
-  }
-
-  return invoices as Invoice[]
-}
-
-export default async function CustomerInvoiceHistory({ customerId }: { customerId: string }) {
-  const invoices = await getCustomerInvoices(customerId)
-
+export default function CustomerInvoiceHistory({ invoices }: { invoices: Invoice[] }) {
   if (!invoices || invoices.length === 0) {
     return (
       <Alert>
