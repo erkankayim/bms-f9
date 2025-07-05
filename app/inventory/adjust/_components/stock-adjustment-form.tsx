@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -108,30 +110,34 @@ export function StockAdjustmentForm() {
 
   // Product search effect
   useEffect(() => {
-    if (productSearchTerm.length > 1) {
-      startProductSearchTransition(async () => {
-        const result = await searchProductsForAdjustment(productSearchTerm)
+    if (!productPopoverOpen) {
+      setProductSearchResults([])
+      return
+    }
+    startProductSearchTransition(async () => {
+      const result = await searchProductsForAdjustment(productSearchTerm)
+      if (productPopoverOpen) {
         if (result.success && result.data) {
           setProductSearchResults(result.data)
         } else {
           setProductSearchResults([])
           if (result.error) {
-            toast({ title: "Arama Hatası", description: result.error, variant: "destructive" })
+            toast({ title: "Ürün Arama Hatası", description: result.error, variant: "destructive" })
           }
         }
-      })
-    } else {
-      if (productSearchTerm.length <= 1 && productSearchResults.length > 0) {
-        setProductSearchResults([])
       }
-    }
-  }, [productSearchTerm, toast])
+    })
+  }, [productPopoverOpen, productSearchTerm, toast])
 
   // Supplier search effect
   useEffect(() => {
-    if (supplierSearchTerm.length > 1) {
-      startSupplierSearchTransition(async () => {
-        const result = await searchSuppliersForAdjustment(supplierSearchTerm)
+    if (!supplierPopoverOpen) {
+      setSupplierSearchResults([])
+      return
+    }
+    startSupplierSearchTransition(async () => {
+      const result = await searchSuppliersForAdjustment(supplierSearchTerm)
+      if (supplierPopoverOpen) {
         if (result.success && result.data) {
           setSupplierSearchResults(result.data)
         } else {
@@ -140,13 +146,9 @@ export function StockAdjustmentForm() {
             toast({ title: "Tedarikçi Arama Hatası", description: result.error, variant: "destructive" })
           }
         }
-      })
-    } else {
-      if (supplierSearchTerm.length <= 1 && supplierSearchResults.length > 0) {
-        setSupplierSearchResults([])
       }
-    }
-  }, [supplierSearchTerm, toast])
+    })
+  }, [supplierPopoverOpen, supplierSearchTerm, toast])
 
   const handleProductSelect = (product: ProductSearchResult) => {
     setSelectedProduct(product)
@@ -155,7 +157,6 @@ export function StockAdjustmentForm() {
     form.clearErrors("productId")
     setProductPopoverOpen(false)
     setProductSearchTerm("")
-    setProductSearchResults([])
   }
 
   const handleSupplierSelect = (supplier: SupplierSearchResult) => {
@@ -165,10 +166,10 @@ export function StockAdjustmentForm() {
     form.clearErrors("supplierId")
     setSupplierPopoverOpen(false)
     setSupplierSearchTerm("")
-    setSupplierSearchResults([])
   }
 
-  const handleSupplierClear = () => {
+  const handleSupplierClear = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
     setSelectedSupplier(null)
     form.setValue("supplierId", "")
     form.setValue("supplierName", "")
@@ -232,7 +233,7 @@ export function StockAdjustmentForm() {
                           <span className="ml-2">Aranıyor...</span>
                         </div>
                       )}
-                      {!isSearchingProducts && productSearchResults.length === 0 && productSearchTerm.length > 1 && (
+                      {!isSearchingProducts && productSearchResults.length === 0 && (
                         <CommandEmpty>Ürün bulunamadı.</CommandEmpty>
                       )}
                       <CommandGroup>
@@ -308,6 +309,7 @@ export function StockAdjustmentForm() {
                           onClick={handleSupplierClear}
                         >
                           <X className="h-3 w-3" />
+                          <span className="sr-only">Tedarikçiyi Temizle</span>
                         </Button>
                       )}
                     </div>
@@ -329,13 +331,13 @@ export function StockAdjustmentForm() {
                           <span className="ml-2">Aranıyor...</span>
                         </div>
                       )}
-                      {!isSearchingSuppliers && supplierSearchResults.length === 0 && supplierSearchTerm.length > 1 && (
+                      {!isSearchingSuppliers && supplierSearchResults.length === 0 && (
                         <CommandEmpty>Tedarikçi bulunamadı.</CommandEmpty>
                       )}
                       <CommandGroup>
                         {supplierSearchResults.map((supplier) => (
                           <CommandItem
-                            value={`${supplier.name} ${supplier.supplier_code} ${supplier.id}`}
+                            value={`${supplier.name} ${supplier.supplier_code || ""} ${supplier.id}`}
                             key={supplier.id}
                             onSelect={() => handleSupplierSelect(supplier)}
                           >

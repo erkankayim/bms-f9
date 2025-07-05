@@ -215,17 +215,19 @@ export async function adjustStockQuantityAction(
 export async function searchProductsForAdjustment(
   searchTerm: string,
 ): Promise<{ success: boolean; data?: ProductSearchResult[]; error?: string }> {
-  if (!searchTerm.trim() || searchTerm.length < 2) {
-    return { success: true, data: [] }
-  }
   const supabase = createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("products")
     .select("name, stock_code, quantity_on_hand")
-    .or(`name.ilike.%${searchTerm}%,stock_code.ilike.%${searchTerm}%`)
     .is("deleted_at", null)
-    .limit(10)
+    .order("name")
+
+  if (searchTerm.trim()) {
+    query = query.or(`name.ilike.%${searchTerm}%,stock_code.ilike.%${searchTerm}%`)
+  }
+
+  const { data, error } = await query.limit(10)
 
   if (error) {
     console.error("[SERVER ACTION searchProductsForAdjustment] Error searching products in Supabase:", error)
@@ -248,17 +250,21 @@ export async function searchProductsForAdjustment(
 export async function searchSuppliersForAdjustment(
   searchTerm: string,
 ): Promise<{ success: boolean; data?: SupplierSearchResult[]; error?: string }> {
-  if (!searchTerm.trim() || searchTerm.length < 2) {
-    return { success: true, data: [] }
-  }
   const supabase = createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("suppliers")
     .select("id, name, supplier_code, contact_name")
-    .or(`name.ilike.%${searchTerm}%,supplier_code.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%`)
     .is("deleted_at", null)
-    .limit(10)
+    .order("name")
+
+  if (searchTerm.trim()) {
+    query = query.or(
+      `name.ilike.%${searchTerm}%,supplier_code.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%`,
+    )
+  }
+
+  const { data, error } = await query.limit(10)
 
   if (error) {
     console.error("[SERVER ACTION searchSuppliersForAdjustment] Error searching suppliers in Supabase:", error)
