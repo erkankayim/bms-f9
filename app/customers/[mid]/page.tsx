@@ -7,70 +7,42 @@ import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, User, Building } from "
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import CustomerOverview from "./_components/customer-overview"
-import CustomerSalesHistory from "./_components/customer-sales-history"
-import CustomerInvoiceHistory from "./_components/customer-invoice-history"
-import CustomerPurchaseInsights from "./_components/customer-purchase-insights"
+import { CustomerOverview } from "./_components/customer-overview"
+import { CustomerSalesHistory } from "./_components/customer-sales-history"
+import { CustomerInvoiceHistory } from "./_components/customer-invoice-history"
+import { CustomerPurchaseInsights } from "./_components/customer-purchase-insights"
 import { DeleteCustomerDialog } from "./_components/delete-customer-dialog"
-import type { Customer, Sale, Invoice, PurchaseInsights } from "./_components/helpers"
 
-async function getCustomerData(customerId: string) {
-  const supabase = createClient()
-
-  // Get customer data
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("mid", customerId)
-    .single()
-
-  if (customerError || !customer) {
-    return null
-  }
-
-  // Get sales data
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("id, sale_date, total_amount, status")
-    .eq("customer_id", customerId)
-    .order("sale_date", { ascending: false })
-
-  // Get invoices data
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("id, invoice_number, issue_date, total_amount, status")
-    .eq("customer_id", customerId)
-    .order("issue_date", { ascending: false })
-
-  // Calculate purchase insights
-  const insights: PurchaseInsights | null =
-    sales && sales.length > 0
-      ? {
-          total_spending: sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0),
-          total_orders: sales.length,
-          first_purchase_date: sales[sales.length - 1]?.sale_date || null,
-          last_purchase_date: sales[0]?.sale_date || null,
-        }
-      : null
-
-  return {
-    customer: customer as Customer,
-    sales: (sales || []) as Sale[],
-    invoices: (invoices || []) as Invoice[],
-    insights,
-  }
+type Customer = {
+  mid: string
+  contact_name: string | null
+  company_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  country: string | null
+  postal_code: string | null
+  tax_number: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
 }
 
 export default async function CustomerDetailPage({ params }: { params: { mid: string } }) {
+  const supabase = createClient()
   const customerId = params.mid
-  const data = await getCustomerData(customerId)
 
-  if (!data) {
+  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
+
+  if (error || !customer) {
+    console.error("Error fetching customer:", error?.message)
     notFound()
   }
 
-  const { customer, sales, invoices, insights } = data
-  const isDeleted = !!customer.deleted_at
+  const typedCustomer = customer as Customer
+  const isDeleted = !!typedCustomer.deleted_at
 
   return (
     <div className="container mx-auto py-10">
@@ -82,15 +54,15 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
         </Link>
         <div className="flex gap-2">
           {!isDeleted && (
-            <Link href={`/customers/${customer.mid}/edit`}>
+            <Link href={`/customers/${typedCustomer.mid}/edit`}>
               <Button variant="outline" size="sm">
                 <Edit className="mr-2 h-4 w-4" /> Düzenle
               </Button>
             </Link>
           )}
           <DeleteCustomerDialog
-            customerId={customer.mid}
-            customerName={customer.contact_name || customer.company_name || "Bilinmeyen"}
+            customerId={typedCustomer.mid}
+            customerName={typedCustomer.contact_name || typedCustomer.company_name || "Bilinmeyen"}
             isDeleted={isDeleted}
           />
         </div>
@@ -102,16 +74,16 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <CardTitle className="text-3xl font-bold flex items-center gap-2">
                 <User className="h-8 w-8" />
-                {customer.contact_name || customer.company_name || "İsimsiz Müşteri"}
+                {typedCustomer.contact_name || typedCustomer.company_name || "İsimsiz Müşteri"}
               </CardTitle>
               <CardDescription className="text-md flex items-center mt-1">
                 <Calendar className="mr-1 h-4 w-4" />
-                Kayıt Tarihi: {format(new Date(customer.created_at), "dd.MM.yyyy")}
+                Kayıt Tarihi: {format(new Date(typedCustomer.created_at), "dd.MM.yyyy")}
               </CardDescription>
             </div>
             <div className="flex flex-col gap-2">
               <Badge variant="outline" className="text-sm">
-                ID: {customer.mid}
+                ID: {typedCustomer.mid}
               </Badge>
               {isDeleted && (
                 <Badge variant="destructive" className="text-sm">
@@ -127,23 +99,23 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <h3 className="text-lg font-medium mb-3">İletişim Bilgileri</h3>
               <div className="space-y-2">
-                {customer.email && (
+                {typedCustomer.email && (
                   <p className="flex items-center text-sm">
                     <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${customer.email}`} className="hover:underline">
-                      {customer.email}
+                    <a href={`mailto:${typedCustomer.email}`} className="hover:underline">
+                      {typedCustomer.email}
                     </a>
                   </p>
                 )}
-                {customer.phone && (
+                {typedCustomer.phone && (
                   <p className="flex items-center text-sm">
                     <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${customer.phone}`} className="hover:underline">
-                      {customer.phone}
+                    <a href={`tel:${typedCustomer.phone}`} className="hover:underline">
+                      {typedCustomer.phone}
                     </a>
                   </p>
                 )}
-                {!customer.email && !customer.phone && (
+                {!typedCustomer.email && !typedCustomer.phone && (
                   <p className="text-sm text-muted-foreground">İletişim bilgisi yok</p>
                 )}
               </div>
@@ -153,18 +125,18 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <h3 className="text-lg font-medium mb-3">Şirket Bilgileri</h3>
               <div className="space-y-2">
-                {customer.company_name && (
+                {typedCustomer.company_name && (
                   <p className="flex items-center text-sm">
                     <Building className="mr-2 h-4 w-4 text-muted-foreground" />
-                    {customer.company_name}
+                    {typedCustomer.company_name}
                   </p>
                 )}
-                {customer.tax_number && (
+                {typedCustomer.tax_number && (
                   <p className="text-sm">
-                    <span className="text-muted-foreground">Vergi No:</span> {customer.tax_number}
+                    <span className="text-muted-foreground">Vergi No:</span> {typedCustomer.tax_number}
                   </p>
                 )}
-                {!customer.company_name && !customer.tax_number && (
+                {!typedCustomer.company_name && !typedCustomer.tax_number && (
                   <p className="text-sm text-muted-foreground">Şirket bilgisi yok</p>
                 )}
               </div>
@@ -174,26 +146,26 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <h3 className="text-lg font-medium mb-3">Adres Bilgileri</h3>
               <div className="space-y-2">
-                {customer.address && (
+                {typedCustomer.address && (
                   <p className="flex items-start text-sm">
                     <MapPin className="mr-2 h-4 w-4 text-muted-foreground mt-0.5" />
                     <span>
-                      {customer.address}
-                      {customer.city && <>, {customer.city}</>}
-                      {customer.postal_code && <> {customer.postal_code}</>}
-                      {customer.country && <>, {customer.country}</>}
+                      {typedCustomer.address}
+                      {typedCustomer.city && <>, {typedCustomer.city}</>}
+                      {typedCustomer.postal_code && <> {typedCustomer.postal_code}</>}
+                      {typedCustomer.country && <>, {typedCustomer.country}</>}
                     </span>
                   </p>
                 )}
-                {!customer.address && <p className="text-sm text-muted-foreground">Adres bilgisi yok</p>}
+                {!typedCustomer.address && <p className="text-sm text-muted-foreground">Adres bilgisi yok</p>}
               </div>
             </div>
           </div>
 
-          {customer.notes && (
+          {typedCustomer.notes && (
             <div className="mt-6 pt-6 border-t">
               <h3 className="text-lg font-medium mb-2">Notlar</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{customer.notes}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap">{typedCustomer.notes}</p>
             </div>
           )}
         </CardContent>
@@ -208,16 +180,16 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
-            <CustomerOverview customer={customer} />
+            <CustomerOverview customerId={typedCustomer.mid} />
           </TabsContent>
           <TabsContent value="sales" className="space-y-4">
-            <CustomerSalesHistory sales={sales} />
+            <CustomerSalesHistory customerId={typedCustomer.mid} />
           </TabsContent>
           <TabsContent value="invoices" className="space-y-4">
-            <CustomerInvoiceHistory invoices={invoices} />
+            <CustomerInvoiceHistory customerId={typedCustomer.mid} />
           </TabsContent>
           <TabsContent value="insights" className="space-y-4">
-            <CustomerPurchaseInsights insights={insights} />
+            <CustomerPurchaseInsights customerId={typedCustomer.mid} />
           </TabsContent>
         </Tabs>
       )}

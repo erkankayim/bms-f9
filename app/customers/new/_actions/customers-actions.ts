@@ -2,175 +2,92 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { z } from "zod"
+import * as z from "zod"
 
-// Server-side validation schema
-const customerSchema = z.object({
-  mid: z
-    .string()
-    .min(1, "Müşteri ID zorunludur")
-    .max(50, "Müşteri ID en fazla 50 karakter olabilir")
-    .regex(/^[a-zA-Z0-9_-]+$/, "Müşteri ID sadece harf, rakam, tire ve alt çizgi içerebilir"),
-  contact_name: z
-    .string()
-    .min(2, "İletişim adı en az 2 karakter olmalıdır")
-    .max(100, "İletişim adı en fazla 100 karakter olabilir"),
-  company_name: z.string().max(100).nullable().optional(),
-  email: z.string().email("Geçerli bir email adresi giriniz").max(100).nullable().optional(),
-  phone: z.string().max(20).nullable().optional(),
-  address: z.string().max(500).nullable().optional(),
-  city: z.string().max(50).nullable().optional(),
-  province: z.string().max(50).nullable().optional(),
-  postal_code: z.string().max(10).nullable().optional(),
-  country: z.string().max(50).nullable().optional(),
-  tax_number: z.string().max(20).nullable().optional(),
-  customer_group: z.string().max(50).nullable().optional(),
-  balance: z.number().min(-999999.99).max(999999.99).optional(),
-  notes: z.string().max(1000).nullable().optional(),
-  service_name: z.string().max(100).nullable().optional(),
+// Schema for validation, matching the form schema
+const customerFormSchema = z.object({
+  mid: z.string().min(1, "Customer ID is required"),
+  service_name: z.string().optional().nullable(),
+  contact_name: z.string().min(1, "Contact name is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")).nullable(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  province: z.string().optional().nullable(),
+  postal_code: z.string().optional().nullable(),
+  tax_office: z.string().optional().nullable(),
+  tax_number: z.string().optional().nullable(),
+  customer_group: z.string().optional().nullable(),
+  balance: z.coerce.number().optional().default(0).nullable(),
+  notes: z.string().optional().nullable(),
 })
 
-type CustomerData = z.infer<typeof customerSchema>
+type CustomerFormValues = z.infer<typeof customerFormSchema>
 
-export async function createCustomer(data: CustomerData) {
-  try {
-    // Validate the data
-    const validatedData = customerSchema.parse(data)
+export async function addCustomerAction(
+  data: CustomerFormValues,
+): Promise<{ success: boolean; error?: string | null; data?: any }> {
+  const supabase = createClient()
 
-    const supabase = createClient()
-
-    // Check if customer ID already exists
-    const { data: existingCustomer } = await supabase
-      .from("customers")
-      .select("mid")
-      .eq("mid", validatedData.mid)
-      .single()
-
-    if (existingCustomer) {
-      throw new Error("Bu müşteri ID zaten kullanılıyor. Lütfen farklı bir ID seçin.")
+  // Validate data with Zod schema
+  const validationResult = customerFormSchema.safeParse(data)
+  if (!validationResult.success) {
+    console.error("Validation errors:", validationResult.error.flatten().fieldErrors)
+    return {
+      success: false,
+      error: "Invalid data provided. Please check the form fields.",
     }
+  }
 
-    // Insert the new customer
-    const { error } = await supabase.from("customers").insert([validatedData])
+  const { data: newCustomer, error } = await supabase
+    .from("customers")
+    .insert([
+      {
+        mid: validationResult.data.mid,
+        service_name: validationResult.data.service_name,
+        contact_name: validationResult.data.contact_name,
+        email: validationResult.data.email,
+        phone: validationResult.data.phone,
+        address: validationResult.data.address,
+        city: validationResult.data.city,
+        province: validationResult.data.province,
+        postal_code: validationResult.data.postal_code,
+        tax_office: validationResult.data.tax_office,
+        tax_number: validationResult.data.tax_number,
+        customer_group: validationResult.data.customer_group,
+        balance: validationResult.data.balance,
+        notes: validationResult.data.notes,
+        // created_at and updated_at will be set by default by Postgres
+      },
+    ])
+    .select()
+    .single()
 
-    if (error) {
-      console.error("Database error:", error)
-      if (error.code === "23505") {
-        // Unique constraint violation
-        throw new Error("Bu müşteri ID zaten kullanılıyor. Lütfen farklı bir ID seçin.")
+  if (error) {
+    console.error("Error inserting customer:", error)
+    // Check for specific Supabase errors, e.g., unique constraint violation for 'mid'
+    if (error.code === "23505") {
+      // PostgreSQL unique violation error code
+      if (error.message.includes("customers_pkey")) {
+        // Check if it's the primary key (mid)
+        return { success: false, error: `Customer ID "${validationResult.data.mid}" already exists.` }
       }
-      throw new Error("Müşteri kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.")
     }
-
-    revalidatePath("/customers")
-    return { success: true }
-  } catch (error) {
-    console.error("Create customer error:", error)
-
-    if (error instanceof z.ZodError) {
-      const fieldErrors = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ")
-      throw new Error(`Doğrulama hatası: ${fieldErrors}`)
-    }
-
-    throw error instanceof Error ? error : new Error("Beklenmeyen bir hata oluştu")
+    return { success: false, error: error.message }
   }
-}
 
-export async function updateCustomer(customerId: string, data: Partial<CustomerData>) {
-  try {
-    // Validate the data (excluding mid for updates)
-    const updateSchema = customerSchema.omit({ mid: true })
-    const validatedData = updateSchema.parse(data)
+  // Revalidate the customers list page so it shows the new customer
+  revalidatePath("/customers")
+  revalidatePath(`/customers/${validationResult.data.mid}`)
 
-    const supabase = createClient()
-
-    // Update the customer
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        ...validatedData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("mid", customerId)
-
-    if (error) {
-      console.error("Database error:", error)
-      throw new Error("Müşteri güncellenirken bir hata oluştu. Lütfen tekrar deneyin.")
-    }
-
-    revalidatePath("/customers")
-    revalidatePath(`/customers/${customerId}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Update customer error:", error)
-
-    if (error instanceof z.ZodError) {
-      const fieldErrors = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ")
-      throw new Error(`Doğrulama hatası: ${fieldErrors}`)
-    }
-
-    throw error instanceof Error ? error : new Error("Beklenmeyen bir hata oluştu")
-  }
-}
-
-export async function deleteCustomer(customerId: string) {
-  try {
-    const supabase = createClient()
-
-    // Soft delete - set deleted_at timestamp
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        deleted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("mid", customerId)
-
-    if (error) {
-      console.error("Database error:", error)
-      throw new Error("Müşteri silinirken bir hata oluştu. Lütfen tekrar deneyin.")
-    }
-
-    revalidatePath("/customers")
-    return { success: true }
-  } catch (error) {
-    console.error("Delete customer error:", error)
-    throw error instanceof Error ? error : new Error("Beklenmeyen bir hata oluştu")
-  }
-}
-
-export async function restoreCustomer(customerId: string) {
-  try {
-    const supabase = createClient()
-
-    // Restore customer - remove deleted_at timestamp
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        deleted_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("mid", customerId)
-
-    if (error) {
-      console.error("Database error:", error)
-      throw new Error("Müşteri geri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.")
-    }
-
-    revalidatePath("/customers")
-    revalidatePath(`/customers/${customerId}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Restore customer error:", error)
-    throw error instanceof Error ? error : new Error("Beklenmeyen bir hata oluştu")
-  }
+  return { success: true, data: newCustomer }
 }
 
 // Updated function to properly update an existing customer
 export async function updateCustomerAction(
-  originalCustomerId: string,
-  data: CustomerData,
-): Promise<{ success: boolean; error?: string | null; data?: any; fieldErrors?: any }> {
+  originalCustomerId: string, // The original ID of the customer to update
+  data: CustomerFormValues,
+): Promise<{ success: boolean; error?: string | null; data?: any }> {
   const supabase = createClient()
 
   if (!originalCustomerId) {
@@ -180,17 +97,13 @@ export async function updateCustomerAction(
     }
   }
 
-  // Validate data
-  const validationResult = customerSchema.safeParse(data)
+  // Validate data - but we'll handle mid separately
+  const validationResult = customerFormSchema.safeParse(data)
   if (!validationResult.success) {
-    const fieldErrors = validationResult.error.flatten().fieldErrors
-    console.error("Validation errors:", fieldErrors)
-
-    // Return detailed field errors
+    console.error("Validation errors:", validationResult.error.flatten().fieldErrors)
     return {
       success: false,
-      error: "Form verilerinde hatalar bulundu. Lütfen aşağıdaki alanları kontrol edin.",
-      fieldErrors: fieldErrors,
+      error: "Geçersiz veri. Lütfen form alanlarını kontrol edin.",
     }
   }
 
@@ -274,67 +187,4 @@ export async function updateCustomerAction(
       error: "Beklenmedik bir hata oluştu. Lütfen tekrar deneyin.",
     }
   }
-}
-
-export async function addCustomerAction(
-  data: CustomerData,
-): Promise<{ success: boolean; error?: string | null; data?: any; fieldErrors?: any }> {
-  const supabase = createClient()
-
-  // Validate data with Zod schema
-  const validationResult = customerSchema.safeParse(data)
-  if (!validationResult.success) {
-    const fieldErrors = validationResult.error.flatten().fieldErrors
-    console.error("Validation errors:", fieldErrors)
-
-    // Return detailed field errors
-    return {
-      success: false,
-      error: "Form verilerinde hatalar bulundu. Lütfen aşağıdaki alanları kontrol edin.",
-      fieldErrors: fieldErrors,
-    }
-  }
-
-  const { data: newCustomer, error } = await supabase
-    .from("customers")
-    .insert([
-      {
-        mid: validationResult.data.mid,
-        service_name: validationResult.data.service_name,
-        contact_name: validationResult.data.contact_name,
-        email: validationResult.data.email,
-        phone: validationResult.data.phone,
-        address: validationResult.data.address,
-        city: validationResult.data.city,
-        province: validationResult.data.province,
-        postal_code: validationResult.data.postal_code,
-        tax_office: validationResult.data.tax_office,
-        tax_number: validationResult.data.tax_number,
-        customer_group: validationResult.data.customer_group,
-        balance: validationResult.data.balance,
-        notes: validationResult.data.notes,
-        // created_at and updated_at will be set by default by Postgres
-      },
-    ])
-    .select()
-    .single()
-
-  if (error) {
-    console.error("Error inserting customer:", error)
-    // Check for specific Supabase errors, e.g., unique constraint violation for 'mid'
-    if (error.code === "23505") {
-      // PostgreSQL unique violation error code
-      if (error.message.includes("customers_pkey")) {
-        // Check if it's the primary key (mid)
-        return { success: false, error: `Customer ID "${validationResult.data.mid}" already exists.` }
-      }
-    }
-    return { success: false, error: error.message }
-  }
-
-  // Revalidate the customers list page so it shows the new customer
-  revalidatePath("/customers")
-  revalidatePath(`/customers/${validationResult.data.mid}`)
-
-  return { success: true, data: newCustomer }
 }
