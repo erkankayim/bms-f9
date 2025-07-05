@@ -23,7 +23,7 @@ export interface CustomerForDropdown {
 export interface SupplierForDropdown {
   id: string
   name: string
-  company_name: string
+  supplier_code: string | null
   contact_name: string | null
   email: string | null
   phone: string | null
@@ -69,8 +69,6 @@ export async function getFinancialCategories(
 ): Promise<{ data?: FinancialCategory[]; error?: string }> {
   try {
     const supabase = createClient()
-
-    console.log(`Fetching ${type} categories...`)
 
     // First, try to get categories from the database
     const { data, error } = await supabase
@@ -130,11 +128,9 @@ export async function getFinancialCategories(
       ]
 
       const defaultCategories = type === "income" ? defaultIncomeCategories : defaultExpenseCategories
-      console.log(`Returning ${defaultCategories.length} default ${type} categories`)
       return { data: defaultCategories }
     }
 
-    console.log(`Found ${data?.length || 0} ${type} categories in database`)
     return { data: data as FinancialCategory[] }
   } catch (error) {
     console.error("Unexpected error fetching financial categories:", error)
@@ -164,45 +160,35 @@ export async function getSuppliersForDropdown(): Promise<{ data: SupplierForDrop
   try {
     const supabase = createClient()
 
-    console.log("🔍 Fetching suppliers for dropdown...")
-
-    // Suppliers tablosundan tüm gerekli alanları çek
+    // Suppliers tablosundan doğru kolonları çek
     const { data, error } = await supabase
       .from("suppliers")
-      .select("id, name, company_name, contact_name, email, phone")
+      .select("id, supplier_code, name, contact_name, email, phone")
+      .is("deleted_at", null)
       .order("name")
 
     if (error) {
-      console.error("❌ Database error fetching suppliers:", error)
+      console.error("Database error fetching suppliers:", error)
       return { data: null, error: `Tedarikçiler alınırken hata: ${error.message}` }
     }
 
-    console.log(`✅ Raw supplier data:`, data)
-    console.log(`📊 Found ${data?.length || 0} suppliers in database`)
-
     if (!data || data.length === 0) {
-      console.log("⚠️ No suppliers found in database")
       return { data: [], error: null }
     }
 
-    // Format the data to ensure we have the right structure
-    const formattedData = data.map((supplier) => {
-      const formatted = {
-        id: supplier.id,
-        name: supplier.name || supplier.company_name || "İsimsiz Tedarikçi",
-        company_name: supplier.company_name || supplier.name || "İsimsiz Şirket",
-        contact_name: supplier.contact_name,
-        email: supplier.email,
-        phone: supplier.phone,
-      }
-      console.log(`📝 Formatted supplier:`, formatted)
-      return formatted
-    })
+    // Format the data based on the actual structure
+    const formattedData = data.map((supplier) => ({
+      id: supplier.id,
+      name: supplier.name || "İsimsiz Tedarikçi",
+      supplier_code: supplier.supplier_code,
+      contact_name: supplier.contact_name,
+      email: supplier.email,
+      phone: supplier.phone,
+    }))
 
-    console.log(`🎯 Returning ${formattedData.length} formatted suppliers`)
     return { data: formattedData, error: null }
   } catch (error) {
-    console.error("💥 Unexpected error fetching suppliers:", error)
+    console.error("Unexpected error fetching suppliers:", error)
     return { data: null, error: "Beklenmeyen bir hata oluştu" }
   }
 }
@@ -502,12 +488,9 @@ export async function createIncomeEntryAction(
     const supabase = createClient()
     const rawData = Object.fromEntries(formData)
 
-    console.log("Raw form data:", rawData)
-
     const validatedFields = IncomeEntrySchema.safeParse(rawData)
 
     if (!validatedFields.success) {
-      console.log("Validation errors:", validatedFields.error.issues)
       return {
         success: false,
         message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
@@ -526,8 +509,6 @@ export async function createIncomeEntryAction(
       payment_method,
       notes,
     } = validatedFields.data
-
-    console.log("Validated data:", validatedFields.data)
 
     // Handle customer_id - if provided and not "none", verify it exists
     let finalCustomerId: string | null = null
@@ -575,12 +556,9 @@ export async function updateIncomeEntryAction(
     const supabase = createClient()
     const rawData = Object.fromEntries(formData)
 
-    console.log("Raw update form data:", rawData)
-
     const validatedFields = IncomeEntrySchema.safeParse(rawData)
 
     if (!validatedFields.success) {
-      console.log("Update validation errors:", validatedFields.error.issues)
       return {
         success: false,
         message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
@@ -649,12 +627,9 @@ export async function createExpenseEntryAction(
     const supabase = createClient()
     const rawData = Object.fromEntries(formData)
 
-    console.log("🔍 Raw expense form data:", rawData)
-
     const validatedFields = ExpenseEntrySchema.safeParse(rawData)
 
     if (!validatedFields.success) {
-      console.log("❌ Expense validation errors:", validatedFields.error.issues)
       return {
         success: false,
         message: "Lütfen aşağıdaki hataları düzeltin ve tekrar deneyin.",
@@ -676,24 +651,17 @@ export async function createExpenseEntryAction(
       notes,
     } = validatedFields.data
 
-    console.log("✅ Validated expense data:", validatedFields.data)
-
     // Handle supplier_id - if provided and not "none", verify it exists
     let finalSupplierId: string | null = null
     if (supplier_id && supplier_id !== "none" && supplier_id !== "no-supplier") {
-      console.log(`🔍 Verifying supplier ID: ${supplier_id}`)
       const supplierExists = await verifySupplierById(supabase, supplier_id)
       if (!supplierExists) {
-        console.log(`❌ Supplier ${supplier_id} not found`)
         return { success: false, message: `Seçilen tedarikçi bulunamadı.` }
       }
       finalSupplierId = supplier_id
-      console.log(`✅ Supplier verified: ${finalSupplierId}`)
-    } else {
-      console.log("ℹ️ No supplier selected or 'no-supplier' selected")
     }
 
-    const insertData = {
+    const { error } = await supabase.from("expense_entries").insert({
       description,
       expense_amount,
       payment_amount,
@@ -706,24 +674,18 @@ export async function createExpenseEntryAction(
       payment_method,
       notes,
       amount: expense_amount,
-    }
-
-    console.log("📝 Inserting expense data:", insertData)
-
-    const { error } = await supabase.from("expense_entries").insert(insertData)
+    })
 
     if (error) {
-      console.error("❌ Expense entry creation error:", error)
+      console.error("Expense entry creation error:", error)
       return { success: false, message: `Gider kaydı oluşturulurken hata: ${error.message}` }
     }
-
-    console.log("✅ Expense entry created successfully")
 
     revalidatePath("/financials")
     revalidatePath("/financials/expenses")
     return { success: true, message: "Gider kaydı başarıyla oluşturuldu." }
   } catch (error) {
-    console.error("💥 Unexpected error creating expense entry:", error)
+    console.error("Unexpected error creating expense entry:", error)
     return { success: false, message: `Gider kaydı oluşturulurken beklenmeyen hata: ${error}` }
   }
 }
