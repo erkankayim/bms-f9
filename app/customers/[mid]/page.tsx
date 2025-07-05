@@ -24,9 +24,10 @@ import {
   DollarSign,
 } from "lucide-react"
 import { format } from "date-fns"
-import { formatDate, formatCurrency, formatDateTime } from "@/lib/utils"
+import { formatDate, formatCurrency, formatSaleStatusTR, getSaleStatusBadgeVariant } from "@/lib/utils"
+import DeleteCustomerDialog from "./_components/delete-customer-dialog"
 
-// Type definitions
+// --- TYPE DEFINITIONS ---
 interface Customer {
   mid: string
   contact_name: string | null
@@ -70,34 +71,20 @@ interface PurchaseInsights {
   last_purchase_date: string | null
 }
 
+// --- INLINE COMPONENTS ---
+
 // Helper component for displaying info items
-function InfoItem({
-  label,
-  value,
-  children,
-}: {
-  label: string
-  value?: string | null
-  children?: React.ReactNode
-}) {
+function InfoItem({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
   return (
     <div>
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <div className="mt-1 text-sm text-gray-900">{children || value || "-"}</div>
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm">{children || value || "-"}</div>
     </div>
   )
 }
 
 // Insight card component
-function InsightCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string
-  value: string | number
-  icon: React.ReactNode
-}) {
+function InsightCard({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -106,51 +93,6 @@ function InsightCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// Customer Overview Component
-function CustomerOverview({ customer }: { customer: Customer }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Müşteri Bilgileri</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-          <InfoItem label="Müşteri ID" value={customer.mid} />
-          <InfoItem label="Yetkili Adı" value={customer.contact_name} />
-          <InfoItem label="Email" value={customer.email} />
-          <InfoItem label="Telefon" value={customer.phone} />
-          <InfoItem label="Hizmet/Abonelik" value={customer.service_name} />
-          <InfoItem label="Müşteri Grubu">
-            {customer.customer_group ? <Badge variant="secondary">{customer.customer_group}</Badge> : "-"}
-          </InfoItem>
-          <InfoItem label="Bakiye">{formatCurrency(customer.balance ?? 0)}</InfoItem>
-        </div>
-
-        <h3 className="text-lg font-semibold border-t pt-4 mt-4">Adres Bilgileri</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-          <InfoItem label="Adres" value={customer.address} />
-          <InfoItem label="Şehir" value={customer.city} />
-          <InfoItem label="İl/Eyalet" value={customer.province} />
-          <InfoItem label="Posta Kodu" value={customer.postal_code} />
-          <InfoItem label="Ülke" value={customer.country} />
-        </div>
-
-        {customer.notes && (
-          <>
-            <h3 className="text-lg font-semibold border-t pt-4 mt-4">Notlar</h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{customer.notes}</p>
-          </>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 mt-4 text-sm text-muted-foreground">
-          <InfoItem label="Oluşturulma Tarihi" value={formatDateTime(customer.created_at)} />
-          <InfoItem label="Son Güncelleme" value={formatDateTime(customer.updated_at)} />
-        </div>
       </CardContent>
     </Card>
   )
@@ -188,11 +130,11 @@ function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
           <TableBody>
             {sales.map((sale) => (
               <TableRow key={sale.id}>
-                <TableCell>{sale.id || "-"}</TableCell>
+                <TableCell className="font-mono text-xs">{sale.id || "-"}</TableCell>
                 <TableCell>{formatDate(sale.sale_date)}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="capitalize">
-                    {sale.status || "Bilinmiyor"}
+                  <Badge variant={getSaleStatusBadgeVariant(sale.status)} className="capitalize">
+                    {formatSaleStatusTR(sale.status)}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">{formatCurrency(sale.total_amount ?? 0)}</TableCell>
@@ -247,8 +189,8 @@ function CustomerInvoiceHistory({ invoices }: { invoices: Invoice[] }) {
                 <TableCell className="font-medium">{invoice.invoice_number || "-"}</TableCell>
                 <TableCell>{formatDate(invoice.issue_date)}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="capitalize">
-                    {invoice.status?.replace("_", " ") || "Bilinmiyor"}
+                  <Badge variant={getSaleStatusBadgeVariant(invoice.status)} className="capitalize">
+                    {formatSaleStatusTR(invoice.status)}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">{formatCurrency(invoice.total_amount ?? 0)}</TableCell>
@@ -308,51 +250,46 @@ function CustomerPurchaseInsights({ insights }: { insights: PurchaseInsights | n
   )
 }
 
-// Main Page Component
+// --- MAIN PAGE COMPONENT ---
 export default async function CustomerDetailPage({ params }: { params: { mid: string } }) {
   const supabase = createClient()
   const customerId = params.mid
 
-  // Check authentication
+  // 1. Check authentication
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    redirect("/auth/login")
+  if (!user) {
+    return redirect("/auth/login")
   }
 
-  // Fetch customer data
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("mid", customerId)
-    .single()
+  // 2. Fetch all data in parallel
+  const [customerResult, salesResult, invoicesResult] = await Promise.all([
+    supabase.from("customers").select("*").eq("mid", customerId).single(),
+    supabase
+      .from("sales")
+      .select("id, sale_date, total_amount, status")
+      .eq("customer_mid", customerId)
+      .order("sale_date", { ascending: false }),
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, issue_date, total_amount, status")
+      .eq("customer_mid", customerId)
+      .order("issue_date", { ascending: false }),
+  ])
 
-  if (customerError || !customer) {
-    console.error("Error fetching customer:", customerError?.message)
+  // 3. Handle customer not found
+  if (customerResult.error || !customerResult.data) {
+    console.error("Müşteri bulunamadı:", customerResult.error?.message)
     notFound()
   }
 
-  const typedCustomer = customer as Customer
-  const isDeleted = !!typedCustomer.deleted_at
+  const customer: Customer = customerResult.data
+  const sales: Sale[] = salesResult.data || []
+  const invoices: Invoice[] = invoicesResult.data || []
+  const isDeleted = !!customer.deleted_at
 
-  // Fetch sales data
-  const { data: sales = [] } = await supabase
-    .from("sales")
-    .select("id, sale_date, total_amount, status")
-    .eq("customer_id", customerId)
-    .order("sale_date", { ascending: false })
-
-  // Fetch invoices data
-  const { data: invoices = [] } = await supabase
-    .from("invoices")
-    .select("id, invoice_number, issue_date, total_amount, status")
-    .eq("customer_id", customerId)
-    .order("issue_date", { ascending: false })
-
-  // Calculate insights
+  // 4. Calculate insights
   const insights: PurchaseInsights | null =
     sales.length > 0
       ? {
@@ -364,149 +301,129 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
       : null
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="mb-6 flex justify-between items-center">
-        <Link href="/customers">
+    <div className="container mx-auto py-10 px-4 sm:px-6 lg:px-8">
+      <header className="mb-6 flex flex-wrap justify-between items-center gap-4">
+        <Link href="/customers" className="flex items-center">
           <Button variant="outline" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" /> Müşterilere Geri Dön
           </Button>
         </Link>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {!isDeleted && (
-            <Link href={`/customers/${typedCustomer.mid}/edit`}>
+            <Link href={`/customers/${customer.mid}/edit`}>
               <Button variant="outline" size="sm">
                 <Edit className="mr-2 h-4 w-4" /> Düzenle
               </Button>
             </Link>
           )}
+          <DeleteCustomerDialog
+            customerId={customer.mid}
+            customerName={customer.contact_name || customer.company_name || "Bilinmeyen"}
+            isDeleted={isDeleted}
+          />
         </div>
-      </div>
+      </header>
 
-      <Card className="mb-6">
-        <CardHeader className="bg-muted/50 p-6">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
-              <CardTitle className="text-3xl font-bold flex items-center gap-2">
-                <User className="h-8 w-8" />
-                {typedCustomer.contact_name || typedCustomer.company_name || "İsimsiz Müşteri"}
-              </CardTitle>
-              <CardDescription className="text-md flex items-center mt-1">
-                <Calendar className="mr-1 h-4 w-4" />
-                Kayıt Tarihi: {format(new Date(typedCustomer.created_at), "dd.MM.yyyy")}
-              </CardDescription>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Badge variant="outline" className="text-sm">
-                ID: {typedCustomer.mid}
-              </Badge>
-              {isDeleted && (
-                <Badge variant="destructive" className="text-sm">
-                  Arşivlenmiş
+      <main>
+        <Card className="mb-8">
+          <CardHeader className="bg-muted/50 p-6">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div>
+                <CardTitle className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
+                  <User className="h-7 w-7 lg:h-8 lg:w-8 text-primary" />
+                  {customer.contact_name || customer.company_name || "İsimsiz Müşteri"}
+                </CardTitle>
+                <CardDescription className="text-md flex items-center mt-2 text-muted-foreground">
+                  <Calendar className="mr-1.5 h-4 w-4" />
+                  Kayıt Tarihi:{" "}
+                  {format(new Date(customer.created_at), "dd MMMM yyyy, HH:mm", {
+                    locale: require("date-fns/locale/tr"),
+                  })}
+                </CardDescription>
+              </div>
+              <div className="flex flex-col items-start md:items-end gap-2">
+                <Badge variant="secondary" className="text-sm">
+                  ID: {customer.mid}
                 </Badge>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* İletişim Bilgileri */}
-            <div>
-              <h3 className="text-lg font-medium mb-3">İletişim Bilgileri</h3>
-              <div className="space-y-2">
-                {typedCustomer.email && (
-                  <p className="flex items-center text-sm">
-                    <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${typedCustomer.email}`} className="hover:underline">
-                      {typedCustomer.email}
-                    </a>
-                  </p>
-                )}
-                {typedCustomer.phone && (
-                  <p className="flex items-center text-sm">
-                    <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${typedCustomer.phone}`} className="hover:underline">
-                      {typedCustomer.phone}
-                    </a>
-                  </p>
-                )}
-                {!typedCustomer.email && !typedCustomer.phone && (
-                  <p className="text-sm text-muted-foreground">İletişim bilgisi yok</p>
+                {isDeleted && (
+                  <Badge variant="destructive" className="text-sm font-semibold">
+                    ARŞİVLENMİŞ
+                  </Badge>
                 )}
               </div>
             </div>
-
-            {/* Şirket Bilgileri */}
-            <div>
-              <h3 className="text-lg font-medium mb-3">Şirket Bilgileri</h3>
-              <div className="space-y-2">
-                {typedCustomer.company_name && (
-                  <p className="flex items-center text-sm">
-                    <Building className="mr-2 h-4 w-4 text-muted-foreground" />
-                    {typedCustomer.company_name}
-                  </p>
-                )}
-                {typedCustomer.tax_number && (
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Vergi No:</span> {typedCustomer.tax_number}
-                  </p>
-                )}
-                {!typedCustomer.company_name && !typedCustomer.tax_number && (
-                  <p className="text-sm text-muted-foreground">Şirket bilgisi yok</p>
-                )}
-              </div>
-            </div>
-
-            {/* Adres Bilgileri */}
-            <div>
-              <h3 className="text-lg font-medium mb-3">Adres Bilgileri</h3>
-              <div className="space-y-2">
-                {typedCustomer.address && (
-                  <p className="flex items-start text-sm">
-                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground mt-0.5" />
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+              <InfoItem label="İletişim Bilgileri">
+                <div className="space-y-2">
+                  {customer.email && (
+                    <a href={`mailto:${customer.email}`} className="flex items-center hover:text-primary">
+                      <Mail className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.email}
+                    </a>
+                  )}
+                  {customer.phone && (
+                    <a href={`tel:${customer.phone}`} className="flex items-center hover:text-primary">
+                      <Phone className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.phone}
+                    </a>
+                  )}
+                  {!customer.email && !customer.phone && <p className="text-muted-foreground">Girilmemiş</p>}
+                </div>
+              </InfoItem>
+              <InfoItem label="Şirket Bilgileri">
+                <div className="space-y-2">
+                  {customer.company_name && (
+                    <p className="flex items-center">
+                      <Building className="mr-2 h-4 w-4 text-muted-foreground" /> {customer.company_name}
+                    </p>
+                  )}
+                  {customer.tax_number && <p>Vergi No: {customer.tax_number}</p>}
+                  {!customer.company_name && !customer.tax_number && (
+                    <p className="text-muted-foreground">Girilmemiş</p>
+                  )}
+                </div>
+              </InfoItem>
+              <InfoItem label="Adres">
+                {customer.address ? (
+                  <p className="flex items-start">
+                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <span>
-                      {typedCustomer.address}
-                      {typedCustomer.city && <>, {typedCustomer.city}</>}
-                      {typedCustomer.postal_code && <> {typedCustomer.postal_code}</>}
-                      {typedCustomer.country && <>, {typedCustomer.country}</>}
+                      {customer.address}, {customer.city} {customer.postal_code}, {customer.country}
                     </span>
                   </p>
+                ) : (
+                  <p className="text-muted-foreground">Girilmemiş</p>
                 )}
-                {!typedCustomer.address && <p className="text-sm text-muted-foreground">Adres bilgisi yok</p>}
+              </InfoItem>
+            </div>
+            {customer.notes && (
+              <div className="mt-6 pt-6 border-t">
+                <h3 className="text-lg font-medium mb-2">Notlar</h3>
+                <p className="text-muted-foreground whitespace-pre-wrap text-sm">{customer.notes}</p>
               </div>
-            </div>
-          </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {typedCustomer.notes && (
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="text-lg font-medium mb-2">Notlar</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{typedCustomer.notes}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {!isDeleted && (
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-            <TabsTrigger value="sales">Satış Geçmişi</TabsTrigger>
-            <TabsTrigger value="invoices">Fatura Geçmişi</TabsTrigger>
-            <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview" className="space-y-4">
-            <CustomerOverview customer={typedCustomer} />
-          </TabsContent>
-          <TabsContent value="sales" className="space-y-4">
-            <CustomerSalesHistory sales={sales as Sale[]} />
-          </TabsContent>
-          <TabsContent value="invoices" className="space-y-4">
-            <CustomerInvoiceHistory invoices={invoices as Invoice[]} />
-          </TabsContent>
-          <TabsContent value="insights" className="space-y-4">
-            <CustomerPurchaseInsights insights={insights} />
-          </TabsContent>
-        </Tabs>
-      )}
+        {!isDeleted && (
+          <Tabs defaultValue="sales" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+              <TabsTrigger value="sales">Satış Geçmişi</TabsTrigger>
+              <TabsTrigger value="invoices">Fatura Geçmişi</TabsTrigger>
+              <TabsTrigger value="insights">Satın Alma Analizi</TabsTrigger>
+            </TabsList>
+            <TabsContent value="sales" className="mt-4">
+              <CustomerSalesHistory sales={sales} />
+            </TabsContent>
+            <TabsContent value="invoices" className="mt-4">
+              <CustomerInvoiceHistory invoices={invoices} />
+            </TabsContent>
+            <TabsContent value="insights" className="mt-4">
+              <CustomerPurchaseInsights insights={insights} />
+            </TabsContent>
+          </Tabs>
+        )}
+      </main>
     </div>
   )
 }
