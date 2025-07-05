@@ -1,11 +1,30 @@
 "use client"
 
-import { Line, LineChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Bar, BarChart } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import {
+  Bar,
+  BarChart,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts"
 
-type SalesGrowthData = { month: string; sales: number; customers: number }
-type CustomerGrowthData = { month: string; newCustomers: number; totalCustomers: number }
+type SalesGrowthData = {
+  month: string
+  sales: number
+  customers: number
+}
+
+type CustomerGrowthData = {
+  month: string
+  newCustomers: number
+  totalCustomers: number
+}
 
 interface DashboardChartsProps {
   salesGrowthData: SalesGrowthData[]
@@ -15,72 +34,49 @@ interface DashboardChartsProps {
 export default function DashboardCharts({ salesGrowthData, customerGrowthData }: DashboardChartsProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      {/* Aylık Satış Sayıları */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Aylık Satış Performansı</CardTitle>
           <CardDescription>Son 6 ayın satış adedi ve aktif müşteri sayısı</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer
-            config={{
-              sales: { label: "Satış Adedi", color: "hsl(var(--chart-1))" },
-              customers: { label: "Aktif Müşteri", color: "hsl(var(--chart-2))" },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesGrowthData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line
-                  type="monotone"
-                  dataKey="sales"
-                  stroke="var(--color-sales)"
-                  strokeWidth={3}
-                  dot={{ r: 5 }}
-                  name="Satış Adedi"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="customers"
-                  stroke="var(--color-customers)"
-                  strokeWidth={3}
-                  dot={{ r: 5 }}
-                  name="Aktif Müşteri"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={salesGrowthData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip
+                formatter={(value, name) => [value, name === "sales" ? "Satış Adedi" : "Aktif Müşteri"]}
+                labelFormatter={(label) => `Ay: ${label}`}
+              />
+              <Legend formatter={(value) => (value === "sales" ? "Satış Adedi" : "Aktif Müşteri")} />
+              <Bar dataKey="sales" fill="#8884d8" name="sales" />
+              <Bar dataKey="customers" fill="#82ca9d" name="customers" />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Müşteri Büyümesi */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Müşteri Büyümesi</CardTitle>
           <CardDescription>Aylık yeni müşteri kazanımı ve toplam müşteri sayısı</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer
-            config={{
-              newCustomers: { label: "Yeni Müşteriler", color: "hsl(var(--chart-3))" },
-              totalCustomers: { label: "Toplam Müşteri", color: "hsl(var(--chart-4))" },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={customerGrowthData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="newCustomers" fill="var(--color-newCustomers)" radius={4} name="Yeni Müşteriler" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={customerGrowthData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip
+                formatter={(value, name) => [value, name === "newCustomers" ? "Yeni Müşteri" : "Toplam Müşteri"]}
+                labelFormatter={(label) => `Ay: ${label}`}
+              />
+              <Legend formatter={(value) => (value === "newCustomers" ? "Yeni Müşteri" : "Toplam Müşteri")} />
+              <Line type="monotone" dataKey="newCustomers" stroke="#8884d8" strokeWidth={2} name="newCustomers" />
+              <Line type="monotone" dataKey="totalCustomers" stroke="#82ca9d" strokeWidth={2} name="totalCustomers" />
+            </LineChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
     </div>

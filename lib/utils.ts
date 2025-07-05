@@ -80,17 +80,25 @@ export const formatDateTime = formatDateTimeTR
 export const getSaleStatusBadgeVariant = (
   status: string | null,
 ): "default" | "secondary" | "destructive" | "outline" | "warning" => {
-  switch (status) {
+  switch (status?.toLowerCase()) {
     case "completed":
+    case "tamamlandı":
       return "default"
+    case "pending":
     case "pending_payment":
+    case "beklemede":
+    case "ödeme bekliyor":
       return "warning"
     case "pending_installment":
+    case "taksit bekleniyor":
       return "secondary"
     case "shipped":
+    case "kargolandı":
       return "outline"
     case "cancelled":
     case "refunded":
+    case "iptal edildi":
+    case "iade edildi":
       return "destructive"
     default:
       return "outline"
@@ -99,7 +107,10 @@ export const getSaleStatusBadgeVariant = (
 
 export const formatSaleStatusTR = (status: string | null): string => {
   if (!status) return "Bilinmiyor"
+
+  const statusLower = status.toLowerCase()
   const statusMap: { [key: string]: string } = {
+    pending: "Beklemede",
     pending_payment: "Ödeme Bekliyor",
     pending_installment: "Taksit Bekleniyor",
     completed: "Tamamlandı",
@@ -108,5 +119,6 @@ export const formatSaleStatusTR = (status: string | null): string => {
     cancelled: "İptal Edildi",
     refunded: "İade Edildi",
   }
-  return statusMap[status.toLowerCase()] || status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+
+  return statusMap[statusLower] || status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
 }
