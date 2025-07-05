@@ -1,317 +1,354 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useActionState } from "react"
 import { useRouter } from "next/navigation"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import {
+  createExpenseEntryAction,
+  getFinancialCategories,
+  getSuppliersForDropdown,
+  type FinancialCategory,
+  type SupplierForDropdown,
+} from "@/app/financials/_actions/financial-entries-actions"
+import { PAYMENT_METHODS } from "@/app/financials/_lib/financial-entry-shared"
+import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CalendarIcon, Loader2, RefreshCw } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
-import { tr } from "date-fns/locale"
-import { cn } from "@/lib/utils"
-import { createExpenseEntry } from "../_actions/expense-actions"
-import { getSuppliersForDropdown } from "@/app/financials/_actions/financial-entries-actions"
-import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle, CheckCircle2, Receipt, Loader2, Info, Building2, User, Phone, Mail } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
 
-const expenseFormSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Tutar gereklidir")
-    .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-      message: "Geçerli bir tutar giriniz",
-    }),
-  description: z.string().min(1, "Açıklama gereklidir"),
-  category: z.string().min(1, "Kategori seçiniz"),
-  supplier_id: z.string().optional(),
-  date: z.date({
-    required_error: "Tarih seçiniz",
-  }),
-  reference: z.string().optional(),
-})
-
-type ExpenseFormValues = z.infer<typeof expenseFormSchema>
-
-const expenseCategories = [
-  { value: "office_supplies", label: "Ofis Malzemeleri" },
-  { value: "utilities", label: "Faturalar" },
-  { value: "rent", label: "Kira" },
-  { value: "marketing", label: "Pazarlama" },
-  { value: "travel", label: "Seyahat" },
-  { value: "equipment", label: "Ekipman" },
-  { value: "maintenance", label: "Bakım" },
-  { value: "insurance", label: "Sigorta" },
-  { value: "professional_services", label: "Profesyonel Hizmetler" },
-  { value: "other", label: "Diğer" },
-]
-
-type Supplier = {
-  id: string
-  name: string
+const initialState = {
+  success: false,
+  message: "",
+  errors: undefined,
 }
 
 export default function ExpenseForm() {
+  const { toast } = useToast()
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false)
-  const [suppliersMessage, setSuppliersMessage] = useState("")
-
-  const form = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseFormSchema),
-    defaultValues: {
-      amount: "",
-      description: "",
-      category: "office_supplies", // Updated default value to be a non-empty string
-      supplier_id: "",
-      date: new Date(),
-      reference: "",
-    },
-  })
-
-  const loadSuppliers = async () => {
-    setLoadingSuppliers(true)
-    setSuppliersMessage("Tedarikçiler yükleniyor...")
-
-    try {
-      console.log("Loading suppliers...")
-      const result = await getSuppliersForDropdown()
-      console.log("Suppliers result:", result)
-
-      if (result.success && result.data) {
-        setSuppliers(result.data)
-        setSuppliersMessage(`${result.data.length} tedarikçi yüklendi`)
-        console.log("Suppliers loaded successfully:", result.data.length)
-      } else {
-        console.error("Failed to load suppliers:", result.error)
-        setSuppliers([])
-        setSuppliersMessage(result.error || "Tedarikçiler yüklenemedi")
-        toast.error(result.error || "Tedarikçiler yüklenemedi")
-      }
-    } catch (error) {
-      console.error("Error loading suppliers:", error)
-      setSuppliers([])
-      setSuppliersMessage("Tedarikçiler yüklenirken hata oluştu")
-      toast.error("Tedarikçiler yüklenirken hata oluştu")
-    } finally {
-      setLoadingSuppliers(false)
-    }
-  }
+  const [state, formAction, isPending] = useActionState(createExpenseEntryAction, initialState)
+  const [categories, setCategories] = useState<FinancialCategory[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierForDropdown[]>([])
+  const [formKey, setFormKey] = useState(Date.now())
+  const [loadingData, setLoadingData] = useState(true)
+  const [dataError, setDataError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadSuppliers()
-  }, [])
+    async function fetchData() {
+      setLoadingData(true)
+      setDataError(null)
 
-  function onSubmit(data: ExpenseFormValues) {
-    startTransition(async () => {
       try {
-        const result = await createExpenseEntry({
-          amount: Number(data.amount),
-          description: data.description,
-          category: data.category,
-          supplier_id: data.supplier_id || null,
-          date: data.date.toISOString(),
-          reference: data.reference || null,
-        })
+        const [catResult, suppResult] = await Promise.all([
+          getFinancialCategories("expense").catch((err) => {
+            return { error: err.message }
+          }),
+          getSuppliersForDropdown().catch((err) => {
+            return { error: err.message }
+          }),
+        ])
 
-        if (result.success) {
-          toast.success("Gider kaydı başarıyla oluşturuldu")
-          router.push("/financials/expenses")
+        if (catResult.data) {
+          setCategories(catResult.data)
         } else {
-          toast.error(result.error || "Gider kaydı oluşturulurken bir hata oluştu")
+          setDataError(catResult.error || "Kategoriler yüklenemedi")
+        }
+
+        if (suppResult.data) {
+          setSuppliers(suppResult.data)
+        } else {
+          setSuppliers([])
         }
       } catch (error) {
-        console.error("Form submission error:", error)
-        toast.error("Beklenmeyen bir hata oluştu")
+        setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
+      } finally {
+        setLoadingData(false)
       }
-    })
+    }
+
+    fetchData()
+  }, [])
+
+  // Form başarılı olduğunda yönlendir ve sıfırla
+  useEffect(() => {
+    if (state.success) {
+      setFormKey(Date.now())
+      router.push("/financials/expenses")
+    } else if (state.message && !state.success) {
+    }
+  }, [state.success, state.message, toast, router])
+
+  const getError = (field: string) => {
+    if (!state.errors || !Array.isArray(state.errors)) return undefined
+    return state.errors.find((e: any) => e.path && e.path[0] === field)?.message
+  }
+
+  if (loadingData) {
+    return (
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            Yeni Gider Kaydı
+          </CardTitle>
+          <CardDescription>
+            İşletme giderlerinizi detaylı olarak kaydedin ve tedarikçi ile ilişkilendirin.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg">Veriler yükleniyor, lütfen bekleyin...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (dataError) {
+    return (
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            Veri Yükleme Hatası
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{dataError}</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Yeni Gider Kaydı</CardTitle>
-          <CardDescription>Yeni bir gider kaydı oluşturun</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tutar</FormLabel>
-                    <FormControl>
-                      <Input placeholder="0.00" type="number" step="0.01" min="0" {...field} disabled={isPending} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+    <Card className="w-full max-w-4xl">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Receipt className="h-5 w-5" />
+          Yeni Gider Kaydı
+        </CardTitle>
+        <CardDescription>
+          İşletme giderlerinizi detaylı olarak kaydedin ve tedarikçi ile ilişkilendirin.
+        </CardDescription>
+      </CardHeader>
+      <form action={formAction} key={formKey}>
+        <CardContent className="space-y-6">
+          {state.message && !state.success && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Hata</AlertTitle>
+              <AlertDescription>
+                {state.message}
+                {state.errors && state.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium">Lütfen aşağıdaki alanları kontrol edin:</p>
+                    <ul className="list-disc list-inside text-sm mt-1">
+                      {state.errors.map((error: any, index: number) => (
+                        <li key={index}>{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-              />
+              </AlertDescription>
+            </Alert>
+          )}
+          {state.success && state.message && (
+            <Alert
+              variant="default"
+              className="border-green-200 bg-green-50 dark:bg-green-900/30 dark:border-green-700"
+            >
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <AlertTitle className="text-green-800 dark:text-green-300">Başarılı</AlertTitle>
+              <AlertDescription className="text-green-700 dark:text-green-400">{state.message}</AlertDescription>
+            </Alert>
+          )}
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Açıklama</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Gider açıklaması..."
-                        className="resize-none"
-                        {...field}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="expense_amount">Gider Tutarı (TRY) *</Label>
+              <Input id="expense_amount" name="expense_amount" type="number" step="0.01" placeholder="0.00" required />
+              {getError("expense_amount") && <p className="text-sm text-destructive">{getError("expense_amount")}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment_amount">Ödenen Tutar (TRY) *</Label>
+              <Input id="payment_amount" name="payment_amount" type="number" step="0.01" placeholder="0.00" required />
+              {getError("payment_amount") && <p className="text-sm text-destructive">{getError("payment_amount")}</p>}
+            </div>
+          </div>
 
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kategori</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isPending}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Kategori seçiniz" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {expenseCategories.map((category) => (
-                          <SelectItem key={category.value} value={category.value}>
-                            {category.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div className="space-y-2">
+            <Label htmlFor="entry_date">Tarih *</Label>
+            <Input
+              id="entry_date"
+              name="entry_date"
+              type="date"
+              defaultValue={new Date().toISOString().split("T")[0]}
+              required
+            />
+            {getError("entry_date") && <p className="text-sm text-destructive">{getError("entry_date")}</p>}
+          </div>
 
-              <FormField
-                control={form.control}
-                name="supplier_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      Tedarikçi (Opsiyonel)
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={loadSuppliers}
-                        disabled={loadingSuppliers}
-                        className="h-6 w-6 p-0"
-                      >
-                        <RefreshCw className={cn("h-3 w-3", loadingSuppliers && "animate-spin")} />
-                      </Button>
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={isPending || loadingSuppliers}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tedarikçi seçiniz" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="">Tedarikçi seçmeyin</SelectItem>
-                        {suppliers.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {suppliersMessage && <p className="text-xs text-muted-foreground">{suppliersMessage}</p>}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Tarih</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            disabled={isPending}
-                          >
-                            {field.value ? format(field.value, "PPP", { locale: tr }) : <span>Tarih seçiniz</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="reference"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Referans (Opsiyonel)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Referans numarası veya kodu" {...field} disabled={isPending} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.back()}
-                  disabled={isPending}
-                  className="flex-1"
-                >
-                  İptal
-                </Button>
-                <Button type="submit" disabled={isPending} className="flex-1">
-                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Kaydet
-                </Button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="category_id">Gider Kategorisi *</Label>
+              <Select name="category_id" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bir gider kategorisi seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.length === 0 ? (
+                    <SelectItem value="no-categories" disabled>
+                      Kategori bulunamadı
+                    </SelectItem>
+                  ) : (
+                    categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        <div>
+                          <div className="font-medium">{category.name}</div>
+                          {category.description && (
+                            <div className="text-xs text-muted-foreground">{category.description}</div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {getError("category_id") && <p className="text-sm text-destructive">{getError("category_id")}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier_id">Tedarikçi (Opsiyonel)</Label>
+              <Select name="supplier_id">
+                <SelectTrigger>
+                  <SelectValue placeholder="Bir tedarikçi seçin (varsa)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-supplier">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Tedarikçi Yok</span>
+                    </div>
+                  </SelectItem>
+                  {suppliers.length === 0 ? (
+                    <SelectItem value="no-suppliers-available" disabled>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                        <span>Henüz tedarikçi eklenmemiş</span>
+                      </div>
+                    </SelectItem>
+                  ) : (
+                    suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        <div className="flex items-start gap-3 py-1">
+                          <Building2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{supplier.name}</div>
+                            {supplier.supplier_code && (
+                              <div className="text-xs text-muted-foreground">Kod: {supplier.supplier_code}</div>
+                            )}
+                            {supplier.contact_name && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {supplier.contact_name}
+                              </div>
+                            )}
+                            {supplier.phone && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {supplier.phone}
+                              </div>
+                            )}
+                            {supplier.email && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {supplier.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {getError("supplier_id") && <p className="text-sm text-destructive">{getError("supplier_id")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Tedarikçi yoksa "Tedarikçi Yok" seçin.</span>
               </div>
-            </form>
-          </Form>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense_title">Gider Başlığı *</Label>
+            <Input id="expense_title" name="expense_title" placeholder="Örn: Ofis Kirası, Elektrik Faturası" required />
+            {getError("expense_title") && <p className="text-sm text-destructive">{getError("expense_title")}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense_source">Gider Kaynağı *</Label>
+            <Input id="expense_source" name="expense_source" placeholder="Örn: ABC Şirketi, XYZ Market" required />
+            {getError("expense_source") && <p className="text-sm text-destructive">{getError("expense_source")}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Detaylı Açıklama *</Label>
+            <Input id="description" name="description" placeholder="Giderin detaylı açıklaması..." required />
+            {getError("description") && <p className="text-sm text-destructive">{getError("description")}</p>}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_number">Fatura No (Opsiyonel)</Label>
+              <Input id="invoice_number" name="invoice_number" placeholder="Örn: FAT-2024-001" />
+              {getError("invoice_number") && <p className="text-sm text-destructive">{getError("invoice_number")}</p>}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment_method">Ödeme Şekli *</Label>
+              <Select name="payment_method" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ödeme şeklini seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {getError("payment_method") && <p className="text-sm text-destructive">{getError("payment_method")}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notlar (Opsiyonel)</Label>
+            <Textarea id="notes" name="notes" placeholder="Bu giderle ilgili ek notlar..." />
+            {getError("notes") && <p className="text-sm text-destructive">{getError("notes")}</p>}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>
+            </div>
+          </div>
         </CardContent>
-      </Card>
-    </div>
+        <CardFooter>
+          <Button type="submit" disabled={isPending} className="ml-auto">
+            {isPending ? "Kaydediliyor..." : "Gider Kaydet"}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   )
 }

@@ -241,8 +241,6 @@ export async function getSalesGrowthData(): Promise<{ data?: SalesGrowthData[]; 
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
-    console.log("Fetching sales data from:", sixMonthsAgo.toISOString())
-
     const { data: salesData, error } = await supabase
       .from("sales")
       .select("sale_date, customer_mid")
@@ -253,13 +251,12 @@ export async function getSalesGrowthData(): Promise<{ data?: SalesGrowthData[]; 
 
     if (error) throw error
 
-    console.log("Sales data fetched:", salesData?.length || 0, "records")
-
     // Aylık verileri grupla
     const monthlyData = new Map<string, { sales: number; customers: Set<string> }>()
 
     salesData?.forEach((sale) => {
       const date = new Date(sale.sale_date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
       const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
 
       if (!monthlyData.has(monthName)) {
@@ -272,8 +269,6 @@ export async function getSalesGrowthData(): Promise<{ data?: SalesGrowthData[]; 
         current.customers.add(sale.customer_mid)
       }
     })
-
-    console.log("Monthly data processed:", Array.from(monthlyData.entries()))
 
     // Son 6 ayı sırala ve formatla
     const result: SalesGrowthData[] = []
@@ -290,7 +285,6 @@ export async function getSalesGrowthData(): Promise<{ data?: SalesGrowthData[]; 
       })
     }
 
-    console.log("Final result:", result)
     return { data: result }
   } catch (error: any) {
     console.error("Satış büyüme verileri alınırken hata:", error)
@@ -321,6 +315,7 @@ export async function getCustomerGrowthData(): Promise<{ data?: CustomerGrowthDa
 
     customersData?.forEach((customer) => {
       const date = new Date(customer.created_at)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
       const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
 
       monthlyNewCustomers.set(monthName, (monthlyNewCustomers.get(monthName) || 0) + 1)
