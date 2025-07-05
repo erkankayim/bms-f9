@@ -15,20 +15,55 @@ import { addCustomerAction, updateCustomerAction } from "../_actions/customers-a
 import { useToast } from "@/hooks/use-toast"
 
 const customerFormSchema = z.object({
-  mid: z.string().min(1, "Müşteri ID gereklidir"),
-  service_name: z.string().optional().nullable(),
-  contact_name: z.string().min(1, "İletişim adı gereklidir"),
-  email: z.string().email("Geçersiz e-posta adresi").optional().or(z.literal("")).nullable(),
-  phone: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  province: z.string().optional().nullable(),
-  postal_code: z.string().optional().nullable(),
-  tax_office: z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
-  customer_group: z.string().optional().nullable(),
-  balance: z.coerce.number().optional().default(0).nullable(),
-  notes: z.string().optional().nullable(),
+  mid: z
+    .string()
+    .min(1, "Müşteri ID gereklidir")
+    .max(50, "Müşteri ID en fazla 50 karakter olabilir")
+    .regex(/^[A-Za-z0-9_-]+$/, "Müşteri ID sadece harf, rakam, tire ve alt çizgi içerebilir"),
+  service_name: z.string().max(100, "Şirket/Servis adı en fazla 100 karakter olabilir").optional().nullable(),
+  contact_name: z
+    .string()
+    .min(1, "İletişim adı gereklidir")
+    .min(2, "İletişim adı en az 2 karakter olmalıdır")
+    .max(100, "İletişim adı en fazla 100 karakter olabilir"),
+  email: z
+    .string()
+    .email("Geçersiz e-posta adresi formatı")
+    .max(100, "E-posta adresi en fazla 100 karakter olabilir")
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
+  phone: z
+    .string()
+    .max(20, "Telefon numarası en fazla 20 karakter olabilir")
+    .regex(/^[0-9\s\-+$$$$]*$/, "Telefon numarası sadece rakam ve telefon karakterleri içerebilir")
+    .optional()
+    .nullable(),
+  address: z.string().max(500, "Adres en fazla 500 karakter olabilir").optional().nullable(),
+  city: z.string().max(50, "Şehir adı en fazla 50 karakter olabilir").optional().nullable(),
+  province: z.string().max(50, "İl adı en fazla 50 karakter olabilir").optional().nullable(),
+  postal_code: z
+    .string()
+    .max(10, "Posta kodu en fazla 10 karakter olabilir")
+    .regex(/^[0-9]*$/, "Posta kodu sadece rakam içerebilir")
+    .optional()
+    .nullable(),
+  tax_office: z.string().max(100, "Vergi dairesi adı en fazla 100 karakter olabilir").optional().nullable(),
+  tax_number: z
+    .string()
+    .max(20, "Vergi numarası en fazla 20 karakter olabilir")
+    .regex(/^[0-9]*$/, "Vergi numarası sadece rakam içerebilir")
+    .optional()
+    .nullable(),
+  customer_group: z.string().max(50, "Müşteri grubu en fazla 50 karakter olabilir").optional().nullable(),
+  balance: z.coerce
+    .number()
+    .min(-999999.99, "Bakiye çok düşük")
+    .max(999999.99, "Bakiye çok yüksek")
+    .optional()
+    .default(0)
+    .nullable(),
+  notes: z.string().max(1000, "Notlar en fazla 1000 karakter olabilir").optional().nullable(),
 })
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>
@@ -47,6 +82,7 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
+    mode: "onChange", // Enable real-time validation
     defaultValues: {
       mid: initialData?.mid || "",
       service_name: initialData?.service_name || "",
@@ -115,7 +151,13 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="mid">Müşteri ID *</Label>
-              <Input id="mid" {...form.register("mid")} placeholder="Örn: CUST001" disabled={loading} />
+              <Input
+                id="mid"
+                {...form.register("mid")}
+                placeholder="Örn: CUST001"
+                disabled={loading}
+                className={form.formState.errors.mid ? "border-red-500" : ""}
+              />
               {form.formState.errors.mid && (
                 <p className="text-sm text-red-500 mt-1">{form.formState.errors.mid.message}</p>
               )}
@@ -128,6 +170,7 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 {...form.register("contact_name")}
                 placeholder="Müşteri adı"
                 disabled={loading}
+                className={form.formState.errors.contact_name ? "border-red-500" : ""}
               />
               {form.formState.errors.contact_name && (
                 <p className="text-sm text-red-500 mt-1">{form.formState.errors.contact_name.message}</p>
@@ -136,7 +179,16 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
 
             <div>
               <Label htmlFor="service_name">Şirket/Servis Adı</Label>
-              <Input id="service_name" {...form.register("service_name")} placeholder="Şirket adı" disabled={loading} />
+              <Input
+                id="service_name"
+                {...form.register("service_name")}
+                placeholder="Şirket adı"
+                disabled={loading}
+                className={form.formState.errors.service_name ? "border-red-500" : ""}
+              />
+              {form.formState.errors.service_name && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.service_name.message}</p>
+              )}
             </div>
 
             <div>
@@ -147,6 +199,7 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 {...form.register("email")}
                 placeholder="ornek@email.com"
                 disabled={loading}
+                className={form.formState.errors.email ? "border-red-500" : ""}
               />
               {form.formState.errors.email && (
                 <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
@@ -155,7 +208,16 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
 
             <div>
               <Label htmlFor="phone">Telefon</Label>
-              <Input id="phone" {...form.register("phone")} placeholder="0555 123 45 67" disabled={loading} />
+              <Input
+                id="phone"
+                {...form.register("phone")}
+                placeholder="0555 123 45 67"
+                disabled={loading}
+                className={form.formState.errors.phone ? "border-red-500" : ""}
+              />
+              {form.formState.errors.phone && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.phone.message}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -174,22 +236,53 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 placeholder="Tam adres"
                 disabled={loading}
                 rows={3}
+                className={form.formState.errors.address ? "border-red-500" : ""}
               />
+              {form.formState.errors.address && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.address.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="city">Şehir</Label>
-              <Input id="city" {...form.register("city")} placeholder="İstanbul" disabled={loading} />
+              <Input
+                id="city"
+                {...form.register("city")}
+                placeholder="İstanbul"
+                disabled={loading}
+                className={form.formState.errors.city ? "border-red-500" : ""}
+              />
+              {form.formState.errors.city && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.city.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="province">İl</Label>
-              <Input id="province" {...form.register("province")} placeholder="Marmara" disabled={loading} />
+              <Input
+                id="province"
+                {...form.register("province")}
+                placeholder="Marmara"
+                disabled={loading}
+                className={form.formState.errors.province ? "border-red-500" : ""}
+              />
+              {form.formState.errors.province && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.province.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="postal_code">Posta Kodu</Label>
-              <Input id="postal_code" {...form.register("postal_code")} placeholder="34000" disabled={loading} />
+              <Input
+                id="postal_code"
+                {...form.register("postal_code")}
+                placeholder="34000"
+                disabled={loading}
+                className={form.formState.errors.postal_code ? "border-red-500" : ""}
+              />
+              {form.formState.errors.postal_code && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.postal_code.message}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -207,12 +300,25 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 {...form.register("tax_office")}
                 placeholder="Kadıköy Vergi Dairesi"
                 disabled={loading}
+                className={form.formState.errors.tax_office ? "border-red-500" : ""}
               />
+              {form.formState.errors.tax_office && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.tax_office.message}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="tax_number">Vergi Numarası</Label>
-              <Input id="tax_number" {...form.register("tax_number")} placeholder="1234567890" disabled={loading} />
+              <Input
+                id="tax_number"
+                {...form.register("tax_number")}
+                placeholder="1234567890"
+                disabled={loading}
+                className={form.formState.errors.tax_number ? "border-red-500" : ""}
+              />
+              {form.formState.errors.tax_number && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.tax_number.message}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -230,7 +336,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 {...form.register("customer_group")}
                 placeholder="VIP, Standart, vs."
                 disabled={loading}
+                className={form.formState.errors.customer_group ? "border-red-500" : ""}
               />
+              {form.formState.errors.customer_group && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.customer_group.message}</p>
+              )}
             </div>
 
             <div>
@@ -242,7 +352,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 {...form.register("balance")}
                 placeholder="0.00"
                 disabled={loading}
+                className={form.formState.errors.balance ? "border-red-500" : ""}
               />
+              {form.formState.errors.balance && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.balance.message}</p>
+              )}
             </div>
 
             <div>
@@ -253,7 +367,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
                 placeholder="Müşteri hakkında notlar..."
                 disabled={loading}
                 rows={3}
+                className={form.formState.errors.notes ? "border-red-500" : ""}
               />
+              {form.formState.errors.notes && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.notes.message}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -263,7 +381,11 @@ export function CustomerForm({ initialData, isEditMode = false, customerId }: Cu
         <Button type="button" variant="outline" onClick={() => router.back()} disabled={loading}>
           İptal
         </Button>
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={loading || !form.formState.isValid}
+          className={!form.formState.isValid ? "opacity-50" : ""}
+        >
           {loading ? "Kaydediliyor..." : isEditMode ? "Güncelle" : "Kaydet"}
         </Button>
       </div>

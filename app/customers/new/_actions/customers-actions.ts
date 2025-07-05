@@ -6,36 +6,75 @@ import * as z from "zod"
 
 // Schema for validation, matching the form schema
 const customerFormSchema = z.object({
-  mid: z.string().min(1, "Customer ID is required"),
-  service_name: z.string().optional().nullable(),
-  contact_name: z.string().min(1, "Contact name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")).nullable(),
-  phone: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  province: z.string().optional().nullable(),
-  postal_code: z.string().optional().nullable(),
-  tax_office: z.string().optional().nullable(),
-  tax_number: z.string().optional().nullable(),
-  customer_group: z.string().optional().nullable(),
-  balance: z.coerce.number().optional().default(0).nullable(),
-  notes: z.string().optional().nullable(),
+  mid: z
+    .string()
+    .min(1, "Müşteri ID gereklidir")
+    .max(50, "Müşteri ID en fazla 50 karakter olabilir")
+    .regex(/^[A-Za-z0-9_-]+$/, "Müşteri ID sadece harf, rakam, tire ve alt çizgi içerebilir"),
+  service_name: z.string().max(100, "Şirket/Servis adı en fazla 100 karakter olabilir").optional().nullable(),
+  contact_name: z
+    .string()
+    .min(1, "İletişim adı gereklidir")
+    .min(2, "İletişim adı en az 2 karakter olmalıdır")
+    .max(100, "İletişim adı en fazla 100 karakter olabilir"),
+  email: z
+    .string()
+    .email("Geçersiz e-posta adresi formatı")
+    .max(100, "E-posta adresi en fazla 100 karakter olabilir")
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
+  phone: z
+    .string()
+    .max(20, "Telefon numarası en fazla 20 karakter olabilir")
+    .regex(/^[0-9\s\-+$$$$]*$/, "Telefon numarası sadece rakam ve telefon karakterleri içerebilir")
+    .optional()
+    .nullable(),
+  address: z.string().max(500, "Adres en fazla 500 karakter olabilir").optional().nullable(),
+  city: z.string().max(50, "Şehir adı en fazla 50 karakter olabilir").optional().nullable(),
+  province: z.string().max(50, "İl adı en fazla 50 karakter olabilir").optional().nullable(),
+  postal_code: z
+    .string()
+    .max(10, "Posta kodu en fazla 10 karakter olabilir")
+    .regex(/^[0-9]*$/, "Posta kodu sadece rakam içerebilir")
+    .optional()
+    .nullable(),
+  tax_office: z.string().max(100, "Vergi dairesi adı en fazla 100 karakter olabilir").optional().nullable(),
+  tax_number: z
+    .string()
+    .max(20, "Vergi numarası en fazla 20 karakter olabilir")
+    .regex(/^[0-9]*$/, "Vergi numarası sadece rakam içerebilir")
+    .optional()
+    .nullable(),
+  customer_group: z.string().max(50, "Müşteri grubu en fazla 50 karakter olabilir").optional().nullable(),
+  balance: z.coerce
+    .number()
+    .min(-999999.99, "Bakiye çok düşük")
+    .max(999999.99, "Bakiye çok yüksek")
+    .optional()
+    .default(0)
+    .nullable(),
+  notes: z.string().max(1000, "Notlar en fazla 1000 karakter olabilir").optional().nullable(),
 })
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>
 
 export async function addCustomerAction(
   data: CustomerFormValues,
-): Promise<{ success: boolean; error?: string | null; data?: any }> {
+): Promise<{ success: boolean; error?: string | null; data?: any; fieldErrors?: any }> {
   const supabase = createClient()
 
   // Validate data with Zod schema
   const validationResult = customerFormSchema.safeParse(data)
   if (!validationResult.success) {
-    console.error("Validation errors:", validationResult.error.flatten().fieldErrors)
+    const fieldErrors = validationResult.error.flatten().fieldErrors
+    console.error("Validation errors:", fieldErrors)
+
+    // Return detailed field errors
     return {
       success: false,
-      error: "Invalid data provided. Please check the form fields.",
+      error: "Form verilerinde hatalar bulundu. Lütfen aşağıdaki alanları kontrol edin.",
+      fieldErrors: fieldErrors,
     }
   }
 
@@ -85,9 +124,9 @@ export async function addCustomerAction(
 
 // Updated function to properly update an existing customer
 export async function updateCustomerAction(
-  originalCustomerId: string, // The original ID of the customer to update
+  originalCustomerId: string,
   data: CustomerFormValues,
-): Promise<{ success: boolean; error?: string | null; data?: any }> {
+): Promise<{ success: boolean; error?: string | null; data?: any; fieldErrors?: any }> {
   const supabase = createClient()
 
   if (!originalCustomerId) {
@@ -97,13 +136,17 @@ export async function updateCustomerAction(
     }
   }
 
-  // Validate data - but we'll handle mid separately
+  // Validate data
   const validationResult = customerFormSchema.safeParse(data)
   if (!validationResult.success) {
-    console.error("Validation errors:", validationResult.error.flatten().fieldErrors)
+    const fieldErrors = validationResult.error.flatten().fieldErrors
+    console.error("Validation errors:", fieldErrors)
+
+    // Return detailed field errors
     return {
       success: false,
-      error: "Geçersiz veri. Lütfen form alanlarını kontrol edin.",
+      error: "Form verilerinde hatalar bulundu. Lütfen aşağıdaki alanları kontrol edin.",
+      fieldErrors: fieldErrors,
     }
   }
 
