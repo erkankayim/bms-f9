@@ -7,11 +7,11 @@ import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, User, Building } from "
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CustomerOverview } from "./_components/customer-overview"
-import { CustomerSalesHistory } from "./_components/customer-sales-history"
-import { CustomerInvoiceHistory } from "./_components/customer-invoice-history"
-import { CustomerPurchaseInsights } from "./_components/customer-purchase-insights"
-import { DeleteCustomerDialog } from "./_components/delete-customer-dialog"
+import CustomerOverview from "./_components/customer-overview"
+import CustomerSalesHistory from "./_components/customer-sales-history"
+import CustomerInvoiceHistory from "./_components/customer-invoice-history"
+import CustomerPurchaseInsights from "./_components/customer-purchase-insights"
+import DeleteCustomerDialog from "./_components/delete-customer-dialog"
 
 type Customer = {
   mid: string
