@@ -8,23 +8,23 @@ import { z } from "zod"
 // Zod şemaları
 const createInvoiceSchema = z.object({
   invoice_number: z.string().min(1, "Fatura numarası gereklidir"),
-  invoice_type: z.enum(["incoming", "outgoing"], { required_error: "Fatura türü seçimi gereklidir" }),
+  invoice_type: z.enum(["incoming", "outgoing"]),
   document_type: z.enum(["invoice", "receipt", "credit_note", "debit_note", "proforma", "other"]).default("invoice"),
   document_number: z.string().optional(),
   issue_date: z.string().min(1, "Düzenleme tarihi gereklidir"),
   due_date: z.string().optional(),
-  customer_id: z.string().nullable().optional(), // null veya undefined kabul edilir
-  supplier_id: z.string().nullable().optional(), // null veya undefined kabul edilir
-  total_amount: z.coerce.number().min(0, "Toplam tutar 0 veya daha büyük olmalıdır"),
-  tax_amount: z.coerce.number().min(0, "Vergi tutarı 0 veya daha büyük olmalıdır").default(0),
-  discount_amount: z.coerce.number().min(0, "İndirim tutarı 0 veya daha büyük olmalıdır").default(0),
+  customer_id: z.string().optional(),
+  supplier_id: z.string().optional(),
+  total_amount: z.string().min(1, "Toplam tutar gereklidir"),
+  tax_amount: z.string().default("0"),
+  discount_amount: z.string().default("0"),
   notes: z.string().optional(),
 })
 
 const addPaymentSchema = z.object({
   invoice_id: z.string().min(1, "Fatura ID gereklidir"),
   payment_date: z.string().min(1, "Ödeme tarihi gereklidir"),
-  amount: z.coerce.number().min(0.01, "Tutar 0’dan büyük olmalıdır"),
+  amount: z.string().min(1, "Tutar gereklidir"),
   payment_method: z.string().min(1, "Ödeme şekli gereklidir"),
   reference_number: z.string().optional(),
   notes: z.string().optional(),
@@ -33,27 +33,23 @@ const addPaymentSchema = z.object({
 export async function createInvoice(prevState: any, formData: FormData) {
   const supabase = createClient()
 
-  // Form verilerini logla
-  console.log("FormData:", Object.fromEntries(formData))
-
   try {
     const validatedFields = createInvoiceSchema.safeParse({
-      invoice_number: formData.get("invoice_number")?.toString(),
-      invoice_type: formData.get("invoice_type")?.toString(),
-      document_type: formData.get("document_type")?.toString(),
-      document_number: formData.get("document_number")?.toString(),
-      issue_date: formData.get("issue_date")?.toString(),
-      due_date: formData.get("due_date")?.toString(),
-      customer_id: formData.get("customer_id")?.toString(),
-      supplier_id: formData.get("supplier_id")?.toString(),
+      invoice_number: formData.get("invoice_number"),
+      invoice_type: formData.get("invoice_type"),
+      document_type: formData.get("document_type"),
+      document_number: formData.get("document_number"),
+      issue_date: formData.get("issue_date"),
+      due_date: formData.get("due_date"),
+      customer_id: formData.get("customer_id"),
+      supplier_id: formData.get("supplier_id"),
       total_amount: formData.get("total_amount"),
       tax_amount: formData.get("tax_amount"),
       discount_amount: formData.get("discount_amount"),
-      notes: formData.get("notes")?.toString(),
+      notes: formData.get("notes"),
     })
 
     if (!validatedFields.success) {
-      console.log("Validation errors:", validatedFields.error.flatten().fieldErrors)
       return {
         error: "Geçersiz form verileri",
         details: validatedFields.error.flatten().fieldErrors,
@@ -82,9 +78,9 @@ export async function createInvoice(prevState: any, formData: FormData) {
         due_date: data.due_date || null,
         customer_id: data.invoice_type === "outgoing" ? data.customer_id : null,
         supplier_id: data.invoice_type === "incoming" ? data.supplier_id : null,
-        total_amount: data.total_amount,
-        tax_amount: data.tax_amount,
-        discount_amount: data.discount_amount,
+        total_amount: Number.parseFloat(data.total_amount),
+        tax_amount: Number.parseFloat(data.tax_amount),
+        discount_amount: Number.parseFloat(data.discount_amount),
         notes: data.notes || null,
         status: "draft",
       })
@@ -93,14 +89,14 @@ export async function createInvoice(prevState: any, formData: FormData) {
 
     if (error) {
       console.error("Fatura oluşturma hatası:", error)
-      return { error: "Fatura oluşturulamadı", details: error.message }
+      return { error: "Fatura oluşturulamadı" }
     }
 
     revalidatePath("/invoices")
     redirect(`/invoices/${invoice.id}`)
   } catch (error) {
     console.error("Beklenmeyen hata:", error)
-    return { error: "Beklenmeyen bir hata oluştu", details: error.message }
+    return { error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
@@ -109,16 +105,15 @@ export async function addPayment(prevState: any, formData: FormData) {
 
   try {
     const validatedFields = addPaymentSchema.safeParse({
-      invoice_id: formData.get("invoice_id")?.toString(),
-      payment_date: formData.get("payment_date")?.toString(),
+      invoice_id: formData.get("invoice_id"),
+      payment_date: formData.get("payment_date"),
       amount: formData.get("amount"),
-      payment_method: formData.get("payment_method")?.toString(),
-      reference_number: formData.get("reference_number")?.toString(),
-      notes: formData.get("notes")?.toString(),
+      payment_method: formData.get("payment_method"),
+      reference_number: formData.get("reference_number"),
+      notes: formData.get("notes"),
     })
 
     if (!validatedFields.success) {
-      console.log("Validation errors:", validatedFields.error.flatten().fieldErrors)
       return {
         error: "Geçersiz form verileri",
         details: validatedFields.error.flatten().fieldErrors,
@@ -132,7 +127,7 @@ export async function addPayment(prevState: any, formData: FormData) {
     const { error: paymentError } = await supabase.from("invoice_payments").insert({
       invoice_id: invoiceId,
       payment_date: data.payment_date,
-      amount: data.amount,
+      amount: Number.parseFloat(data.amount),
       payment_method: data.payment_method,
       reference_number: data.reference_number || null,
       notes: data.notes || null,
@@ -140,7 +135,7 @@ export async function addPayment(prevState: any, formData: FormData) {
 
     if (paymentError) {
       console.error("Ödeme ekleme hatası:", paymentError)
-      return { error: "Ödeme eklenemedi", details: paymentError.message }
+      return { error: "Ödeme eklenemedi" }
     }
 
     // Fatura durumunu güncelle
@@ -150,7 +145,7 @@ export async function addPayment(prevState: any, formData: FormData) {
     return { success: "Ödeme başarıyla eklendi" }
   } catch (error) {
     console.error("Beklenmeyen hata:", error)
-    return { error: "Beklenmeyen bir hata oluştu", details: error.message }
+    return { error: "Beklenmeyen bir hata oluştu" }
   }
 }
 
@@ -160,14 +155,15 @@ async function updateInvoiceStatus(invoiceId: number) {
   // Fatura ve ödemelerini al
   const { data: invoice } = await supabase.from("invoices").select("total_amount").eq("id", invoiceId).single()
 
-  const { data: payments } = await supabase.from("invoicewatch").select("amount").eq("invoice_id", invoiceId)
+  const { data: payments } = await supabase.from("invoice_payments").select("amount").eq("invoice_id", invoiceId)
 
   if (!invoice || !payments) return
 
-  const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0)
+  const totalPaid = payments.reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
+  const totalAmount = Number.parseFloat(invoice.total_amount)
 
   let status = "draft"
-  if (totalPaid >= invoice.total_amount) {
+  if (totalPaid >= totalAmount) {
     status = "paid"
   } else if (totalPaid > 0) {
     status = "partially_paid"

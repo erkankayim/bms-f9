@@ -6,20 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Eye, FileText } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
+import type { Invoice } from "./helpers"
 
-type Invoice = {
-  id: string
-  invoice_number: string | null
-  issue_date: string
-  total_amount: number | null
-  status: string | null
-}
-
-interface CustomerInvoiceHistoryProps {
-  invoices: Invoice[]
-}
-
-export default function CustomerInvoiceHistory({ invoices }: CustomerInvoiceHistoryProps) {
+export default function CustomerInvoiceHistory({ invoices }: { invoices: Invoice[] }) {
   if (!invoices || invoices.length === 0) {
     return (
       <Alert>

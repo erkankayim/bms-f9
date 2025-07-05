@@ -6,19 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Eye, ShoppingCart } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
+import type { Sale } from "./helpers"
 
-type Sale = {
-  id: string
-  sale_date: string
-  total_amount: number | null
-  status: string | null
-}
-
-interface CustomerSalesHistoryProps {
-  sales: Sale[]
-}
-
-export default function CustomerSalesHistory({ sales }: CustomerSalesHistoryProps) {
+export default function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
   if (!sales || sales.length === 0) {
     return (
       <Alert>
@@ -49,6 +39,7 @@ export default function CustomerSalesHistory({ sales }: CustomerSalesHistoryProp
           <TableBody>
             {sales.map((sale) => (
               <TableRow key={sale.id}>
+                {/* FIX: Removed className from this TableCell to isolate the error */}
                 <TableCell>{sale.id || "-"}</TableCell>
                 <TableCell>{formatDate(sale.sale_date)}</TableCell>
                 <TableCell>

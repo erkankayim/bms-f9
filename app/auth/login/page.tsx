@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,20 +10,6 @@ import Image from "next/image"
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, null)
-  // State to manage input values
-  const [formValues, setFormValues] = useState({
-    email: "",
-    password: "",
-  })
-
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormValues((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -46,26 +32,11 @@ export default function LoginPage() {
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="ornek@mnymakine.com"
-                value={formValues.email}
-                onChange={handleChange}
-                required
-              />
+              <Input id="email" name="email" type="email" placeholder="ornek@mnymakine.com" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formValues.password}
-                onChange={handleChange}
-                required
-              />
+              <Input id="password" name="password" type="password" required />
             </div>
             {state?.message && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{state.message}</div>}
             <Button type="submit" className="w-full" disabled={isPending}>

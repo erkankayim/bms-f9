@@ -134,33 +134,27 @@ export function SaleForm() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (
-        (productSearchTerm && productSearchTerm.length > 1 && !selectedProduct) ||
-        (showProductDropdown && !productSearchTerm && !selectedProduct)
-      ) {
+      if (productSearchTerm && productSearchTerm.length > 1 && !selectedProduct) {
         searchProducts()
       }
     }, 300)
     return () => clearTimeout(timer)
 
     async function searchProducts() {
+      if (!productSearchTerm.trim()) {
+        setProducts([])
+        setShowProductDropdown(false)
+        return
+      }
       setLoadingProducts(true)
       setShowProductDropdown(true)
-
-      let query = supabase
+      const { data, error } = await supabase
         .from("products")
         .select("stock_code, name, sale_price, sale_price_currency, vat_rate, quantity_on_hand")
         .is("deleted_at", null)
+        .ilike("name", `%${productSearchTerm}%`)
         .order("name")
         .limit(10)
-
-      // If there's a search term, filter by name, otherwise just get first 10 products
-      if (productSearchTerm && productSearchTerm.trim()) {
-        query = query.ilike("name", `%${productSearchTerm}%`)
-      }
-
-      const { data, error } = await query
-
       if (error) {
         toast.error("Ürünler aranamadı", { description: error.message })
         setProducts([])
@@ -169,7 +163,7 @@ export function SaleForm() {
       }
       setLoadingProducts(false)
     }
-  }, [productSearchTerm, selectedProduct, supabase, showProductDropdown])
+  }, [productSearchTerm, selectedProduct, supabase])
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
@@ -214,7 +208,9 @@ export function SaleForm() {
   }
 
   const handleInputFocus = () => {
-    setShowProductDropdown(true)
+    if (productSearchTerm && !selectedProduct) {
+      setShowProductDropdown(true)
+    }
   }
 
   const handleInputBlur = () => {
