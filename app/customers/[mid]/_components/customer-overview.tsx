@@ -1,36 +1,32 @@
-import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime, formatCurrency } from "@/lib/utils"
-import type { Customer } from "./helpers"
 import { InfoItem } from "./helpers"
 
-async function getCustomerData(customerId: string): Promise<Customer | null> {
-  const supabase = createClient()
-
-  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
-
-  if (error || !customer) {
-    console.error("Error fetching customer:", error?.message)
-    return null
-  }
-
-  return customer as Customer
+type Customer = {
+  mid: string
+  contact_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  province: string | null
+  postal_code: string | null
+  country: string | null
+  customer_group: string | null
+  balance: number | null
+  notes: string | null
+  service_name: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
 }
 
-export default async function CustomerOverview({ customerId }: { customerId: string }) {
-  const customerData = await getCustomerData(customerId)
+interface CustomerOverviewProps {
+  customer: Customer
+}
 
-  if (!customerData) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground">Müşteri bilgileri yüklenemedi.</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
+export default function CustomerOverview({ customer }: CustomerOverviewProps) {
   return (
     <Card>
       <CardHeader>
@@ -38,36 +34,36 @@ export default async function CustomerOverview({ customerId }: { customerId: str
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-          <InfoItem label="Müşteri ID" value={customerData.mid} />
-          <InfoItem label="Yetkili Adı" value={customerData.contact_name} />
-          <InfoItem label="Email" value={customerData.email} />
-          <InfoItem label="Telefon" value={customerData.phone} />
-          <InfoItem label="Hizmet/Abonelik" value={customerData.service_name} />
+          <InfoItem label="Müşteri ID" value={customer.mid} />
+          <InfoItem label="Yetkili Adı" value={customer.contact_name} />
+          <InfoItem label="Email" value={customer.email} />
+          <InfoItem label="Telefon" value={customer.phone} />
+          <InfoItem label="Hizmet/Abonelik" value={customer.service_name} />
           <InfoItem label="Müşteri Grubu">
-            {customerData.customer_group ? <Badge variant="secondary">{customerData.customer_group}</Badge> : "-"}
+            {customer.customer_group ? <Badge variant="secondary">{customer.customer_group}</Badge> : "-"}
           </InfoItem>
-          <InfoItem label="Bakiye">{formatCurrency(customerData.balance ?? 0)}</InfoItem>
+          <InfoItem label="Bakiye">{formatCurrency(customer.balance ?? 0)}</InfoItem>
         </div>
 
         <h3 className="text-lg font-semibold border-t pt-4 mt-4">Adres Bilgileri</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-          <InfoItem label="Adres" value={customerData.address} />
-          <InfoItem label="Şehir" value={customerData.city} />
-          <InfoItem label="İl/Eyalet" value={customerData.province} />
-          <InfoItem label="Posta Kodu" value={customerData.postal_code} />
-          <InfoItem label="Ülke" value={customerData.country} />
+          <InfoItem label="Adres" value={customer.address} />
+          <InfoItem label="Şehir" value={customer.city} />
+          <InfoItem label="İl/Eyalet" value={customer.province} />
+          <InfoItem label="Posta Kodu" value={customer.postal_code} />
+          <InfoItem label="Ülke" value={customer.country} />
         </div>
 
-        {customerData.notes && (
+        {customer.notes && (
           <>
             <h3 className="text-lg font-semibold border-t pt-4 mt-4">Notlar</h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{customerData.notes}</p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{customer.notes}</p>
           </>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 mt-4 text-sm text-muted-foreground">
-          <InfoItem label="Oluşturulma Tarihi" value={formatDateTime(customerData.created_at)} />
-          <InfoItem label="Son Güncelleme" value={formatDateTime(customerData.updated_at)} />
+          <InfoItem label="Oluşturulma Tarihi" value={formatDateTime(customer.created_at)} />
+          <InfoItem label="Son Güncelleme" value={formatDateTime(customer.updated_at)} />
         </div>
       </CardContent>
     </Card>

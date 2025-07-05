@@ -12,52 +12,99 @@ import CustomerSalesHistory from "./_components/customer-sales-history"
 import CustomerInvoiceHistory from "./_components/customer-invoice-history"
 import CustomerPurchaseInsights from "./_components/customer-purchase-insights"
 import DeleteCustomerDialog from "./_components/delete-customer-dialog"
-import type { Customer, Sale, Invoice, PurchaseInsights } from "./_components/helpers"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
-// --- Veri Çekme Fonksiyonları ---
-
-async function getCustomerData(supabase: SupabaseClient, customerId: string): Promise<Customer> {
-  const { data, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
-  if (error) throw new Error(`Müşteri verisi çekilirken hata: ${error.message}`)
-  return data
+type Customer = {
+  mid: string
+  contact_name: string | null
+  company_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  country: string | null
+  postal_code: string | null
+  tax_number: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
 }
 
-async function getSalesData(supabase: SupabaseClient, customerId: string): Promise<Sale[]> {
-  const { data, error } = await supabase
+type Sale = {
+  id: string
+  sale_date: string
+  total_amount: number | null
+  status: string | null
+}
+
+type Invoice = {
+  id: string
+  invoice_number: string | null
+  issue_date: string
+  total_amount: number | null
+  status: string | null
+}
+
+type PurchaseInsights = {
+  total_spending: number
+  total_orders: number
+  first_purchase_date: string | null
+  last_purchase_date: string | null
+}
+
+async function getCustomerData(customerId: string) {
+  const supabase = createClient()
+  const { data: customer, error } = await supabase.from("customers").select("*").eq("mid", customerId).single()
+
+  if (error || !customer) {
+    return null
+  }
+
+  return customer as Customer
+}
+
+async function getSalesData(customerId: string): Promise<Sale[]> {
+  const supabase = createClient()
+  const { data: sales, error } = await supabase
     .from("sales")
     .select("id, sale_date, total_amount, status")
     .eq("customer_id", customerId)
     .order("sale_date", { ascending: false })
+
   if (error) {
-    console.error("Satış verisi çekilirken hata:", error.message)
-    return [] // Hata durumunda boş dizi döndür
+    console.error("Error fetching sales:", error.message)
+    return []
   }
-  return data
+
+  return sales as Sale[]
 }
 
-async function getInvoicesData(supabase: SupabaseClient, customerId: string): Promise<Invoice[]> {
-  const { data, error } = await supabase
+async function getInvoicesData(customerId: string): Promise<Invoice[]> {
+  const supabase = createClient()
+  const { data: invoices, error } = await supabase
     .from("invoices")
     .select("id, invoice_number, issue_date, total_amount, status")
     .eq("customer_id", customerId)
     .order("issue_date", { ascending: false })
+
   if (error) {
-    console.error("Fatura verisi çekilirken hata:", error.message)
-    return [] // Hata durumunda boş dizi döndür
+    console.error("Error fetching invoices:", error.message)
+    return []
   }
-  return data
+
+  return invoices as Invoice[]
 }
 
 function calculateInsights(sales: Sale[]): PurchaseInsights | null {
   if (!sales || sales.length === 0) {
     return null
   }
+
   const totalSpending = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0)
   const totalOrders = sales.length
-  const sortedDates = sales.map((s) => new Date(s.sale_date)).sort((a, b) => a.getTime() - b.getTime())
-  const firstPurchaseDate = sortedDates[0]?.toISOString() || null
-  const lastPurchaseDate = sortedDates[sortedDates.length - 1]?.toISOString() || null
+  const sortedDates = sales.map((s) => s.sale_date).sort()
+  const firstPurchaseDate = sortedDates[0] || null
+  const lastPurchaseDate = sortedDates[sortedDates.length - 1] || null
 
   return {
     total_spending: totalSpending,
@@ -67,38 +114,19 @@ function calculateInsights(sales: Sale[]): PurchaseInsights | null {
   }
 }
 
-// --- Ana Sayfa Component'i ---
-
 export default async function CustomerDetailPage({ params }: { params: { mid: string } }) {
-  const supabase = createClient()
   const customerId = params.mid
 
-  let customer: Customer
-  let sales: Sale[]
-  let invoices: Invoice[]
-  let insights: PurchaseInsights | null
-
-  try {
-    // Tüm verileri paralel olarak çekiyoruz
-    const [customerData, salesData, invoicesData] = await Promise.all([
-      getCustomerData(supabase, customerId),
-      getSalesData(supabase, customerId),
-      getInvoicesData(supabase, customerId),
-    ])
-
-    customer = customerData
-    sales = salesData
-    invoices = invoicesData
-    insights = calculateInsights(sales)
-  } catch (error) {
-    console.error("Müşteri detay sayfası verileri yüklenemedi:", error)
-    notFound()
-  }
+  // Fetch all data
+  const customer = await getCustomerData(customerId)
 
   if (!customer) {
     notFound()
   }
 
+  const [sales, invoices] = await Promise.all([getSalesData(customerId), getInvoicesData(customerId)])
+
+  const insights = calculateInsights(sales)
   const isDeleted = !!customer.deleted_at
 
   return (
@@ -119,7 +147,7 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
           )}
           <DeleteCustomerDialog
             customerId={customer.mid}
-            customerName={customer.contact_name || (customer as any).company_name || "Bilinmeyen"}
+            customerName={customer.contact_name || customer.company_name || "Bilinmeyen"}
             isDeleted={isDeleted}
           />
         </div>
@@ -131,7 +159,7 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <CardTitle className="text-3xl font-bold flex items-center gap-2">
                 <User className="h-8 w-8" />
-                {customer.contact_name || (customer as any).company_name || "İsimsiz Müşteri"}
+                {customer.contact_name || customer.company_name || "İsimsiz Müşteri"}
               </CardTitle>
               <CardDescription className="text-md flex items-center mt-1">
                 <Calendar className="mr-1 h-4 w-4" />
@@ -182,18 +210,18 @@ export default async function CustomerDetailPage({ params }: { params: { mid: st
             <div>
               <h3 className="text-lg font-medium mb-3">Şirket Bilgileri</h3>
               <div className="space-y-2">
-                {(customer as any).company_name && (
+                {customer.company_name && (
                   <p className="flex items-center text-sm">
                     <Building className="mr-2 h-4 w-4 text-muted-foreground" />
-                    {(customer as any).company_name}
+                    {customer.company_name}
                   </p>
                 )}
-                {(customer as any).tax_number && (
+                {customer.tax_number && (
                   <p className="text-sm">
-                    <span className="text-muted-foreground">Vergi No:</span> {(customer as any).tax_number}
+                    <span className="text-muted-foreground">Vergi No:</span> {customer.tax_number}
                   </p>
                 )}
-                {!(customer as any).company_name && !(customer as any).tax_number && (
+                {!customer.company_name && !customer.tax_number && (
                   <p className="text-sm text-muted-foreground">Şirket bilgisi yok</p>
                 )}
               </div>
