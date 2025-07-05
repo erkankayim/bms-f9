@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, Receipt, Loader2, Info, Building2, User } from "lucide-react"
+import { AlertCircle, CheckCircle2, Receipt, Loader2, Info, Building2, User, Phone, Mail } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const initialState = {
@@ -39,44 +39,44 @@ export default function ExpenseForm() {
       setDataError(null)
 
       try {
-        console.log("Fetching categories and suppliers...")
+        console.log("🚀 Starting to fetch categories and suppliers...")
 
         const [catResult, suppResult] = await Promise.all([
           getFinancialCategories("expense").catch((err) => {
-            console.error("Category fetch error:", err)
+            console.error("❌ Category fetch error:", err)
             return { error: err.message }
           }),
           getSuppliersForDropdown().catch((err) => {
-            console.error("Supplier fetch error:", err)
+            console.error("❌ Supplier fetch error:", err)
             return { error: err.message }
           }),
         ])
 
-        console.log("Category result:", catResult)
-        console.log("Supplier result:", suppResult)
+        console.log("📊 Category result:", catResult)
+        console.log("📊 Supplier result:", suppResult)
 
         if (catResult.data) {
           setCategories(catResult.data)
-          console.log(`Loaded ${catResult.data.length} categories`)
+          console.log(`✅ Loaded ${catResult.data.length} categories`)
         } else {
-          console.error("Gider kategorileri yüklenemedi:", catResult.error)
+          console.error("❌ Gider kategorileri yüklenemedi:", catResult.error)
           setDataError(catResult.error || "Kategoriler yüklenemedi")
         }
 
         if (suppResult.data) {
           setSuppliers(suppResult.data)
-          console.log(`Loaded ${suppResult.data.length} suppliers`)
+          console.log(`✅ Loaded ${suppResult.data.length} suppliers:`, suppResult.data)
         } else {
-          console.error("Tedarikçiler yüklenemedi:", suppResult.error)
-          // Tedarikçi hatası kritik değil, sadece log'la ama kullanıcıya bildir
-          console.warn("Tedarikçiler yüklenemedi, boş liste kullanılacak")
+          console.error("❌ Tedarikçiler yüklenemedi:", suppResult.error)
+          console.warn("⚠️ Tedarikçiler yüklenemedi, boş liste kullanılacak")
           setSuppliers([])
         }
       } catch (error) {
-        console.error("Veri yükleme hatası:", error)
+        console.error("💥 Veri yükleme hatası:", error)
         setDataError("Veriler yüklenirken beklenmeyen bir hata oluştu")
       } finally {
         setLoadingData(false)
+        console.log("🏁 Data fetching completed")
       }
     }
 
@@ -111,6 +111,7 @@ export default function ExpenseForm() {
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
             <p className="text-muted-foreground text-lg">Veriler yükleniyor, lütfen bekleyin...</p>
+            <p className="text-sm text-muted-foreground mt-2">Kategoriler ve tedarikçiler getiriliyor...</p>
           </div>
         </CardContent>
       </Card>
@@ -178,6 +179,12 @@ export default function ExpenseForm() {
               <AlertDescription className="text-green-700 dark:text-green-400">{state.message}</AlertDescription>
             </Alert>
           )}
+
+          {/* Debug Info - Geliştirme aşamasında görmek için */}
+          <div className="bg-muted/50 p-3 rounded-lg text-xs">
+            <p>🔍 Debug: {suppliers.length} tedarikçi yüklendi</p>
+            <p>📊 Kategoriler: {categories.length} adet</p>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -255,15 +262,29 @@ export default function ExpenseForm() {
                   ) : (
                     suppliers.map((supplier) => (
                       <SelectItem key={supplier.id} value={supplier.id}>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4" />
-                          <div>
-                            <div className="font-medium">{supplier.name || supplier.company_name}</div>
+                        <div className="flex items-start gap-3 py-1">
+                          <Building2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">
+                              {supplier.name || supplier.company_name || "İsimsiz Tedarikçi"}
+                            </div>
                             {supplier.contact_name && (
-                              <div className="text-xs text-muted-foreground">İletişim: {supplier.contact_name}</div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {supplier.contact_name}
+                              </div>
                             )}
                             {supplier.phone && (
-                              <div className="text-xs text-muted-foreground">Tel: {supplier.phone}</div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {supplier.phone}
+                              </div>
+                            )}
+                            {supplier.email && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {supplier.email}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -281,6 +302,12 @@ export default function ExpenseForm() {
                 <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
                   <AlertCircle className="h-3 w-3" />
                   <span>Henüz sistemde tedarikçi bulunmuyor. Önce tedarikçi ekleyebilirsiniz.</span>
+                </div>
+              )}
+              {suppliers.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>{suppliers.length} tedarikçi bulundu ve listelendi.</span>
                 </div>
               )}
             </div>
