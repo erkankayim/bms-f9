@@ -3,7 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DollarSign, ShoppingCart, Calendar, BarChart2 } from "lucide-react"
 import { formatDate, formatCurrency } from "@/lib/utils"
-import type { PurchaseInsights } from "./helpers"
+
+type PurchaseInsights = {
+  total_spending: number
+  total_orders: number
+  first_purchase_date: string | null
+  last_purchase_date: string | null
+}
+
+interface CustomerPurchaseInsightsProps {
+  insights: PurchaseInsights | null
+}
 
 const InsightCard = ({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) => (
   <Card>
@@ -17,7 +27,7 @@ const InsightCard = ({ title, value, icon }: { title: string; value: string | nu
   </Card>
 )
 
-export default function CustomerPurchaseInsights({ insights }: { insights: PurchaseInsights | null }) {
+export default function CustomerPurchaseInsights({ insights }: CustomerPurchaseInsightsProps) {
   if (!insights) {
     return (
       <Alert>

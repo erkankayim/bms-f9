@@ -1,10 +1,32 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime, formatCurrency } from "@/lib/utils"
-import type { Customer } from "./helpers"
 import { InfoItem } from "./helpers"
 
-export default function CustomerOverview({ customer }: { customer: Customer }) {
+type Customer = {
+  mid: string
+  contact_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  province: string | null
+  postal_code: string | null
+  country: string | null
+  customer_group: string | null
+  balance: number | null
+  notes: string | null
+  service_name: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+interface CustomerOverviewProps {
+  customer: Customer
+}
+
+export default function CustomerOverview({ customer }: CustomerOverviewProps) {
   return (
     <Card>
       <CardHeader>
