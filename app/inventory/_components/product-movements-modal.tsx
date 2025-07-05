@@ -25,8 +25,11 @@ type InventoryMovement = {
   quantity_after_movement: number
   reference_document_id: string | null
   notes: string | null
-  user_id: string | null // Keep user_id if needed for other purposes
-  user_email: string | null // Add user_email
+  user_id: string | null
+  user_email: string | null
+  supplier_id: string | null
+  supplier_name: string | null
+  supplier_code: string | null
 }
 
 interface ProductMovementsModalProps {
@@ -87,7 +90,12 @@ export function ProductMovementsModal({
         reference_document_id,
         notes,
         user_id, 
-        user_email 
+        user_email,
+        supplier_id,
+        suppliers (
+          name,
+          supplier_code
+        )
       `,
       )
       .eq("product_stock_code", productStockCode)
@@ -99,7 +107,22 @@ export function ProductMovementsModal({
       setError(`Stok hareketleri yüklenirken bir hata oluştu: ${fetchError.message}`)
       setMovements([])
     } else {
-      setMovements(data || [])
+      const formattedMovements =
+        data?.map((movement: any) => ({
+          id: movement.id,
+          movement_date: movement.movement_date,
+          movement_type: movement.movement_type,
+          quantity_changed: movement.quantity_changed,
+          quantity_after_movement: movement.quantity_after_movement,
+          reference_document_id: movement.reference_document_id,
+          notes: movement.notes,
+          user_id: movement.user_id,
+          user_email: movement.user_email,
+          supplier_id: movement.supplier_id,
+          supplier_name: movement.suppliers?.name || null,
+          supplier_code: movement.suppliers?.supplier_code || null,
+        })) || []
+      setMovements(formattedMovements)
     }
     setIsLoading(false)
   }, [supabase, productStockCode, isOpen])
@@ -116,7 +139,7 @@ export function ProductMovementsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>
             Stok Hareketleri: {productName || "N/A"} ({productStockCode || "N/A"})
@@ -136,7 +159,7 @@ export function ProductMovementsModal({
               <AlertCircle className="h-12 w-12 text-red-500" />
               <p className="mt-4 font-semibold text-red-600">Bir Hata Oluştu</p>
               <p className="mt-1 text-sm text-red-500">{error}</p>
-              <Button variant="outline" size="sm" onClick={fetchMovements} className="mt-4">
+              <Button variant="outline" size="sm" onClick={fetchMovements} className="mt-4 bg-transparent">
                 Tekrar Dene
               </Button>
             </div>
@@ -158,8 +181,9 @@ export function ProductMovementsModal({
                   <TableHead>Tip</TableHead>
                   <TableHead className="text-right">Değişim</TableHead>
                   <TableHead className="text-right">Son Stok</TableHead>
+                  <TableHead>Tedarikçi</TableHead>
                   <TableHead>Referans</TableHead>
-                  <TableHead>Kullanıcı</TableHead> {/* Changed from Kullanıcı ID */}
+                  <TableHead>Kullanıcı</TableHead>
                   <TableHead>Notlar</TableHead>
                 </TableRow>
               </TableHeader>
@@ -186,12 +210,24 @@ export function ProductMovementsModal({
                       {movement.quantity_changed > 0 ? `+${movement.quantity_changed}` : movement.quantity_changed}
                     </TableCell>
                     <TableCell className="text-right font-semibold">{movement.quantity_after_movement}</TableCell>
+                    <TableCell className="max-w-[150px]">
+                      {movement.supplier_name ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">{movement.supplier_name}</span>
+                          {movement.supplier_code && (
+                            <span className="text-xs text-muted-foreground">({movement.supplier_code})</span>
+                          )}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                     <TableCell>{movement.reference_document_id || "-"}</TableCell>
                     <TableCell
                       className="max-w-[150px] truncate"
                       title={movement.user_email || movement.user_id || undefined}
                     >
-                      {movement.user_email || movement.user_id || "-"} {/* Display email, fallback to id */}
+                      {movement.user_email || movement.user_id || "-"}
                     </TableCell>
                     <TableCell className="max-w-[150px] truncate" title={movement.notes || undefined}>
                       {movement.notes || "-"}
