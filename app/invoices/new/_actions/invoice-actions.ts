@@ -96,18 +96,18 @@ export async function createInvoice(formData: FormData) {
 
   // Form verilerini parse et
   const rawData = {
-    invoice_number: formData.get("invoice_number") as string,
-    invoice_type: formData.get("invoice_type") as "incoming" | "outgoing",
-    document_type: formData.get("document_type") as string,
-    document_number: formData.get("document_number") as string,
-    issue_date: formData.get("issue_date") as string,
-    due_date: formData.get("due_date") as string,
-    customer_id: formData.get("customer_id") as string | null,
-    supplier_id: formData.get("supplier_id") as string | null,
+    invoice_number: formData.get("invoice_number")?.toString() || "",
+    invoice_type: formData.get("invoice_type")?.toString() as "incoming" | "outgoing" | undefined,
+    document_type: formData.get("document_type")?.toString() || "invoice",
+    document_number: formData.get("document_number")?.toString(),
+    issue_date: formData.get("issue_date")?.toString() || "",
+    due_date: formData.get("due_date")?.toString(),
+    customer_id: formData.get("customer_id")?.toString(),
+    supplier_id: formData.get("supplier_id")?.toString(),
     total_amount: formData.get("total_amount"),
     tax_amount: formData.get("tax_amount"),
     discount_amount: formData.get("discount_amount"),
-    notes: formData.get("notes") as string,
+    notes: formData.get("notes")?.toString(),
   }
 
   // Validasyon
@@ -206,12 +206,12 @@ export async function addPayment(formData: FormData) {
   const supabase = await createClient()
 
   const rawData = {
-    invoice_id: Number.parseInt(formData.get("invoice_id") as string),
-    payment_date: formData.get("payment_date") as string,
-    amount: Number.parseFloat(formData.get("amount") as string),
-    payment_method: formData.get("payment_method") as string,
-    reference_number: formData.get("reference_number") as string,
-    notes: formData.get("notes") as string,
+    invoice_id: Number.parseInt(formData.get("invoice_id")?.toString() || "0"),
+    payment_date: formData.get("payment_date")?.toString() || "",
+    amount: Number.parseFloat(formData.get("amount")?.toString() || "0"),
+    payment_method: formData.get("payment_method")?.toString() || "",
+    reference_number: formData.get("reference_number")?.toString(),
+    notes: formData.get("notes")?.toString(),
   }
 
   const validatedData = paymentSchema.parse(rawData)
@@ -229,3 +229,4 @@ export async function addPayment(formData: FormData) {
 
   revalidatePath(`/invoices/${validatedData.invoice_id}`)
 }
+```
