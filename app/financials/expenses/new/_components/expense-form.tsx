@@ -77,19 +77,8 @@ export default function ExpenseForm() {
   useEffect(() => {
     if (state.success) {
       setFormKey(Date.now())
-      toast({
-        title: "Başarılı",
-        description: state.message,
-        variant: "default",
-      })
-      // Başarılı işlem sonrası gider listesine yönlendir
       router.push("/financials/expenses")
     } else if (state.message && !state.success) {
-      toast({
-        title: "Hata",
-        description: state.message,
-        variant: "destructive",
-      })
     }
   }, [state.success, state.message, toast, router])
 
