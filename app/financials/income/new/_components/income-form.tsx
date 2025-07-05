@@ -244,8 +244,8 @@ export default function IncomeForm() {
               {getError("category_id") && <p className="text-sm text-destructive">{getError("category_id")}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customer_id">Müşteri (Opsiyonel)</Label>
-              <Select name="customer_id">
+              <Label htmlFor="mid">Müşteri (Opsiyonel)</Label>
+              <Select name="mid">
                 <SelectTrigger>
                   <SelectValue placeholder="Bir müşteri seçin (varsa)" />
                 </SelectTrigger>
@@ -270,7 +270,7 @@ export default function IncomeForm() {
                   )}
                 </SelectContent>
               </Select>
-              {getError("customer_id") && <p className="text-sm text-destructive">{getError("customer_id")}</p>}
+              {getError("mid") && <p className="text-sm text-destructive">{getError("mid")}</p>}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="h-3 w-3" />
                 <span>Bu alan opsiyoneldir. Boş bırakabilirsiniz.</span>

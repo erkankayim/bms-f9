@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { unstable_noStore as noStore } from "next/cache"
 
-// --- Data Types ---
 export type DashboardStats = {
   totalCustomers: number
   totalProducts: number
@@ -28,63 +27,43 @@ export type RecentCustomer = {
   created_at: string
 }
 
-export type PerformanceTrendData = {
+export type MonthlyRevenue = {
   month: string
   revenue: number
-  newCustomers: number
-}
-
-export type RevenueByCategory = {
-  category: string
-  value: number
-  color: string
 }
 
 export type TopProduct = {
   name: string
-  sales: number
+  totalSold: number
   revenue: number
 }
 
-export type LowStockProduct = {
-  stock_code: string
-  name: string
-  quantity: number
-  low_stock_threshold: number
-}
-
-// --- Helper Functions ---
+// Helper function to construct customer name
 function constructCustomerName(customer: {
   contact_name?: string | null
   first_name?: string | null
   last_name?: string | null
   company_name?: string | null
-  name?: string | null
 }): string {
-  if (customer.name && customer.name.trim() !== "") return customer.name.trim()
-  if (customer.contact_name && customer.contact_name.trim() !== "") return customer.contact_name.trim()
-  if (customer.company_name && customer.company_name.trim() !== "") return customer.company_name.trim()
-  const fullName = `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
-  return fullName || "Bilinmeyen Müşteri"
-}
-
-function formatSaleTypeTR(type: string | null | undefined): string {
-  if (!type) return "Diğer"
-  switch (type) {
-    case "product_sale":
-      return "Ürün Satışı"
-    case "service_sale":
-      return "Hizmet Satışı"
-    default:
-      return type.charAt(0).toUpperCase() + type.slice(1)
+  if (customer.contact_name && customer.contact_name.trim() !== "") {
+    return customer.contact_name.trim()
   }
+  if (customer.company_name && customer.company_name.trim() !== "") {
+    return customer.company_name.trim()
+  }
+  const firstName = customer.first_name || ""
+  const lastName = customer.last_name || ""
+  const fullName = `${firstName} ${lastName}`.trim()
+  if (fullName) {
+    return fullName
+  }
+  return "Bilinmeyen Müşteri"
 }
-
-// --- Server Actions ---
 
 export async function getDashboardStats(): Promise<{ data?: DashboardStats; error?: string }> {
   noStore()
   const supabase = createClient()
+
   try {
     const [
       { count: totalCustomers, error: customerError },
@@ -130,17 +109,62 @@ export async function getRecentSales(limit = 5): Promise<{ data?: RecentSale[]; 
   try {
     const { data: salesData, error: salesError } = await supabase
       .from("sales")
-      .select("id, sale_date, final_amount, status, customers(mid, name, contact_name, company_name)")
+      .select("id, sale_date, final_amount, status, customer_mid")
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
       .limit(limit)
 
     if (salesError) throw salesError
+    if (!salesData || salesData.length === 0) {
+      return { data: [] }
+    }
 
-    const recentSales = salesData.map((sale: any) => ({
+    const customerMids = Array.from(
+      new Set(salesData.map((s) => s.customer_mid).filter((mid) => mid != null)),
+    ) as string[]
+
+    const customersMap = new Map<string, string | null>()
+
+    if (customerMids.length > 0) {
+      const { data: customersData, error: customersError } = await supabase
+        .from("customers")
+        .select("mid, contact_name, company_name")
+        .in("mid", customerMids)
+
+      if (customersError) {
+        if (
+          customersError.message.includes("column") &&
+          customersError.message.includes("company_name") &&
+          customersError.message.includes("does not exist")
+        ) {
+          console.warn("company_name kolonu müşteriler tablosunda bulunamadı. Sadece contact_name kullanılacak.")
+          const { data: customersDataRetry, error: customersErrorRetry } = await supabase
+            .from("customers")
+            .select("mid, contact_name")
+            .in("mid", customerMids)
+
+          if (customersErrorRetry) {
+            console.warn(
+              "Kontrol paneli son satışlar için müşteri adları alınamadı (retry):",
+              customersErrorRetry.message,
+            )
+          } else if (customersDataRetry) {
+            customersDataRetry.forEach((c) => customersMap.set(c.mid, constructCustomerName(c)))
+          }
+        } else {
+          console.warn("Kontrol paneli son satışlar için müşteri adları alınamadı:", customersError.message)
+        }
+      } else if (customersData) {
+        customersData.forEach((c) => customersMap.set(c.mid, constructCustomerName(c)))
+      }
+    }
+
+    const recentSales = salesData.map((sale) => ({
       id: sale.id,
       sale_date: sale.sale_date,
-      customer_name: sale.customers ? constructCustomerName(sale.customers) : "Bilinmeyen Müşteri",
+      customer_name: sale.customer_mid
+        ? customersMap.get(sale.customer_mid) || "Bilinmeyen Müşteri"
+        : "Bilinmeyen Müşteri",
       final_amount: sale.final_amount || 0,
       status: sale.status,
     }))
@@ -152,143 +176,159 @@ export async function getRecentSales(limit = 5): Promise<{ data?: RecentSale[]; 
   }
 }
 
-export async function getPerformanceTrendData(): Promise<{ data?: PerformanceTrendData[]; error?: string }> {
+export async function getRecentCustomers(limit = 3): Promise<{ data?: RecentCustomer[]; error?: string }> {
   noStore()
   const supabase = createClient()
   try {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("mid, contact_name, company_name, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      if (
+        error.message.includes("column") &&
+        error.message.includes("company_name") &&
+        error.message.includes("does not exist")
+      ) {
+        console.warn("company_name kolonu müşteriler tablosunda bulunamadı. Sadece contact_name kullanılacak.")
+        const { data: dataRetry, error: errorRetry } = await supabase
+          .from("customers")
+          .select("mid, contact_name, created_at")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(limit)
+
+        if (errorRetry) throw errorRetry
+        if (!dataRetry || dataRetry.length === 0) return { data: [] }
+
+        const recentCustomersRetry: RecentCustomer[] = dataRetry.map((customer) => ({
+          id: customer.mid,
+          mid: customer.mid,
+          name: constructCustomerName(customer),
+          created_at: customer.created_at,
+        }))
+        return { data: recentCustomersRetry }
+      }
+      throw error
+    }
+    if (!data || data.length === 0) {
+      return { data: [] }
+    }
+
+    const recentCustomers: RecentCustomer[] = data.map((customer) => ({
+      id: customer.mid,
+      mid: customer.mid,
+      name: constructCustomerName(customer),
+      created_at: customer.created_at,
+    }))
+
+    return { data: recentCustomers }
+  } catch (error: any) {
+    console.error("Son müşteriler alınırken hata:", error)
+    return { error: `Son müşteriler alınırken hata: ${error.message}` }
+  }
+}
+
+export async function getMonthlyRevenue(): Promise<{ data?: MonthlyRevenue[]; error?: string }> {
+  noStore()
+  const supabase = createClient()
+
+  try {
     const sixMonthsAgo = new Date()
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    const sixMonthsAgoISO = sixMonthsAgo.toISOString()
 
-    const [{ data: salesData, error: salesError }, { data: customersData, error: customersError }] = await Promise.all([
-      supabase
-        .from("sales")
-        .select("sale_date, final_amount")
-        .gte("sale_date", sixMonthsAgoISO)
-        .not("status", "in", '("cancelled", "refunded")')
-        .is("deleted_at", null),
-      supabase.from("customers").select("created_at").gte("created_at", sixMonthsAgoISO).is("deleted_at", null),
-    ])
+    const { data: salesData, error } = await supabase
+      .from("sales")
+      .select("sale_date, final_amount")
+      .gte("sale_date", sixMonthsAgo.toISOString())
+      .not("status", "in", '("cancelled", "refunded")')
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: true })
 
-    if (salesError) throw salesError
-    if (customersError) throw customersError
+    if (error) throw error
 
-    const monthlyData = new Map<string, { revenue: number; newCustomers: number }>()
+    // Aylık verileri grupla
+    const monthlyData = new Map<string, number>()
 
     salesData?.forEach((sale) => {
       const date = new Date(sale.sale_date)
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-      if (!monthlyData.has(monthKey)) monthlyData.set(monthKey, { revenue: 0, newCustomers: 0 })
-      monthlyData.get(monthKey)!.revenue += sale.final_amount || 0
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short", year: "2-digit" })
+
+      if (!monthlyData.has(monthName)) {
+        monthlyData.set(monthName, 0)
+      }
+      monthlyData.set(monthName, monthlyData.get(monthName)! + (sale.final_amount || 0))
     })
 
-    customersData?.forEach((customer) => {
-      const date = new Date(customer.created_at)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-      if (!monthlyData.has(monthKey)) monthlyData.set(monthKey, { revenue: 0, newCustomers: 0 })
-      monthlyData.get(monthKey)!.newCustomers += 1
-    })
-
-    const result: PerformanceTrendData[] = []
+    // Son 6 ayı sırala ve formatla
+    const result: MonthlyRevenue[] = []
     for (let i = 5; i >= 0; i--) {
       const date = new Date()
       date.setMonth(date.getMonth() - i)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-      const monthName = date.toLocaleDateString("tr-TR", { month: "short" })
-      const data = monthlyData.get(monthKey) || { revenue: 0, newCustomers: 0 }
-      result.push({ month: monthName, ...data })
+      const monthName = date.toLocaleDateString("tr-TR", { month: "short", year: "2-digit" })
+
+      const revenue = monthlyData.get(monthName) || 0
+      result.push({
+        month: monthName,
+        revenue: revenue,
+      })
     }
 
     return { data: result }
   } catch (error: any) {
-    console.error("Performans trendi verileri alınırken hata:", error)
-    return { error: `Performans trendi verileri alınırken hata: ${error.message}` }
+    console.error("Aylık gelir verileri alınırken hata:", error)
+    return { error: `Aylık gelir verileri alınırken hata: ${error.message}` }
   }
 }
 
-export async function getRevenueByCategory(): Promise<{ data?: RevenueByCategory[]; error?: string }> {
+export async function getTopProducts(): Promise<{ data?: TopProduct[]; error?: string }> {
   noStore()
   const supabase = createClient()
+
   try {
-    const { data: salesData, error } = await supabase
-      .from("sales")
-      .select("final_amount, sale_type")
-      .not("status", "in", '("cancelled", "refunded")')
-      .is("deleted_at", null)
-    if (error) throw error
-
-    const categoryRevenue = new Map<string, number>()
-    const colors = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF", "#FF4560"]
-
-    salesData?.forEach((sale) => {
-      const category = formatSaleTypeTR(sale.sale_type)
-      const currentRevenue = categoryRevenue.get(category) || 0
-      categoryRevenue.set(category, currentRevenue + (sale.final_amount || 0))
-    })
-
-    if (categoryRevenue.size === 0) return { data: [] }
-
-    const result: RevenueByCategory[] = Array.from(categoryRevenue.entries())
-      .map(([category, value], index) => ({ category, value, color: colors[index % colors.length] }))
-      .sort((a, b) => b.value - a.value)
-
-    return { data: result }
-  } catch (error: any) {
-    console.error("Kategoriye göre gelir verileri alınırken hata:", error)
-    return { error: `Kategoriye göre gelir verileri alınırken hata: ${error.message}` }
-  }
-}
-
-export async function getTopProducts(limit = 5): Promise<{ data?: TopProduct[]; error?: string }> {
-  noStore()
-  const supabase = createClient()
-  try {
+    // Satış detaylarından en çok satan ürünleri al
     const { data: salesItems, error } = await supabase
       .from("sale_items")
-      .select(`quantity, unit_price, products!inner(stock_code, name)`)
+      .select(`
+        product_stock_code,
+        quantity,
+        unit_price,
+        products!inner(name, stock_code)
+      `)
       .not("products.deleted_at", "is", null)
+
     if (error) throw error
-    if (!salesItems || salesItems.length === 0) return { data: [] }
 
-    const productPerformance = new Map<string, { name: string; sales: number; revenue: number }>()
+    // Ürün bazında satış verilerini grupla
+    const productSales = new Map<string, { name: string; totalSold: number; revenue: number }>()
 
-    salesItems.forEach((item: any) => {
-      if (!item.products) return
-      const { stock_code, name } = item.products
+    salesItems?.forEach((item: any) => {
+      const stockCode = item.product_stock_code
+      const productName = item.products?.name || `Ürün ${stockCode}`
+      const quantity = item.quantity || 0
       const revenue = (item.quantity || 0) * (item.unit_price || 0)
-      const current = productPerformance.get(stock_code) || { name: name || `Ürün ${stock_code}`, sales: 0, revenue: 0 }
-      current.sales += item.quantity || 0
+
+      if (!productSales.has(stockCode)) {
+        productSales.set(stockCode, { name: productName, totalSold: 0, revenue: 0 })
+      }
+
+      const current = productSales.get(stockCode)!
+      current.totalSold += quantity
       current.revenue += revenue
-      productPerformance.set(stock_code, current)
     })
 
-    const result = Array.from(productPerformance.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit)
+    // En çok satan 5 ürünü al
+    const result = Array.from(productSales.values())
+      .sort((a, b) => b.totalSold - a.totalSold)
+      .slice(0, 5)
 
     return { data: result }
   } catch (error: any) {
     console.error("En çok satan ürünler alınırken hata:", error)
     return { error: `En çok satan ürünler alınırken hata: ${error.message}` }
-  }
-}
-
-export async function getLowStockProducts(limit = 5): Promise<{ data?: LowStockProduct[]; error?: string }> {
-  noStore()
-  const supabase = createClient()
-  try {
-    const { data, error } = await supabase
-      .from("products")
-      .select("stock_code, name, quantity, low_stock_threshold")
-      .is("deleted_at", null)
-      .not("low_stock_threshold", "is", null)
-      .expr("quantity", "<", "low_stock_threshold")
-      .order("quantity", { ascending: true })
-      .limit(limit)
-    if (error) throw error
-    return { data: data || [] }
-  } catch (error: any) {
-    console.error("Düşük stoklu ürünler alınırken hata:", error)
-    return { error: `Düşük stoklu ürünler alınırken hata: ${error.message}` }
   }
 }
