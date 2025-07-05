@@ -229,4 +229,3 @@ export async function addPayment(formData: FormData) {
 
   revalidatePath(`/invoices/${validatedData.invoice_id}`)
 }
-```
