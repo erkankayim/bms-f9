@@ -3,7 +3,7 @@ import { z } from "zod"
 export const PAYMENT_METHODS = ["Nakit", "Kredi Kartı", "Banka Transferi", "Çek", "Senet", "Diğer"] as const
 
 // MID format regex for customer IDs like CUST-004
-const midRegex = /^CUST-\d{3}$/
+const midRegex = /^CUST-\d+$/
 // UUID format regex
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -19,12 +19,12 @@ export const IncomeEntrySchema = z.object({
     .optional()
     .nullable()
     .transform((val) => {
-      if (!val || val === "no-customer" || val === "") return null
+      if (!val || val === "none" || val === "") return null
       return val
     })
     .refine((val) => {
       if (val === null) return true
-      return midRegex.test(val) || uuidRegex.test(val)
+      return midRegex.test(val)
     }, "Geçerli bir müşteri seçin veya boş bırakın"),
   invoice_number: z
     .string()

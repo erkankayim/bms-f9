@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
@@ -15,16 +15,16 @@ import {
   UserPlus,
   PackagePlus,
   FileText,
-  Briefcase,
+  Warehouse,
+  AlertTriangle,
 } from "lucide-react"
 import {
   getDashboardStats,
   getRecentSales,
-  getRecentCustomers,
-  getSalesTrendData,
-  getCustomerGrowthData,
-  getTopProducts,
+  getPerformanceTrendData,
   getRevenueByCategory,
+  getTopProducts,
+  getLowStockProducts,
 } from "./_actions/dashboard-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrencyTR, formatSimpleDateTR, getSaleStatusBadgeVariant, formatSaleStatusTR } from "@/lib/utils"
@@ -36,28 +36,25 @@ export default async function DashboardPage() {
   const [
     statsResult,
     recentSalesResult,
-    recentCustomersResult,
-    salesTrendResult,
-    customerGrowthResult,
-    topProductsResult,
+    performanceTrendResult,
     revenueByCategoryResult,
+    topProductsResult,
+    lowStockProductsResult,
   ] = await Promise.all([
     getDashboardStats(),
     getRecentSales(5),
-    getRecentCustomers(3),
-    getSalesTrendData(),
-    getCustomerGrowthData(),
-    getTopProducts(),
+    getPerformanceTrendData(),
     getRevenueByCategory(),
+    getTopProducts(5),
+    getLowStockProducts(5),
   ])
 
   const stats = statsResult.data
   const recentSales = recentSalesResult.data
-  const recentCustomers = recentCustomersResult.data
-  const salesTrendData = salesTrendResult.data || []
-  const customerGrowthData = customerGrowthResult.data || []
-  const topProducts = topProductsResult.data || []
+  const performanceTrendData = performanceTrendResult.data || []
   const revenueByCategory = revenueByCategoryResult.data || []
+  const topProducts = topProductsResult.data || []
+  const lowStockProducts = lowStockProductsResult.data || []
 
   if (statsResult.error || !stats) {
     return (
@@ -93,13 +90,13 @@ export default async function DashboardPage() {
     },
     {
       title: "Toplam Gelir",
-      value: formatCurrencyTR(stats.totalRevenue, stats.currency),
+      value: formatCurrencyTR(stats.totalRevenue),
       icon: DollarSign,
       description: "Onaylanmış satış geliri.",
     },
     {
       title: "Ort. Satış Değeri",
-      value: formatCurrencyTR(stats.averageSaleValue, stats.currency),
+      value: formatCurrencyTR(stats.averageSaleValue),
       icon: TrendingUp,
       description: "Satış başına ortalama.",
     },
@@ -113,13 +110,11 @@ export default async function DashboardPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Kontrol Paneli</h1>
             <p className="text-sm text-muted-foreground">İşletmenizin genel durumuna hızlı bir bakış.</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button asChild size="sm" className="whitespace-nowrap">
-              <Link href="/sales/new">
-                <PlusCircle className="mr-2 h-4 w-4" /> Yeni Satış Oluştur
-              </Link>
-            </Button>
-          </div>
+          <Button asChild size="sm" className="whitespace-nowrap">
+            <Link href="/sales/new">
+              <PlusCircle className="mr-2 h-4 w-4" /> Yeni Satış Oluştur
+            </Link>
+          </Button>
         </div>
 
         {/* KPI Cards */}
@@ -138,139 +133,46 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        {/* Grafikler - Gerçek Verilerle */}
-        <DashboardCharts
-          salesTrendData={salesTrendData}
-          customerGrowthData={customerGrowthData}
-          revenueByCategory={revenueByCategory}
-          topProducts={topProducts}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <DashboardCharts
+              performanceTrendData={performanceTrendData}
+              revenueByCategory={revenueByCategory}
+              topProducts={topProducts}
+            />
+          </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-          {/* Recent Sales */}
-          <Card className="lg:col-span-4 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Son Satışlar</CardTitle>
-                <CardDescription>En son yapılan 5 satış işlemi.</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/sales">
-                  Tüm Satışlar <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {recentSales && recentSales.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Müşteri</TableHead>
-                      <TableHead className="hidden sm:table-cell">Tarih</TableHead>
-                      <TableHead>Durum</TableHead>
-                      <TableHead className="text-right">Tutar</TableHead>
-                      <TableHead className="text-right w-[80px]">Detay</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentSales.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>
-                          <div
-                            className="font-medium truncate max-w-[150px] sm:max-w-xs"
-                            title={sale.customer_name || undefined}
-                          >
-                            {sale.customer_name}
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">{formatSimpleDateTR(sale.sale_date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={getSaleStatusBadgeVariant(sale.status)} className="whitespace-nowrap">
-                            {formatSaleStatusTR(sale.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          {formatCurrencyTR(sale.final_amount, stats.currency)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" asChild className="h-8 w-8">
-                            <Link href={`/sales/${sale.id}`} title="Satış Detayları">
-                              <ArrowRight className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8">
-                  <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Henüz satış kaydı bulunmamaktadır.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions & Recent Customers */}
-          <div className="lg:col-span-3 space-y-6">
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Hızlı İşlemler</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {[
-                  { href: "/customers/new", label: "Yeni Müşteri", icon: UserPlus },
-                  { href: "/products/new", label: "Yeni Ürün", icon: PackagePlus },
-                  { href: "/inventory", label: "Envanter", icon: ListChecks },
-                  { href: "/invoices/new", label: "Yeni Fatura", icon: FileText },
-                  { href: "/financials", label: "Finansallar", icon: Briefcase },
-                ].map((action) => (
-                  <Button
-                    key={action.href}
-                    variant="outline"
-                    className="w-full justify-start text-sm bg-transparent"
-                    asChild
-                  >
-                    <Link href={action.href}>
-                      <action.icon className="mr-2 h-4 w-4" /> {action.label}
-                    </Link>
-                  </Button>
-                ))}
-              </CardContent>
-            </Card>
-
+          <div className="lg:col-span-1 space-y-6">
             <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Yeni Müşteriler</CardTitle>
-                  <CardDescription>En son eklenen 3 müşteri.</CardDescription>
-                </div>
+                <CardTitle>Düşük Stok Uyarıları</CardTitle>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/customers">
-                    Tüm Müşteriler <ArrowRight className="ml-2 h-4 w-4" />
+                  <Link href="/inventory/alerts">
+                    Tümü <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
               </CardHeader>
               <CardContent>
-                {recentCustomers && recentCustomers.length > 0 ? (
+                {lowStockProducts.length > 0 ? (
                   <ul className="space-y-4">
-                    {recentCustomers.map((customer) => (
-                      <li key={customer.mid} className="flex items-center justify-between gap-2">
+                    {lowStockProducts.map((p) => (
+                      <li key={p.stock_code} className="flex items-center gap-4">
+                        <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={`/customers/${customer.mid}`}
-                            className="font-medium hover:underline truncate block"
-                            title={customer.name}
+                            href={`/products/${p.stock_code}`}
+                            className="font-medium hover:underline truncate block text-sm"
+                            title={p.name}
                           >
-                            {customer.name}
+                            {p.name}
                           </Link>
                           <p className="text-xs text-muted-foreground">
-                            Kayıt: {formatSimpleDateTR(customer.created_at)}
+                            Kalan: <span className="font-semibold text-destructive">{p.quantity}</span> / Eşik:{" "}
+                            {p.low_stock_threshold}
                           </p>
                         </div>
                         <Button variant="ghost" size="icon" asChild className="h-8 w-8 flex-shrink-0">
-                          <Link href={`/customers/${customer.mid}`} title="Müşteri Detayları">
+                          <Link href={`/products/${p.stock_code}`} title="Ürün Detayları">
                             <ArrowRight className="h-4 w-4" />
                           </Link>
                         </Button>
@@ -278,15 +180,101 @@ export default async function DashboardPage() {
                     ))}
                   </ul>
                 ) : (
-                  <div className="text-center py-6">
-                    <Users className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Henüz müşteri kaydı bulunmamaktadır.</p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ListChecks className="mx-auto h-10 w-10 mb-2" />
+                    <p className="text-sm font-medium">Tüm stoklar yolunda!</p>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Hızlı İşlemler</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                {[
+                  { href: "/customers/new", label: "Yeni Müşteri", icon: UserPlus },
+                  { href: "/products/new", label: "Yeni Ürün", icon: PackagePlus },
+                  { href: "/inventory/adjust", label: "Stok Ayarla", icon: Warehouse },
+                  { href: "/invoices/new", label: "Yeni Fatura", icon: FileText },
+                ].map((a) => (
+                  <Button
+                    key={a.href}
+                    variant="outline"
+                    className="w-full justify-start text-sm bg-transparent"
+                    asChild
+                  >
+                    <Link href={a.href}>
+                      <a.icon className="mr-2 h-4 w-4" /> {a.label}
+                    </Link>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
           </div>
         </div>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Son Satışlar</CardTitle>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/sales">
+                Tüm Satışlar <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {recentSales && recentSales.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Müşteri</TableHead>
+                    <TableHead className="hidden sm:table-cell">Tarih</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead className="text-right">Tutar</TableHead>
+                    <TableHead className="text-right w-[80px]">Detay</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentSales.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell>
+                        <div
+                          className="font-medium truncate max-w-[150px] sm:max-w-xs"
+                          title={sale.customer_name || undefined}
+                        >
+                          {sale.customer_name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">{formatSimpleDateTR(sale.sale_date)}</TableCell>
+                      <TableCell>
+                        <Badge variant={getSaleStatusBadgeVariant(sale.status)} className="whitespace-nowrap">
+                          {formatSaleStatusTR(sale.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrencyTR(sale.final_amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" asChild className="h-8 w-8">
+                          <Link href={`/sales/${sale.id}`} title="Satış Detayları">
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8">
+                <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Henüz satış kaydı bulunmamaktadır.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

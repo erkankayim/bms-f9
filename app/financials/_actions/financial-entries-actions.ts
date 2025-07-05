@@ -41,8 +41,7 @@ export type IncomeEntryWithDetails = {
   customer_id: string | null
   category_id: number
   customer_name: string | null
-  category_name: string | null
-  customer_mid: string | null
+  category_mid: string | null
   created_at: string
 }
 
@@ -447,19 +446,19 @@ export async function deleteExpenseEntry(id: number): Promise<{ success: boolean
   }
 }
 
-// Helper function to verify customer exists by MID
-async function verifyCustomerByMID(supabase: any, mid: string): Promise<boolean> {
+// Helper function to get customer UUID by MID
+async function getCustomerUUIDByMID(supabase: any, mid: string): Promise<string | null> {
   try {
-    const { data: customer, error } = await supabase.from("customers").select("mid").eq("mid", mid).single()
+    const { data: customer, error } = await supabase.from("customers").select("id").eq("mid", mid).single()
 
     if (error || !customer) {
       console.error(`Customer with MID ${mid} not found.`, error)
-      return false
+      return null
     }
-    return true
+    return customer.id
   } catch (error) {
     console.error(`Error verifying customer MID ${mid}:`, error)
-    return false
+    return null
   }
 }
 
@@ -504,20 +503,20 @@ export async function createIncomeEntryAction(
       entry_date,
       category_id,
       source,
-      customer_id,
+      customer_id, // This is the MID from the form
       invoice_number,
       payment_method,
       notes,
     } = validatedFields.data
 
-    // Handle customer_id - if provided and not "none", verify it exists
+    // Handle customer_id - if provided, get the UUID
     let finalCustomerId: string | null = null
-    if (customer_id && customer_id !== "none") {
-      const customerExists = await verifyCustomerByMID(supabase, customer_id)
-      if (!customerExists) {
+    if (customer_id) {
+      const customerUUID = await getCustomerUUIDByMID(supabase, customer_id)
+      if (!customerUUID) {
         return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
       }
-      finalCustomerId = customer_id // Use MID directly as customer_id
+      finalCustomerId = customerUUID
     }
 
     const { error } = await supabase.from("income_entries").insert({
@@ -526,7 +525,7 @@ export async function createIncomeEntryAction(
       entry_date,
       category_id,
       source,
-      customer_id: finalCustomerId,
+      customer_id: finalCustomerId, // Use the UUID
       invoice_number,
       payment_method,
       notes,
@@ -572,20 +571,20 @@ export async function updateIncomeEntryAction(
       entry_date,
       category_id,
       source,
-      customer_id,
+      customer_id, // This is the MID from the form
       invoice_number,
       payment_method,
       notes,
     } = validatedFields.data
 
-    // Handle customer_id - if provided and not "none", verify it exists
+    // Handle customer_id - if provided, get the UUID
     let finalCustomerId: string | null = null
-    if (customer_id && customer_id !== "none") {
-      const customerExists = await verifyCustomerByMID(supabase, customer_id)
-      if (!customerExists) {
+    if (customer_id) {
+      const customerUUID = await getCustomerUUIDByMID(supabase, customer_id)
+      if (!customerUUID) {
         return { success: false, message: `Seçilen müşteri (${customer_id}) bulunamadı.` }
       }
-      finalCustomerId = customer_id // Use MID directly as customer_id
+      finalCustomerId = customerUUID
     }
 
     const { error } = await supabase
@@ -596,7 +595,7 @@ export async function updateIncomeEntryAction(
         entry_date,
         category_id,
         source,
-        customer_id: finalCustomerId,
+        customer_id: finalCustomerId, // Use the UUID
         invoice_number,
         payment_method,
         notes,
