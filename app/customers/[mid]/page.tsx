@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import {
   ArrowLeft,
@@ -20,16 +22,40 @@ import {
   Users,
   AlertCircle,
   CheckCircle,
+  ShoppingCart,
+  Eye,
+  TrendingUp,
 } from "lucide-react"
 import { DeleteCustomerDialog } from "./_components/delete-customer-dialog"
 
+// Type definitions
+interface Sale {
+  id: number
+  sale_date: string
+  total_amount: number | null
+  discount_amount: number | null
+  tax_amount: number | null
+  final_amount: number | null
+  payment_method: string | null
+  status: string | null
+  sale_currency: string | null
+  is_installment: boolean | null
+  installment_count: number | null
+  notes: string | null
+  created_at: string
+}
+
 // Utility functions
-function formatCurrency(amount: number | null): string {
+function formatCurrency(amount: number | null, currency = "TRY"): string {
   if (amount === null || amount === undefined) return "₺0,00"
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-  }).format(amount)
+  try {
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: currency,
+    }).format(amount)
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`
+  }
 }
 
 function formatDate(dateString: string): string {
@@ -56,6 +82,54 @@ function formatDateTime(dateString: string): string {
   } catch {
     return "Geçersiz tarih"
   }
+}
+
+function getStatusBadgeVariant(status: string | null): "default" | "secondary" | "destructive" | "outline" {
+  if (!status) return "secondary"
+
+  switch (status.toLowerCase()) {
+    case "completed":
+    case "tamamlandı":
+      return "default"
+    case "pending":
+    case "beklemede":
+      return "secondary"
+    case "cancelled":
+    case "iptal":
+    case "iptal edildi":
+      return "destructive"
+    case "refunded":
+    case "iade edildi":
+      return "outline"
+    default:
+      return "secondary"
+  }
+}
+
+function formatStatus(status: string | null): string {
+  if (!status) return "Bilinmiyor"
+
+  const statusMap: Record<string, string> = {
+    completed: "Tamamlandı",
+    pending: "Beklemede",
+    cancelled: "İptal Edildi",
+    refunded: "İade Edildi",
+  }
+
+  return statusMap[status.toLowerCase()] || status
+}
+
+function formatPaymentMethod(method: string | null): string {
+  if (!method) return "-"
+
+  const methodMap: Record<string, string> = {
+    cash: "Nakit",
+    credit_card: "Kredi Kartı",
+    bank_transfer: "Banka Havalesi",
+    other: "Diğer",
+  }
+
+  return methodMap[method.toLowerCase()] || method
 }
 
 // Info display component
@@ -99,6 +173,115 @@ function InfoField({
   )
 }
 
+// Sales History Component
+function CustomerSalesHistory({ sales }: { sales: Sale[] }) {
+  if (!sales || sales.length === 0) {
+    return (
+      <Alert>
+        <ShoppingCart className="h-4 w-4" />
+        <AlertTitle>Satış Geçmişi Yok</AlertTitle>
+        <AlertDescription>Bu müşteri için henüz bir satış kaydedilmemiş.</AlertDescription>
+      </Alert>
+    )
+  }
+
+  // Calculate totals
+  const totalSales = sales.length
+  const totalAmount = sales.reduce((sum, sale) => sum + (sale.final_amount || 0), 0)
+  const averageOrderValue = totalAmount / totalSales
+
+  return (
+    <div className="space-y-6">
+      {/* Sales Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Toplam Satış</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalSales}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Toplam Tutar</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalAmount)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ortalama Sipariş</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(averageOrderValue)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Sales Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Satış Detayları</CardTitle>
+          <CardDescription>Bu müşteriye yapılan tüm satışların listesi</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Satış ID</TableHead>
+                <TableHead>Tarih</TableHead>
+                <TableHead>Ödeme Yöntemi</TableHead>
+                <TableHead>Durum</TableHead>
+                <TableHead className="text-right">Tutar</TableHead>
+                <TableHead className="text-center">Taksit</TableHead>
+                <TableHead className="text-center">İşlemler</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sales.map((sale) => (
+                <TableRow key={sale.id}>
+                  <TableCell className="font-mono text-xs">#{sale.id}</TableCell>
+                  <TableCell>{formatDate(sale.sale_date)}</TableCell>
+                  <TableCell>{formatPaymentMethod(sale.payment_method)}</TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(sale.status)}>{formatStatus(sale.status)}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(sale.final_amount, sale.sale_currency || "TRY")}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {sale.is_installment && sale.installment_count ? (
+                      <Badge variant="outline" className="text-xs">
+                        {sale.installment_count} Taksit
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Peşin</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/sales/${sale.id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 export default async function CustomerDetailPage({
   params,
 }: {
@@ -130,6 +313,29 @@ export default async function CustomerDetailPage({
       notFound()
     }
 
+    // Fetch sales data for this customer
+    const { data: salesData, error: salesError } = await supabase
+      .from("sales")
+      .select(`
+        id,
+        sale_date,
+        total_amount,
+        discount_amount,
+        tax_amount,
+        final_amount,
+        payment_method,
+        status,
+        sale_currency,
+        is_installment,
+        installment_count,
+        notes,
+        created_at
+      `)
+      .eq("customer_mid", customerId)
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: false })
+
+    const sales: Sale[] = salesData || []
     const isDeleted = !!customer.deleted_at
 
     return (
@@ -193,166 +399,198 @@ export default async function CustomerDetailPage({
                     Aktif
                   </Badge>
                 )}
+                {sales.length > 0 && (
+                  <Badge variant="secondary" className="text-sm">
+                    {sales.length} Satış
+                  </Badge>
+                )}
               </div>
             </div>
           </CardHeader>
         </Card>
 
-        {/* Customer Details */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5 text-blue-600" />
-                Temel Bilgiler
-              </CardTitle>
-              <CardDescription>Müşterinin temel iletişim bilgileri</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <InfoField label="Müşteri ID" value={customer.mid} icon={<FileText className="h-4 w-4" />} />
+        {/* Tabs for Customer Info and Sales */}
+        <Tabs defaultValue="info" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="info">Müşteri Bilgileri</TabsTrigger>
+            <TabsTrigger value="sales">Satış Geçmişi ({sales.length})</TabsTrigger>
+          </TabsList>
 
-              <InfoField label="İletişim Adı" value={customer.contact_name} icon={<User className="h-4 w-4" />} />
+          {/* Customer Information Tab */}
+          <TabsContent value="info" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Basic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-600" />
+                    Temel Bilgiler
+                  </CardTitle>
+                  <CardDescription>Müşterinin temel iletişim bilgileri</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <InfoField label="Müşteri ID" value={customer.mid} icon={<FileText className="h-4 w-4" />} />
 
-              <InfoField
-                label="Şirket/Servis Adı"
-                value={customer.service_name}
-                icon={<Building className="h-4 w-4" />}
-              />
+                  <InfoField label="İletişim Adı" value={customer.contact_name} icon={<User className="h-4 w-4" />} />
 
-              <InfoField
-                label="E-posta"
-                value={customer.email}
-                icon={<Mail className="h-4 w-4" />}
-                isLink={true}
-                linkType="email"
-              />
+                  <InfoField
+                    label="Şirket/Servis Adı"
+                    value={customer.service_name}
+                    icon={<Building className="h-4 w-4" />}
+                  />
 
-              <InfoField
-                label="Telefon"
-                value={customer.phone}
-                icon={<Phone className="h-4 w-4" />}
-                isLink={true}
-                linkType="phone"
-              />
-            </CardContent>
-          </Card>
+                  <InfoField
+                    label="E-posta"
+                    value={customer.email}
+                    icon={<Mail className="h-4 w-4" />}
+                    isLink={true}
+                    linkType="email"
+                  />
 
-          {/* Address Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-green-600" />
-                Adres Bilgileri
-              </CardTitle>
-              <CardDescription>Müşterinin adres ve konum bilgileri</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <InfoField label="Adres" value={customer.address} icon={<MapPin className="h-4 w-4" />} />
+                  <InfoField
+                    label="Telefon"
+                    value={customer.phone}
+                    icon={<Phone className="h-4 w-4" />}
+                    isLink={true}
+                    linkType="phone"
+                  />
+                </CardContent>
+              </Card>
 
-              <InfoField label="Şehir" value={customer.city} />
+              {/* Address Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-green-600" />
+                    Adres Bilgileri
+                  </CardTitle>
+                  <CardDescription>Müşterinin adres ve konum bilgileri</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <InfoField label="Adres" value={customer.address} icon={<MapPin className="h-4 w-4" />} />
 
-              <InfoField label="İl" value={customer.province} />
+                  <InfoField label="Şehir" value={customer.city} />
 
-              <InfoField label="Posta Kodu" value={customer.postal_code} />
-            </CardContent>
-          </Card>
-        </div>
+                  <InfoField label="İl" value={customer.province} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Tax Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-purple-600" />
-                Vergi Bilgileri
-              </CardTitle>
-              <CardDescription>Faturalama için vergi bilgileri</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <InfoField label="Vergi Dairesi" value={customer.tax_office} icon={<Building className="h-4 w-4" />} />
-
-              <InfoField label="Vergi Numarası" value={customer.tax_number} icon={<CreditCard className="h-4 w-4" />} />
-            </CardContent>
-          </Card>
-
-          {/* Additional Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-orange-600" />
-                Diğer Bilgiler
-              </CardTitle>
-              <CardDescription>Ek müşteri bilgileri</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <InfoField label="Müşteri Grubu" value={customer.customer_group} icon={<Users className="h-4 w-4" />} />
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <label className="text-sm font-medium text-muted-foreground">Bakiye</label>
-                </div>
-                <div className="text-sm">
-                  <span
-                    className={`font-medium ${
-                      customer.balance && customer.balance < 0
-                        ? "text-red-600"
-                        : customer.balance && customer.balance > 0
-                          ? "text-green-600"
-                          : "text-gray-600"
-                    }`}
-                  >
-                    {formatCurrency(customer.balance)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Notes Section */}
-        {customer.notes && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-gray-600" />
-                Notlar
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{customer.notes}</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* System Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-gray-600" />
-              Sistem Bilgileri
-            </CardTitle>
-            <CardDescription>Kayıt ve güncelleme tarihleri</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InfoField
-                label="Oluşturulma Tarihi"
-                value={formatDateTime(customer.created_at)}
-                icon={<Calendar className="h-4 w-4" />}
-              />
-
-              <InfoField
-                label="Son Güncelleme"
-                value={formatDateTime(customer.updated_at)}
-                icon={<Calendar className="h-4 w-4" />}
-              />
+                  <InfoField label="Posta Kodu" value={customer.postal_code} />
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Tax Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-purple-600" />
+                    Vergi Bilgileri
+                  </CardTitle>
+                  <CardDescription>Faturalama için vergi bilgileri</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <InfoField
+                    label="Vergi Dairesi"
+                    value={customer.tax_office}
+                    icon={<Building className="h-4 w-4" />}
+                  />
+
+                  <InfoField
+                    label="Vergi Numarası"
+                    value={customer.tax_number}
+                    icon={<CreditCard className="h-4 w-4" />}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Additional Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-orange-600" />
+                    Diğer Bilgiler
+                  </CardTitle>
+                  <CardDescription>Ek müşteri bilgileri</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <InfoField
+                    label="Müşteri Grubu"
+                    value={customer.customer_group}
+                    icon={<Users className="h-4 w-4" />}
+                  />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium text-muted-foreground">Bakiye</label>
+                    </div>
+                    <div className="text-sm">
+                      <span
+                        className={`font-medium ${
+                          customer.balance && customer.balance < 0
+                            ? "text-red-600"
+                            : customer.balance && customer.balance > 0
+                              ? "text-green-600"
+                              : "text-gray-600"
+                        }`}
+                      >
+                        {formatCurrency(customer.balance)}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Notes Section */}
+            {customer.notes && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-gray-600" />
+                    Notlar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{customer.notes}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* System Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-gray-600" />
+                  Sistem Bilgileri
+                </CardTitle>
+                <CardDescription>Kayıt ve güncelleme tarihleri</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <InfoField
+                    label="Oluşturulma Tarihi"
+                    value={formatDateTime(customer.created_at)}
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+
+                  <InfoField
+                    label="Son Güncelleme"
+                    value={formatDateTime(customer.updated_at)}
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Sales History Tab */}
+          <TabsContent value="sales" className="space-y-6">
+            <CustomerSalesHistory sales={sales} />
+          </TabsContent>
+        </Tabs>
 
         {/* Deleted Customer Warning */}
         {isDeleted && (
