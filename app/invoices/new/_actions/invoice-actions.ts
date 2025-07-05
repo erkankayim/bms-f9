@@ -15,8 +15,8 @@ const invoiceSchema = z.object({
   document_number: z.string().optional(),
   issue_date: z.string().min(1, "Düzenleme tarihi zorunludur"),
   due_date: z.string().optional(),
-  customer_id: z.string().optional(),
-  supplier_id: z.string().optional(),
+  customer_id: z.string().nullable().optional(), // null veya undefined kabul edilir
+  supplier_id: z.string().nullable().optional(), // null veya undefined kabul edilir
   total_amount: z.coerce.number().min(0, "Toplam tutar 0 veya daha büyük olmalıdır"),
   tax_amount: z.coerce.number().min(0, "Vergi tutarı 0 veya daha büyük olmalıdır").default(0),
   discount_amount: z.coerce.number().min(0, "İndirim tutarı 0 veya daha büyük olmalıdır").default(0),
@@ -91,6 +91,9 @@ export async function getProductsForInvoice() {
 export async function createInvoice(formData: FormData) {
   const supabase = await createClient()
 
+  // Form verilerini logla
+  console.log("FormData:", Object.fromEntries(formData))
+
   // Form verilerini parse et
   const rawData = {
     invoice_number: formData.get("invoice_number") as string,
@@ -99,16 +102,34 @@ export async function createInvoice(formData: FormData) {
     document_number: formData.get("document_number") as string,
     issue_date: formData.get("issue_date") as string,
     due_date: formData.get("due_date") as string,
-    customer_id: formData.get("customer_id") as string,
-    supplier_id: formData.get("supplier_id") as string,
-    total_amount: Number.parseFloat(formData.get("total_amount") as string) || 0,
-    tax_amount: Number.parseFloat(formData.get("tax_amount") as string) || 0,
-    discount_amount: Number.parseFloat(formData.get("discount_amount") as string) || 0,
+    customer_id: formData.get("customer_id") as string | null,
+    supplier_id: formData.get("supplier_id") as string | null,
+    total_amount: formData.get("total_amount"),
+    tax_amount: formData.get("tax_amount"),
+    discount_amount: formData.get("discount_amount"),
     notes: formData.get("notes") as string,
   }
 
   // Validasyon
-  const validatedData = invoiceSchema.parse(rawData)
+  const validatedFields = invoiceSchema.safeParse(rawData)
+
+  if (!validatedFields.success) {
+    console.log("Validation errors:", validatedFields.error.flatten().fieldErrors)
+    return {
+      error: "Geçersiz form verileri",
+      details: validatedFields.error.flatten().fieldErrors,
+    }
+  }
+
+  const validatedData = validatedFields.data
+
+  // Fatura türüne göre müşteri/tedarikçi kontrolü
+  if (validatedData.invoice_type === "outgoing" && !validatedData.customer_id) {
+    return { error: "Giden fatura için müşteri seçimi gereklidir" }
+  }
+  if (validatedData.invoice_type === "incoming" && !validatedData.supplier_id) {
+    return { error: "Gelen fatura için tedarikçi seçimi gereklidir" }
+  }
 
   // Faturayı veritabanına ekle
   const { data, error } = await supabase
@@ -120,13 +141,14 @@ export async function createInvoice(formData: FormData) {
       due_date: validatedData.due_date || null,
       document_number: validatedData.document_number || null,
       notes: validatedData.notes || null,
+      status: "draft",
     })
     .select()
     .single()
 
   if (error) {
     console.error("Error creating invoice:", error)
-    throw new Error("Fatura oluşturulurken bir hata oluştu")
+    return { error: "Fatura oluşturulurken bir hata oluştu", details: error.message }
   }
 
   revalidatePath("/invoices")
@@ -202,7 +224,7 @@ export async function addPayment(formData: FormData) {
 
   if (error) {
     console.error("Error adding payment:", error)
-    throw new Error("Ödeme eklenirken bir hata oluştu")
+    return { error: "Ödeme eklenirken bir hata oluştu", details: error.message }
   }
 
   revalidatePath(`/invoices/${validatedData.invoice_id}`)
