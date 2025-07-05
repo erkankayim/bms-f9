@@ -18,7 +18,7 @@ export async function getIncomeEntries() {
         payment_method,
         notes,
         created_at,
-        customers!customer_id (
+        customers!mid (
           contact_name
         ),
         financial_categories!category_id (

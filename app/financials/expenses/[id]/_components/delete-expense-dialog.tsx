@@ -21,9 +21,10 @@ import { toast } from "sonner"
 interface DeleteExpenseDialogProps {
   expenseId: string
   expenseTitle: string
+  onDelete?: () => void
 }
 
-export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDialogProps) {
+export function DeleteExpenseDialog({ expenseId, expenseTitle, onDelete }: DeleteExpenseDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [open, setOpen] = useState(false)
   const router = useRouter()
@@ -42,7 +43,14 @@ export function DeleteExpenseDialog({ expenseId, expenseTitle }: DeleteExpenseDi
           description: "Gider kaydı başarıyla silindi.",
         })
         setOpen(false)
-        router.push("/financials/expenses")
+
+        // Eğer onDelete callback'i varsa çağır (liste sayfası için)
+        if (onDelete) {
+          onDelete()
+        } else {
+          // Detay sayfasındaysak ana sayfaya yönlendir
+          router.push("/financials/expenses")
+        }
       }
     } catch (error) {
       toast.error("Hata", {

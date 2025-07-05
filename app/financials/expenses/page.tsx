@@ -36,29 +36,26 @@ export default function ExpensesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all")
 
-  useEffect(() => {
-    async function fetchExpenses() {
-      try {
-        console.log("Fetching expenses from client...")
-        const result = await getExpenseEntries()
+  const fetchExpenses = async () => {
+    try {
+      const result = await getExpenseEntries()
 
-        console.log("Expense fetch result:", result)
-
-        if (result.data) {
-          setExpenses(result.data)
-          setFilteredExpenses(result.data)
-          setError(null)
-        } else {
-          setError(result.error || "Veri yüklenirken hata oluştu")
-        }
-      } catch (err) {
-        console.error("Client error:", err)
-        setError("Beklenmeyen bir hata oluştu")
-      } finally {
-        setLoading(false)
+      if (result.data) {
+        setExpenses(result.data)
+        setFilteredExpenses(result.data)
+        setError(null)
+      } else {
+        setError(result.error || "Veri yüklenirken hata oluştu")
       }
+    } catch (err) {
+      console.error("Client error:", err)
+      setError("Beklenmeyen bir hata oluştu")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchExpenses()
   }, [])
 
@@ -84,6 +81,11 @@ export default function ExpensesPage() {
 
     setFilteredExpenses(filtered)
   }, [expenses, searchTerm, selectedPaymentMethod])
+
+  const handleExpenseDeleted = () => {
+    // Silme işlemi başarılı olduktan sonra listeyi yenile
+    fetchExpenses()
+  }
 
   const totalAmount = filteredExpenses.reduce((sum, expense) => sum + (expense.expense_amount || 0), 0)
   const totalPayment = filteredExpenses.reduce((sum, expense) => sum + (expense.payment_amount || 0), 0)
@@ -327,6 +329,7 @@ export default function ExpensesPage() {
                           <DeleteExpenseDialog
                             expenseId={expense.id.toString()}
                             expenseTitle={expense.expense_title || "Gider"}
+                            onDelete={handleExpenseDeleted}
                           />
                         </div>
                       </TableCell>
